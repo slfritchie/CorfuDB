@@ -292,6 +292,7 @@ public class ConfigMasterServer implements ICorfuDBServer {
         log.info("Starting view check thread");
         while(running)
         {
+
             try {
                 boolean success = currentView.isViewAccessible();
                 if (success && !viewActive)
