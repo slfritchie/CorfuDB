@@ -275,6 +275,7 @@ public class ConfigMasterServer implements Runnable, ICorfuDBServer {
         log.info("Starting view check thread");
         while(true)
         {
+
             try {
                 boolean success = currentView.isViewAccessible();
                 if (success && !viewActive)
