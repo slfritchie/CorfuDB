@@ -56,22 +56,6 @@ public class CorfuInfrastructureBuilder {
 
     }
 
-    /***
-     *
-     * @param replicationProtocol   set the configuration to use the replication protocol specified by this string code
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    public CorfuInfrastructureBuilder setReplicationProtocol(String replicationProtocol) {
-        List<Map<String,Object>> segmentMap;
-        HashMap<String, Object> segmentHashMap;
-
-        segmentMap = (List<Map<String,Object>>) configMap.get("segments");
-        segmentHashMap = (HashMap<String, Object>) segmentMap.get(0);
-        segmentHashMap.replace("replication", replicationProtocol);
-        return this;
-    }
-
     /**
      * Add a sequencer to this configuration at the specified port.
      * @param port      The port this sequencer will serve on.
