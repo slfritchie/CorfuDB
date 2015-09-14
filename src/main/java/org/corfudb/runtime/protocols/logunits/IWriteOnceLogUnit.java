@@ -70,5 +70,9 @@ public interface IWriteOnceLogUnit extends IServerProtocol {
     default void setHintsFlatTxn(long address, Set<UUID> streams, byte[] flatTxn) throws TrimmedException, NetworkException {
         throw new UnsupportedOperationException("Log unit doesn't support hints updates");
     }
+
+    default void setCommit(long address, UUID stream, boolean commit) throws TrimmedException, NetworkException {
+        throw new UnsupportedOperationException("Log unit doesn't support commit bits");
+    }
 }
 

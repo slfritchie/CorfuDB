@@ -578,6 +578,15 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
         }
     }
 
+    @Override
+    synchronized public ErrorCode setCommit(UnitServerHdr hdr, boolean commit) {
+        if (Util.compareIncarnations(hdr.getEpoch(), masterIncarnation) < 0) return ErrorCode.ERR_STALEEPOCH;
+        log.info("setCommit({})", hdr.off);
+
+        setExtntCommit(hdr.off, commit);
+        return ErrorCode.OK;
+    }
+
 	/**
 	 * mark an extent 'skipped'
 	 * @param hdr epoch and offset of the extent

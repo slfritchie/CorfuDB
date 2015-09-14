@@ -121,12 +121,12 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
         try {
             ArrayList<Integer> epochlist = new ArrayList<Integer>();
             epochlist.add(epoch.intValue());
-            Set<org.corfudb.infrastructure.thrift.UUID> thriftStreams = new HashSet<org.corfudb.infrastructure.thrift.UUID>();
+            Map<org.corfudb.infrastructure.thrift.UUID, Long> thriftStreams = new HashMap<org.corfudb.infrastructure.thrift.UUID, Long>();
             for (UUID stream : streams) {
-                thriftStreams.add(Utils.toThriftUUID(stream));
+                thriftStreams.put(Utils.toThriftUUID(stream), null);
             }
 
-            WriteResult wr = client.write(new UnitServerHdr(epochlist, address, thriftStreams), ByteBuffer.wrap(data), ExtntMarkType.EX_FILLED);
+            WriteResult wr = client.write(new StreamUnitServerHdr(epochlist, address, thriftStreams), ByteBuffer.wrap(data), ExtntMarkType.EX_FILLED);
             thriftPool.returnResourceObject(client);
             success = true;
             if (wr.getCode().equals(ErrorCode.ERR_OVERWRITE))
@@ -199,6 +199,37 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
             }
         }
         return data;
+    }
+
+    @Override
+    public void setCommit(long address, UUID stream, boolean commit) throws TrimmedException, NetworkException {
+        RocksLogUnitService.Client client = thriftPool.getResource();
+        boolean success = false;
+        boolean broken = false;
+        try {
+            ArrayList<Integer> epochlist = new ArrayList<Integer>();
+            epochlist.add(epoch.intValue());
+            ErrorCode ec = client.setCommit(new UnitServerHdr(epochlist, address, Collections.singleton(Utils.toThriftUUID(stream))), commit);
+            thriftPool.returnResourceObject(client);
+            success = true;
+            if(ec.equals(ErrorCode.ERR_STALEEPOCH))
+            {
+                throw new NetworkException("Writing to log unit in wrong epoch", this, address, false);
+            }
+            //TODO: what happens if ERR_IO is thrown??
+        }
+        catch (TException e)
+        {
+            broken = true;
+            thriftPool.returnBrokenResource(client);
+            throw new NetworkException("Error writing to log unit: " + e.getMessage(), this, address, true);
+        }
+        finally {
+            if (!success && !broken)
+            {
+                thriftPool.returnResourceObject(client);
+            }
+        }
     }
 
     public void trim(long address)

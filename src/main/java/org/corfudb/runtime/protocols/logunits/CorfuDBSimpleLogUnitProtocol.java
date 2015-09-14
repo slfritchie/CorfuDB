@@ -389,6 +389,37 @@ public class CorfuDBSimpleLogUnitProtocol implements IServerProtocol, IWriteOnce
         }
     }
 
+    // Stream argument is ignored, because this is only needed for the Rocks server
+    @Override
+    public void setCommit(long address, UUID stream, boolean commit) throws TrimmedException, NetworkException {
+        SimpleLogUnitService.Client client = thriftPool.getResource();
+        boolean success = false;
+        boolean broken = false;
+        try {
+            ArrayList<Integer> epochlist = new ArrayList<Integer>();
+            epochlist.add(epoch.intValue());
+            ErrorCode ec = client.setCommit(new UnitServerHdr(epochlist, address, null), commit);
+            thriftPool.returnResourceObject(client);
+            success = true;
+            if(ec.equals(ErrorCode.ERR_STALEEPOCH))
+            {
+                throw new NetworkException("Writing to log unit in wrong epoch", this, address, false);
+            }
+        }
+        catch (TException e)
+        {
+            broken = true;
+            thriftPool.returnBrokenResource(client);
+            throw new NetworkException("Error writing to log unit: " + e.getMessage(), this, address, true);
+        }
+        finally {
+            if (!success && !broken)
+            {
+                thriftPool.returnResourceObject(client);
+            }
+        }
+    }
+
     public void trim(long address)
     throws NetworkException
     {

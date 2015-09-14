@@ -22,6 +22,8 @@ service SimpleLogUnitService {
 	
 	Common.ErrorCode setHintsFlatTxn(1:Common.UnitServerHdr hdr, 2:binary flatTxn),
 	
+        Common.ErrorCode setCommit(1:Common.UnitServerHdr hdr, 2:bool commit),
+	
 	i64 querytrim(),
 	
 	i64 queryck(),
