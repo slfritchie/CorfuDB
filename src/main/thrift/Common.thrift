@@ -11,6 +11,7 @@ enum ErrorCode {
 	ERR_IO,
 	OK_SKIP,
 	ERR_STALEEPOCH,
+	ERR_SUBLOG,
 }
 
 enum ExtntMarkType {	EX_EMPTY, EX_FILLED, EX_TRIMMED, EX_SKIP }
@@ -48,6 +49,12 @@ struct UnitServerHdr {
     1: Epoch epoch,
     2: i64 off,
     3: set<UUID> streamID,
+}
+
+struct StreamUnitServerHdr {
+    1: Epoch epoch,
+    2: i64 off,
+    3: map<UUID, i64> streams,
 }
 
 struct WriteResult {

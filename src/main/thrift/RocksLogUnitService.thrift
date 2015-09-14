@@ -4,11 +4,13 @@ include "Common.thrift"
 
 service RocksLogUnitService {
 
-    Common.WriteResult write(1:Common.UnitServerHdr hdr, 2:Common.LogPayload ctnt, 3:Common.ExtntMarkType et),
+    Common.WriteResult write(1:Common.StreamUnitServerHdr hdr, 2:Common.LogPayload ctnt, 3:Common.ExtntMarkType et),
 	
     Common.ErrorCode fix(1:Common.UnitServerHdr hdr),
 
     Common.ExtntWrap read(1:Common.UnitServerHdr hdr),
+    
+    Common.ErrorCode setCommit(1:Common.UnitServerHdr hdr, 2:bool commit),
 	
     void sync(),
 	

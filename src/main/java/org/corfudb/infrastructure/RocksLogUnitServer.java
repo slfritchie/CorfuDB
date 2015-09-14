@@ -17,6 +17,9 @@
 // implement object homes.
 package org.corfudb.infrastructure;
 
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
 import lombok.Getter;
 import org.apache.thrift.TException;
 import org.apache.thrift.TMultiplexedProcessor;
@@ -28,8 +31,11 @@ import org.apache.thrift.transport.TServerSocket;
 import org.corfudb.infrastructure.thrift.*;
 import org.corfudb.runtime.protocols.IServerProtocol;
 import org.corfudb.runtime.protocols.logunits.CorfuDBSimpleLogUnitProtocol;
+import org.corfudb.runtime.smr.Pair;
 import org.corfudb.util.Utils;
-import org.rocksdb.*;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +76,9 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
 
     private HashMap<Long, Hints> hintMap = new HashMap();
     private RocksDB db = null;
+    // Optimization for maintaining the "sublog ordering invariant"
+    private HashMap<UUID, RangeSet<Long>> streamRangeMap = new HashMap();
+    private HashMap<UUID, HashMap<Range<Long>, Pair<Long, Long>>> rangeToGlobalMap = new HashMap();
     private AtomicBoolean ready = new AtomicBoolean(); // for testing
 
     public boolean isReady() {
@@ -122,7 +131,8 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         for (ByteBuffer bb : data.getCtnt()) {
             //TODO: FIX THE FAKE STREAM!! once simple log unit server gets streams
             try {
-                put(startAddress, data.getHintmap().get(startAddress).getNextMap().keySet(), bb, temp.getET(startAddress));
+                //put(startAddress, data.getHintmap().get(startAddress).getNextMap().keySet(), bb, temp.getET(startAddress));
+                put(startAddress, null, bb, temp.getET(startAddress));
             } catch (IOException e) {
                 log.error("Trying to rebuild node, got exception: {}", e);
             }
@@ -192,7 +202,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         server.stop();
     }
 
-    private byte[] getKey(long address, UUID stream) throws IOException {
+    private byte[] buildKey(long address, UUID stream) throws IOException {
         ByteBuffer br = ByteBuffer.allocate(Long.BYTES*3);
         br.putLong(stream.getLeastSignificantBits());
         br.putLong(stream.getMostSignificantBits());
@@ -202,20 +212,114 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
     }
 
     // Assumes each ByteBuffer has length <= PAGESIZE.
-    private WriteResult put(long address, Set<org.corfudb.infrastructure.thrift.UUID> streams, ByteBuffer buf, ExtntMarkType et) throws IOException {
+    // Values have the following structure in Rocks:
+    // Header
+    //  ------------------------------------------------------------
+    // |   29 bits            | 1 bit  |  2 bits        |    ...     |
+    // | length (of payload)  | commit | ExtntMarkType |  Payload   |
+    //  ------------------------------------------------------------
+
+    private final int COMMIT_MASK = 0x4;
+    private final int MARK_MASK = 0x3;
+
+    private byte[] buildValue(ByteBuffer buf, ExtntMarkType et) throws IOException {
+        ByteBuffer value = ByteBuffer.allocate(4+buf.capacity());
+        byte[] payload = buf.array();
+        int header = payload.length << 3;
+        header |= et.getValue();
+        value.putInt(header);
+        value.put(payload);
+        return value.array();
+    }
+
+    public int getLength(byte[] value) {
+        int header = ByteBuffer.wrap(value).getInt();
+        return header >> 3;
+    }
+
+    public boolean getCommit(byte[] value) {
+        int header = ByteBuffer.wrap(value).getInt();
+        return !((header & COMMIT_MASK) == 0);
+    }
+
+    public ExtntMarkType getExtntMark(byte[] value) {
+        int header = ByteBuffer.wrap(value).getInt();
+        return ExtntMarkType.findByValue(header & MARK_MASK);
+    }
+
+    public ByteBuffer getPayload(byte[] value) {
+        ByteArrayOutputStream bs = new ByteArrayOutputStream();
+        bs.write(value, 4, value.length - 4);
+        return ByteBuffer.wrap(bs.toByteArray());
+    }
+
+    // address is the global (physical) address and the streams Map contains local (logical) stream addresses
+    private ErrorCode consensusDecision(long address, Map<org.corfudb.infrastructure.thrift.UUID, Long> streams) {
+        HashMap<UUID, Pair<Range<Long>, Pair<Long, Long>>> temp = new HashMap();
+        for (org.corfudb.infrastructure.thrift.UUID stream : streams.keySet()) {
+            UUID localStream = Utils.fromThriftUUID(stream);
+            // All ranges in the RangeSet are assumed to be OPEN!!
+            Range<Long> range;
+            Pair<Long, Long> interval;
+            if (streamRangeMap.get(localStream) == null) {
+                // This stream hasn't been written to end. Then its default range is (-infty, infty)
+                range = Range.open(Long.MIN_VALUE, Long.MAX_VALUE);
+                interval = new Pair<Long, Long>(Long.MIN_VALUE, Long.MAX_VALUE);
+            } else {
+                range = streamRangeMap.get(localStream).rangeContaining(streams.get(stream));
+                if (range == null)
+                    return ErrorCode.ERR_OVERWRITE;
+                interval = rangeToGlobalMap.get(localStream).get(range);
+            }
+            if (!(interval.first < address && interval.second > address))
+                return ErrorCode.ERR_SUBLOG;
+            temp.put(localStream, new Pair(range, interval));
+        }
+        // If this is a valid commit, we need to update the ranges in all the streams
+        for (UUID stream : temp.keySet()) {
+            Range<Long> oldRange = temp.get(stream).first;
+            Pair<Long, Long> oldInterval = temp.get(stream).second;
+            // Delete the old range
+            if (streamRangeMap.get(stream) == null) {
+                streamRangeMap.put(stream, TreeRangeSet.create());
+                rangeToGlobalMap.put(stream, new HashMap());
+            } else {
+                streamRangeMap.get(stream).remove(oldRange);
+                rangeToGlobalMap.get(stream).remove(oldRange);
+            }
+
+            // Insert two new ranges, if they aren't degenerate
+            Long lower = oldRange.lowerEndpoint();
+            Long upper = oldRange.upperEndpoint();
+            Long newEndpoint = streams.get(Utils.toThriftUUID(stream));
+            if (lower+1 != newEndpoint) {
+                streamRangeMap.get(stream).add(Range.open(lower, newEndpoint));
+                rangeToGlobalMap.get(stream).put(Range.open(lower, newEndpoint), new Pair<Long, Long>(oldInterval.first, address));
+            }
+            if (newEndpoint+1 != upper) {
+                streamRangeMap.get(stream).add(Range.open(newEndpoint, upper));
+                rangeToGlobalMap.get(stream).put(Range.open(newEndpoint, upper), new Pair<Long, Long>(address, oldInterval.second));
+            }
+        }
+        return ErrorCode.OK;
+    }
+
+    private WriteResult put(long address, Map<org.corfudb.infrastructure.thrift.UUID, Long> streams, ByteBuffer buf, ExtntMarkType et) throws IOException {
         // TODO: If streams is null, add to EVERY stream??
         if (streams == null)
             return new WriteResult().setCode(ErrorCode.ERR_BADPARAM);
-        for (org.corfudb.infrastructure.thrift.UUID stream : streams) {
-            byte[] key = getKey(address, Utils.fromThriftUUID(stream));
+        // First check if this write is valid WRT invariants:
+        ErrorCode consensus = consensusDecision(address, streams);
+        if (consensus.equals(ErrorCode.ERR_SUBLOG))
+            return new WriteResult().setCode(consensus);
 
-            ByteArrayOutputStream bs = new ByteArrayOutputStream();
-            bs.write(buf.array());
-            bs.write(et.getValue());
+        for (org.corfudb.infrastructure.thrift.UUID stream : streams.keySet()) {
+            byte[] key = buildKey(address, Utils.fromThriftUUID(stream));
+
             try {
                 byte[] value = db.get(key);
                 if (value == null)
-                    db.put(key, bs.toByteArray());
+                    db.put(key, buildValue(buf, et));
                 else
                     return new WriteResult().setCode(ErrorCode.ERR_OVERWRITE).setData(ByteBuffer.wrap(value));
             } catch (RocksDBException e) {
@@ -232,7 +336,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
     public ExtntWrap get(long logOffset, org.corfudb.infrastructure.thrift.UUID stream) throws IOException {
         ExtntWrap wr = new ExtntWrap();
         //TODO : figure out trim story
-        byte[] key = getKey(logOffset, Utils.fromThriftUUID(stream));
+        byte[] key = buildKey(logOffset, Utils.fromThriftUUID(stream));
         byte[] value = null;
         try {
             value = db.get(key);
@@ -244,19 +348,51 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
             wr.setInf(new ExtntInfo(logOffset, 0, ExtntMarkType.EX_EMPTY));
             wr.setErr(ErrorCode.ERR_UNWRITTEN);
         } else {
-            // Length of the data is -1 because we stick the ET in the last byte.
             // TODO: Check the ET of the value?
-            wr.setInf(new ExtntInfo(logOffset, value.length - 1, ExtntMarkType.findByValue(value[value.length - 1])));
-            byte[] returnValue = new byte[value.length-1];
-            for (int i = 0; i < returnValue.length; i++) {
-                returnValue[i] = value[i];
-            }
+            wr.setInf(new ExtntInfo(logOffset, getLength(value), getExtntMark(value)));
             ArrayList<ByteBuffer> content = new ArrayList<ByteBuffer>();
-            content.add(ByteBuffer.wrap(returnValue));
+            content.add(ByteBuffer.wrap(value));
             wr.setCtnt(content);
             wr.setErr(ErrorCode.OK);
         }
         return wr;
+    }
+
+    @Override
+    synchronized public ErrorCode setCommit(UnitServerHdr hdr, boolean commit) throws TException {
+        if (simFailure)
+        {
+            throw new TException("Simulated failure mode!");
+        }
+        if (Util.compareIncarnations(hdr.getEpoch(), masterIncarnation) < 0) {
+            log.info("write request has stale incarnation={} cur incarnation={}",
+                    hdr.getEpoch(), masterIncarnation);
+            return ErrorCode.ERR_STALEEPOCH;
+        }
+
+        log.debug("commit({})", hdr.off);
+        try {
+            byte[] key = buildKey(hdr.off, Utils.fromThriftUUID(hdr.getStreamIDIterator().next()));
+
+            try {
+                byte[] value = db.get(key);
+                if (value == null) {
+                    //TODO: error!!!!!!
+                }
+                else {
+                    //TODO: the "abort bit" is just the null bit --> optimization?
+                        value[3] = (byte) (value[3] | COMMIT_MASK);
+                        db.put(key, value);
+                }
+            } catch (RocksDBException e) {
+                throw new IOException(e.getMessage());
+            }
+
+            return ErrorCode.OK;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ErrorCode.ERR_IO;
+        }
     }
 
     private void writegcmark() throws IOException {
@@ -323,7 +459,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
 	 * in the event of some error in the middle, we reset any values we already set.
 	 */
     @Override
-    synchronized public WriteResult write(UnitServerHdr hdr, ByteBuffer ctnt, ExtntMarkType et) throws TException {
+    synchronized public WriteResult write(StreamUnitServerHdr hdr, ByteBuffer ctnt, ExtntMarkType et) throws TException {
         if (simFailure)
         {
             throw new TException("Simulated failure mode!");
@@ -336,7 +472,8 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
 
         log.debug("write({} size={} marktype={})", hdr, ctnt.capacity(), et);
         try {
-            WriteResult wr = put(hdr.off, hdr.streamID, ctnt, et);
+            //WriteResult wr = put(hdr.off, hdr.streamID, ctnt, et);
+            WriteResult wr = put(hdr.off, hdr.getStreams(), ctnt, et);
             highWatermark = Long.max(highWatermark, hdr.off);
             return wr;
         } catch (IOException e) {
@@ -360,7 +497,8 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         {
             throw new TException("Simulated failure mode!");
         }
-        return write(hdr, ByteBuffer.allocate(0), ExtntMarkType.EX_SKIP).getCode();
+        //return write(hdr, ByteBuffer.allocate(0), ExtntMarkType.EX_SKIP).getCode();
+        return ErrorCode.OK;
     }
 
     private ExtntWrap genWrap(ErrorCode err) {
@@ -502,11 +640,11 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
             RocksDB.loadLibrary();
 
             Options options = new Options().setCreateIfMissing(true);
-            options.setAllowMmapReads(true);
+            /*options.setAllowMmapReads(true);
             // For easy prefix-lookups.
             options.setMemTableConfig(new HashSkipListMemTableConfig());
             options.setTableFormatConfig(new PlainTableConfig());
-            options.useFixedLengthPrefixExtractor(16); // Prefix length in bytes
+            options.useFixedLengthPrefixExtractor(16); // Prefix length in bytes*/
             try {
                 db = RocksDB.open(options, DRIVENAME);
             } catch (RocksDBException e) {

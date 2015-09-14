@@ -1,9 +1,6 @@
 package org.corfudb.infrastructure;
 
-import org.corfudb.infrastructure.thrift.ErrorCode;
-import org.corfudb.infrastructure.thrift.ExtntMarkType;
-import org.corfudb.infrastructure.thrift.ExtntWrap;
-import org.corfudb.infrastructure.thrift.UnitServerHdr;
+import org.corfudb.infrastructure.thrift.*;
 import org.corfudb.util.Utils;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -11,9 +8,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.*;
 import java.util.UUID;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -67,16 +62,16 @@ public class RocksLogUnitServerDiskTest {
 
         while (!done) {
             try {
-                slus.write(new UnitServerHdr(epochlist, 0, Collections.singleton(uuid)), test, ExtntMarkType.EX_FILLED).getCode();
+                slus.read(new UnitServerHdr(epochlist, 0, Collections.singleton(uuid)));
                 done = true;
             } catch (Exception e) {}
         }
 
         // Write entries in for the tests
-        for (int i = 1; i < 100; i++)
+        for (int i = 0; i < 100; i++)
         {
             test.position(0);
-            ErrorCode ec = slus.write(new UnitServerHdr(epochlist, i, Collections.singleton(uuid)), test, ExtntMarkType.EX_FILLED).getCode();
+            ErrorCode ec = slus.write(new StreamUnitServerHdr(epochlist, i, Collections.singletonMap(uuid, Long.valueOf((long)i))), test, ExtntMarkType.EX_FILLED).getCode();
             assertEquals(ec, ErrorCode.OK);
         }
     }
@@ -90,7 +85,7 @@ public class RocksLogUnitServerDiskTest {
     @Test
     public void checkIfLogUnitIsWriteOnce() throws Exception
     {
-        ErrorCode ec = slus.write(new UnitServerHdr(epochlist, 42, Collections.singleton(uuid)), test, ExtntMarkType.EX_FILLED).getCode();
+        ErrorCode ec = slus.write(new StreamUnitServerHdr(epochlist, 42, Collections.singletonMap(uuid, 42L)), test, ExtntMarkType.EX_FILLED).getCode();
         assertEquals(ErrorCode.ERR_OVERWRITE, ec);
     }
 
@@ -102,7 +97,7 @@ public class RocksLogUnitServerDiskTest {
         byte[] data = new byte[ew.getCtnt().get(0).limit()];
         ew.getCtnt().get(0).position(0);
         ew.getCtnt().get(0).get(data);
-        assertArrayEquals(test.array(), data);
+        assert(test.equals(slus.getPayload(data)));
     }
 
     @Test
@@ -110,5 +105,32 @@ public class RocksLogUnitServerDiskTest {
     {
         ExtntWrap ew = slus.read(new UnitServerHdr(epochlist, 101, Collections.singleton(uuid)));
         assertEquals(ew.getErr(), ErrorCode.ERR_UNWRITTEN);
+    }
+
+    @Test
+    public void checkCommitBit() throws Exception {
+        ErrorCode ec = slus.setCommit(new UnitServerHdr(epochlist, 10, Collections.singleton(uuid)), true);
+        assertEquals(ec, ErrorCode.OK);
+
+        ExtntWrap ew = slus.read(new UnitServerHdr(epochlist, 10, Collections.singleton(uuid)));
+        byte[] data = new byte[ew.getCtnt().get(0).limit()];
+        ew.getCtnt().get(0).position(0);
+        ew.getCtnt().get(0).get(data);
+        assert(slus.getCommit(data));
+        assertEquals(slus.getExtntMark(data), ExtntMarkType.EX_FILLED);
+        assert(test.equals(slus.getPayload(data)));
+    }
+
+    @Test
+    public void checkConsensusDecision() throws Exception {
+        ErrorCode ec = slus.write(new StreamUnitServerHdr(epochlist, 42, Collections.singletonMap(uuid, 101L)), test, ExtntMarkType.EX_FILLED).getCode();
+        assertEquals(ErrorCode.ERR_SUBLOG, ec);
+
+        ec = slus.write(new StreamUnitServerHdr(epochlist, 109, Collections.singletonMap(uuid, 110L)), test, ExtntMarkType.EX_FILLED).getCode();
+        assertEquals(ErrorCode.OK, ec);
+        ec = slus.write(new StreamUnitServerHdr(epochlist, 110, Collections.singletonMap(uuid, 105L)), test, ExtntMarkType.EX_FILLED).getCode();
+        assertEquals(ErrorCode.ERR_SUBLOG, ec);
+        ec = slus.write(new StreamUnitServerHdr(epochlist, 105, Collections.singletonMap(uuid, 111L)), test, ExtntMarkType.EX_FILLED).getCode();
+        assertEquals(ErrorCode.ERR_SUBLOG, ec);
     }
 }
