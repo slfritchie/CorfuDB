@@ -1,6 +1,9 @@
 package org.corfudb.infrastructure;
 
 import org.corfudb.infrastructure.thrift.*;
+import org.corfudb.runtime.protocols.logunits.CorfuDBRocksLogUnitProtocol;
+import org.corfudb.runtime.protocols.logunits.IStreamAwareLogUnit;
+import org.corfudb.runtime.protocols.logunits.IWriteOnceLogUnit;
 import org.corfudb.util.Utils;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -62,7 +65,7 @@ public class RocksLogUnitServerDiskTest {
 
         while (!done) {
             try {
-                slus.read(new UnitServerHdr(epochlist, 0, Collections.singleton(uuid)));
+                slus.read(new StreamUnitServerHdr(epochlist, 0, Collections.singletonMap(uuid, 0L)));
                 done = true;
             } catch (Exception e) {}
         }
@@ -93,7 +96,7 @@ public class RocksLogUnitServerDiskTest {
     @Test
     public void checkIfLogIsReadable() throws Exception
     {
-        ExtntWrap ew = slus.read(new UnitServerHdr(epochlist, 1, Collections.singleton(uuid)));
+        ExtntWrap ew = slus.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 0L)));
         byte[] data = new byte[ew.getCtnt().get(0).limit()];
         ew.getCtnt().get(0).position(0);
         ew.getCtnt().get(0).get(data);
@@ -103,16 +106,16 @@ public class RocksLogUnitServerDiskTest {
     @Test
     public void checkIfEmptyAddressesAreUnwritten() throws Exception
     {
-        ExtntWrap ew = slus.read(new UnitServerHdr(epochlist, 101, Collections.singleton(uuid)));
+        ExtntWrap ew = slus.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 101L)));
         assertEquals(ew.getErr(), ErrorCode.ERR_UNWRITTEN);
     }
 
     @Test
     public void checkCommitBit() throws Exception {
-        ErrorCode ec = slus.setCommit(new UnitServerHdr(epochlist, 10, Collections.singleton(uuid)), true);
+        ErrorCode ec = slus.setCommit(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 10L)), true);
         assertEquals(ec, ErrorCode.OK);
 
-        ExtntWrap ew = slus.read(new UnitServerHdr(epochlist, 10, Collections.singleton(uuid)));
+        ExtntWrap ew = slus.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 10L)));
         byte[] data = new byte[ew.getCtnt().get(0).limit()];
         ew.getCtnt().get(0).position(0);
         ew.getCtnt().get(0).get(data);

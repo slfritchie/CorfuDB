@@ -31,7 +31,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.UUID;
 
-public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceLogUnit
+public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IStreamAwareLogUnit
 {
     private String host;
     private Integer port;
@@ -112,7 +112,8 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
         }
     }
 
-    public void write(long address, Set<UUID> streams, byte[] data)
+    @Override
+    public void streamAwareWrite(long address, Map<UUID, Long> streams, byte[] data)
     throws OverwriteException, TrimmedException, NetworkException, OutOfSpaceException
     {
         RocksLogUnitService.Client client = thriftPool.getResource();
@@ -122,8 +123,8 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
             ArrayList<Integer> epochlist = new ArrayList<Integer>();
             epochlist.add(epoch.intValue());
             Map<org.corfudb.infrastructure.thrift.UUID, Long> thriftStreams = new HashMap<org.corfudb.infrastructure.thrift.UUID, Long>();
-            for (UUID stream : streams) {
-                thriftStreams.put(Utils.toThriftUUID(stream), null);
+            for (UUID stream : streams.keySet()) {
+                thriftStreams.put(Utils.toThriftUUID(stream), streams.get(stream));
             }
 
             WriteResult wr = client.write(new StreamUnitServerHdr(epochlist, address, thriftStreams), ByteBuffer.wrap(data), ExtntMarkType.EX_FILLED);
@@ -173,7 +174,7 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
         try {
             ArrayList<Integer> epochlist = new ArrayList<Integer>();
             epochlist.add(epoch.intValue());
-            ExtntWrap wrap = client.read(new UnitServerHdr(epochlist, address, Collections.singleton(Utils.toThriftUUID(stream))));
+            ExtntWrap wrap = client.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(Utils.toThriftUUID(stream), address)));
             if (wrap.err.equals(ErrorCode.ERR_UNWRITTEN))
             {
                 throw new UnwrittenException("Unwritten error", address);
@@ -209,7 +210,7 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IWriteOnceL
         try {
             ArrayList<Integer> epochlist = new ArrayList<Integer>();
             epochlist.add(epoch.intValue());
-            ErrorCode ec = client.setCommit(new UnitServerHdr(epochlist, address, Collections.singleton(Utils.toThriftUUID(stream))), commit);
+            ErrorCode ec = client.setCommit(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(Utils.toThriftUUID(stream), address)), commit);
             thriftPool.returnResourceObject(client);
             success = true;
             if(ec.equals(ErrorCode.ERR_STALEEPOCH))

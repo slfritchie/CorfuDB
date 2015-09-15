@@ -103,11 +103,11 @@ public class RocksLogUnitServerIT {
         while (!ru.isReady()) ;
 
         for (int i = 0; i < NUMPAGES; i++) {
-            ExtntWrap ew = ru.get(0, Utils.toThriftUUID(uuid));
+            ExtntWrap ew = ru.get(0, uuid);
             assertNotNull(ew);
             assertThat(ew.getErr()).isEqualTo(ErrorCode.OK);
             assert(ew.isSetCtnt());
-            byte[] o = ru.get(0, Utils.toThriftUUID(uuid)).getCtnt().get(0).array();
+            byte[] o = ru.get(0, uuid).getCtnt().get(0).array();
             assertThat(t).isEqualTo(o);
         }
     }
