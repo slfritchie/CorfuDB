@@ -202,6 +202,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         server.stop();
     }
 
+    // Address is local, stream, logical address!!
     private byte[] buildKey(long address, UUID stream) throws IOException {
         ByteBuffer br = ByteBuffer.allocate(Long.BYTES*3);
         br.putLong(stream.getLeastSignificantBits());
@@ -214,20 +215,21 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
     // Assumes each ByteBuffer has length <= PAGESIZE.
     // Values have the following structure in Rocks:
     // Header
-    //  ------------------------------------------------------------
-    // |   29 bits            | 1 bit  |  2 bits        |    ...     |
-    // | length (of payload)  | commit | ExtntMarkType |  Payload   |
-    //  ------------------------------------------------------------
+    //  ------------------------------------------------------------------------------------
+    // |   29 bits            | 1 bit  |  2 bits        |  64 bits (long)  |        ...     |
+    // | length (of payload)  | commit | ExtntMarkType  |   global seq #   |      Payload   |
+    //  ------------------------------------------------------------------------------------
 
     private final int COMMIT_MASK = 0x4;
     private final int MARK_MASK = 0x3;
 
-    private byte[] buildValue(ByteBuffer buf, ExtntMarkType et) throws IOException {
-        ByteBuffer value = ByteBuffer.allocate(4+buf.capacity());
+    private byte[] buildValue(long address, ByteBuffer buf, ExtntMarkType et) throws IOException {
+        ByteBuffer value = ByteBuffer.allocate(Integer.BYTES + Long.BYTES + buf.capacity());
         byte[] payload = buf.array();
         int header = payload.length << 3;
         header |= et.getValue();
         value.putInt(header);
+        value.putLong(address);
         value.put(payload);
         return value.array();
     }
@@ -247,9 +249,15 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         return ExtntMarkType.findByValue(header & MARK_MASK);
     }
 
+    public long getGlobalSequence(byte[] value) {
+        ByteBuffer bb = ByteBuffer.wrap(value);
+        bb.getInt();
+        return bb.getLong();
+    }
+
     public ByteBuffer getPayload(byte[] value) {
         ByteArrayOutputStream bs = new ByteArrayOutputStream();
-        bs.write(value, 4, value.length - 4);
+        bs.write(value, Integer.BYTES + Long.BYTES, value.length - Integer.BYTES - Long.BYTES);
         return ByteBuffer.wrap(bs.toByteArray());
     }
 
@@ -314,12 +322,12 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
             return new WriteResult().setCode(consensus);
 
         for (org.corfudb.infrastructure.thrift.UUID stream : streams.keySet()) {
-            byte[] key = buildKey(address, Utils.fromThriftUUID(stream));
+            byte[] key = buildKey(streams.get(stream), Utils.fromThriftUUID(stream));
 
             try {
                 byte[] value = db.get(key);
                 if (value == null)
-                    db.put(key, buildValue(buf, et));
+                    db.put(key, buildValue(address, buf, et));
                 else
                     return new WriteResult().setCode(ErrorCode.ERR_OVERWRITE).setData(ByteBuffer.wrap(value));
             } catch (RocksDBException e) {
@@ -333,10 +341,10 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         throw new UnsupportedOperationException("trimLogStore not implemented in Rocks-backed server!!");
     }
 
-    public ExtntWrap get(long logOffset, org.corfudb.infrastructure.thrift.UUID stream) throws IOException {
+    public ExtntWrap get(long streamOffset, UUID stream) throws IOException {
         ExtntWrap wr = new ExtntWrap();
         //TODO : figure out trim story
-        byte[] key = buildKey(logOffset, Utils.fromThriftUUID(stream));
+        byte[] key = buildKey(streamOffset, stream);
         byte[] value = null;
         try {
             value = db.get(key);
@@ -345,11 +353,11 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         }
 
         if (value == null) {
-            wr.setInf(new ExtntInfo(logOffset, 0, ExtntMarkType.EX_EMPTY));
+            wr.setInf(new ExtntInfo(streamOffset, 0, ExtntMarkType.EX_EMPTY));
             wr.setErr(ErrorCode.ERR_UNWRITTEN);
         } else {
             // TODO: Check the ET of the value?
-            wr.setInf(new ExtntInfo(logOffset, getLength(value), getExtntMark(value)));
+            wr.setInf(new ExtntInfo(streamOffset, getLength(value), getExtntMark(value)));
             ArrayList<ByteBuffer> content = new ArrayList<ByteBuffer>();
             content.add(ByteBuffer.wrap(value));
             wr.setCtnt(content);
@@ -359,7 +367,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
     }
 
     @Override
-    synchronized public ErrorCode setCommit(UnitServerHdr hdr, boolean commit) throws TException {
+    synchronized public ErrorCode setCommit(StreamUnitServerHdr hdr, boolean commit) throws TException {
         if (simFailure)
         {
             throw new TException("Simulated failure mode!");
@@ -372,7 +380,8 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
 
         log.debug("commit({})", hdr.off);
         try {
-            byte[] key = buildKey(hdr.off, Utils.fromThriftUUID(hdr.getStreamIDIterator().next()));
+            org.corfudb.infrastructure.thrift.UUID stream = hdr.getStreams().keySet().iterator().next();
+            byte[] key = buildKey(hdr.getStreams().get(stream), Utils.fromThriftUUID(stream));
 
             try {
                 byte[] value = db.get(key);
@@ -522,7 +531,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
      *  @param a CorfuHeader describing the range to read
      */
     @Override
-    synchronized public ExtntWrap read(UnitServerHdr hdr) throws TException {
+    synchronized public ExtntWrap read(StreamUnitServerHdr hdr) throws TException {
         if (simFailure)
         {
             throw new TException("Simulated failure mode!");
@@ -530,7 +539,8 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         if (Util.compareIncarnations(hdr.getEpoch(), masterIncarnation) < 0) return genWrap(ErrorCode.ERR_STALEEPOCH);
         log.debug("read({})", hdr);
         try {
-            return get(hdr.off, hdr.streamID.iterator().next());
+            org.corfudb.infrastructure.thrift.UUID stream = hdr.getStreams().keySet().iterator().next();
+            return get(hdr.getStreams().get(stream), Utils.fromThriftUUID(stream));
         } catch (IOException e) {
             e.printStackTrace();
             return genWrap(ErrorCode.ERR_IO);

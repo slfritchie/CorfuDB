@@ -22,7 +22,7 @@ import java.util.UUID;
  * it is necessary to read/write hints through the RP.
  *
  * RP interface unfortunately has significant overlap with the IWOAS interface, but because the two are abstracting
- * different ideas.
+ * different ideas we don't merge the two.
  *
  * Created by taia on 8/4/15.
  */
