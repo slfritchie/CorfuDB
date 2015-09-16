@@ -17,6 +17,8 @@ package org.corfudb.runtime.view;
 
 import org.corfudb.runtime.NetworkException;
 import org.corfudb.runtime.protocols.replications.IReplicationProtocol;
+import org.corfudb.runtime.protocols.replications.IStreamAwareRepProtocol;
+import org.corfudb.runtime.stream.IStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +67,7 @@ public class CorfuDBView {
     private static Map<String,Class<? extends IServerProtocol>> availableLogUnitProtocols= getLogUnitProtocolClasses();
     private static Map<String,Class<? extends IServerProtocol>> availableConfigMasterProtocols = getConfigMasterProtocolClasses();
     private static Map<String,Class<? extends IReplicationProtocol>> availableReplicationProtocols = getReplicationProtocolClasses();
+    private static Map<String,Class<? extends IStreamAwareRepProtocol>> availableSAReplicationProtocols = getSAReplicationProtocolClasses();
 
     private List<IServerProtocol> sequencers;
     private List<CorfuDBViewSegment> segments; //eventually this should be upgraded to rangemap or something..
@@ -101,7 +104,18 @@ public class CorfuDBView {
             }
             if (!availableReplicationProtocols.keySet().contains(replication))
             {
-                log.warn("Unsupported replication protocol: " + replication);
+                if (!availableSAReplicationProtocols.keySet().contains(replication))
+                    log.warn("Unsupported replication protocol: " + replication);
+                else {
+                    Class<? extends IStreamAwareRepProtocol> replicationClass = availableSAReplicationProtocols.get(replication);
+                    try
+                    {
+                        segmentMap = (Map<String, Object>) replicationClass.getMethod("segmentParser", JsonObject.class).invoke(null, jo);
+                    }
+                    catch (Exception ex) {
+                        log.error("Error invoking protocol for protocol: ", ex);
+                    }
+                }
             }
             else
             {
@@ -266,9 +280,12 @@ public class CorfuDBView {
         {
             JsonObjectBuilder jsb = Json.createObjectBuilder();
             try {
-                jsb.add("replication", (String) vs.getReplicationProtocol().getClass().getMethod("getProtocolString").invoke(null));
+                if (vs.getReplicationProtocol() != null)
+                    jsb.add("replication", (String) vs.getReplicationProtocol().getClass().getMethod("getProtocolString").invoke(null));
+                if (vs.getStreamAwareRepProtocol() != null)
+                    jsb.add("replication", (String) vs.getStreamAwareRepProtocol().getClass().getMethod("getProtocolString").invoke(null));
             } catch (Exception e) {
-                log.warn("Couldn't add replication protocol string to serialized json");
+                log.warn("Couldn't add replication protocol string to serialized json: {}", e);
             }
 
             jsb.add("start", vs.getStart());
@@ -286,7 +303,10 @@ public class CorfuDBView {
                 }
                 groups.add(group);
             }
-            jsb.add("groups", groups);
+            if (vs.getReplicationProtocol() != null)
+                jsb.add("groups", groups);
+            if (vs.getStreamAwareRepProtocol() != null)
+                jsb.add("layers", groups);
             segmentObject.add(jsb);
         }
 
@@ -312,7 +332,19 @@ public class CorfuDBView {
             String replication = (String) m.get("replication");
             if (!availableReplicationProtocols.keySet().contains(replication))
             {
-                log.warn("Unsupported replication protocol: " + replication);
+                if (!availableSAReplicationProtocols.keySet().contains(replication))
+                    log.warn("Unsupported replication protocol: " + replication);
+                else {
+                    Class<? extends IStreamAwareRepProtocol> replicationClass = availableSAReplicationProtocols.get(replication);
+                    IStreamAwareRepProtocol prot = null;
+                    try {
+                        prot = (IStreamAwareRepProtocol)replicationClass.getMethod("initProtocol", Map.class, Map.class, Long.class)
+                                .invoke(null, m, availableLogUnitProtocols, epoch);
+                    } catch (Exception e) {
+                        log.warn("Cannot create a SArep protocol with the given replication class: " + replicationClass + " error: " + e);
+                    }
+                    segments.add(new CorfuDBViewSegment(start, sealed, prot));
+                }
             }
             else
             {
@@ -586,18 +618,47 @@ public class CorfuDBView {
 
         for(Class<? extends Object> c : allClasses)
         {
-            try {
-                Method getProtocolString = c.getMethod("getProtocolString");
-                String protocol = (String) getProtocolString.invoke(null);
-                replicationMap.put(protocol, (Class<? extends IReplicationProtocol>)c);
-            }
-            catch (Exception e)
-            {
+            if (IReplicationProtocol.class.isAssignableFrom(c)) {
+                try {
+                    Method getProtocolString = c.getMethod("getProtocolString");
+                    String protocol = (String) getProtocolString.invoke(null);
+                    replicationMap.put(protocol, (Class<? extends IReplicationProtocol>) c);
+                } catch (Exception e) {
+                }
             }
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Found ").append(replicationMap.size()).append(" supported replication protocol(s):\n");
+        for(String proto : replicationMap.keySet())
+        {
+            sb.append(proto + "\t\t- " + replicationMap.get(proto).toString() + "\n");
+        }
+        log.debug(sb.toString());
+        return replicationMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String,Class<? extends IStreamAwareRepProtocol>> getSAReplicationProtocolClasses()
+    {
+        Reflections reflections = new Reflections("org.corfudb.runtime.protocols.replications", new SubTypesScanner(false));
+        Set<Class<? extends Object>> allClasses = reflections.getSubTypesOf(Object.class);
+        Map<String, Class<? extends IStreamAwareRepProtocol>> replicationMap = new HashMap<String,Class<? extends IStreamAwareRepProtocol>>();
+
+        for(Class<? extends Object> c : allClasses)
+        {
+            if (IStreamAwareRepProtocol.class.isAssignableFrom(c)) {
+                try {
+                    Method getProtocolString = c.getMethod("getProtocolString");
+                    String protocol = (String) getProtocolString.invoke(null);
+                    replicationMap.put(protocol, (Class<? extends IStreamAwareRepProtocol>) c);
+                } catch (Exception e) {
+                }
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Found ").append(replicationMap.size()).append(" supported SAreplication protocol(s):\n");
         for(String proto : replicationMap.keySet())
         {
             sb.append(proto + "\t\t- " + replicationMap.get(proto).toString() + "\n");

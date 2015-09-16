@@ -31,7 +31,7 @@ import java.util.UUID;
 
 public interface IStreamAwareLogUnit extends IServerProtocol {
     void streamAwareWrite(long globalAddress, Map<UUID, Long> streams, byte[] payload)
-            throws OverwriteException, TrimmedException, NetworkException, OutOfSpaceException;
+            throws OverwriteException, TrimmedException, NetworkException, OutOfSpaceException, SubLogException;
     byte[] read(long streamAddress, UUID stream) throws UnwrittenException, TrimmedException, NetworkException;
     void trim(long address) throws NetworkException;
 

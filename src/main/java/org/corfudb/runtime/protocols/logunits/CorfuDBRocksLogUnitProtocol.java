@@ -114,7 +114,7 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IStreamAwar
 
     @Override
     public void streamAwareWrite(long address, Map<UUID, Long> streams, byte[] data)
-    throws OverwriteException, TrimmedException, NetworkException, OutOfSpaceException
+    throws OverwriteException, TrimmedException, NetworkException, OutOfSpaceException, SubLogException
     {
         RocksLogUnitService.Client client = thriftPool.getResource();
         boolean success = false;
@@ -147,6 +147,9 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IStreamAwar
             else if (wr.getCode().equals(ErrorCode.ERR_FULL))
             {
                 throw new OutOfSpaceException("Out of space!", address);
+            }
+            else if (wr.getCode().equals(ErrorCode.ERR_SUBLOG)) {
+                throw new SubLogException("Aborted write, would violate sublog", address, streams);
             }
         }
         catch (TException e)

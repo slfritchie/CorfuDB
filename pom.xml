@@ -669,67 +669,6 @@
                             <goal>stop-all</goal>
                         </goals>
                     </execution>
-		    <execution>
-                        <id>configmaster-process-2</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                        <configuration>
-                            <name>configmaster-2</name>
-                            <waitForInterrupt>false</waitForInterrupt>
-                            <waitAfterLaunch>5</waitAfterLaunch>
-                            <arguments>
-                                <argument>java</argument>
-                                <argument>-cp</argument>
-                                <argument>${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</argument>
-                                <argument>org.corfudb.infrastructure.ConfigParser</argument>
-                                <argument>${basedir}/conf/it_configmaster_2.yml</argument>
-                            </arguments>
-                            <processLogFile>${project.build.directory}/it_configmaster_2.log</processLogFile>
-                            <healthcheckUrl>http://localhost:12701/corfu</healthcheckUrl>
-                        </configuration>
-                    </execution>
-		    <execution>
-                        <id>rockslogunit-process</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                        <configuration>
-                            <name>rockslogunit</name>
-                            <waitForInterrupt>false</waitForInterrupt>
-                            <waitAfterLaunch>5</waitAfterLaunch>
-                            <arguments>
-                                <argument>java</argument>
-                                <argument>-cp</argument>
-                                <argument>${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</argument>
-                                <argument>org.corfudb.infrastructure.ConfigParser</argument>
-                                <argument>${basedir}/conf/rockslogunit.yml</argument>
-                            </arguments>
-                            <processLogFile>${project.build.directory}/rockslogunit.log</processLogFile>
-                        </configuration>
-                    </execution>
-		    <execution>
-                        <id>sequencer-process-1</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>start</goal>
-                        </goals>
-                        <configuration>
-                            <name>sequencer-1</name>
-                            <waitForInterrupt>false</waitForInterrupt>
-                            <waitAfterLaunch>5</waitAfterLaunch>
-                            <arguments>
-                                <argument>java</argument>
-                                <argument>-cp</argument>
-                                <argument>${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</argument>
-                                <argument>org.corfudb.infrastructure.ConfigParser</argument>
-                                <argument>${basedir}/conf/it_sequencer_1.yml</argument>
-                            </arguments>
-                            <processLogFile>${project.build.directory}/it_sequencer_1.log</processLogFile>
-                        </configuration>
-		    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -745,6 +684,7 @@
 			    <tasks>
 				<delete dir="${project.build.directory}/testFile"/>
 				<delete dir="${project.build.directory}/rocksTestFile"/>
+				<delete dir="${project.build.directory}/saTestFile"/>
 			    </tasks>
                         </configuration>
                     </execution>
@@ -765,6 +705,9 @@
 			    <propertiesJMeter>
 				<jmeterengine.force.system.exit>true</jmeterengine.force.system.exit>
 			    </propertiesJMeter>
+			    <testFilesIncluded>
+				<!--<jMeterTestFile>rockslogunit.jmx</jMeterTestFile>-->
+			    </testFilesIncluded>
                             <skipTests>${skipTests}</skipTests>
                         </configuration>
                     </execution>
