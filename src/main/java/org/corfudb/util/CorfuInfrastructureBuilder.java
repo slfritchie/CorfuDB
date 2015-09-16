@@ -6,10 +6,7 @@ import org.corfudb.infrastructure.ConfigMasterServer;
 import org.corfudb.infrastructure.ICorfuDBServer;
 
 import java.lang.reflect.Constructor;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by mwei on 8/26/15.
@@ -45,6 +42,13 @@ public class CorfuInfrastructureBuilder {
         segmentMap.get(0).put("start", 0L);
         segmentMap.get(0).put("sealed", 0L);
         segmentMap.get(0).put("replicas", 0L);
+
+        segmentMap.get(0).put("layers", new ArrayList<HashMap<String, Object>>());
+        ((ArrayList<HashMap<String, Object>>)segmentMap.get(0).get("layers")).add(new HashMap<String, Object>());
+        ((ArrayList<HashMap<String, Object>>)segmentMap.get(0).get("layers")).add(new HashMap<String, Object>());
+        (((ArrayList<HashMap<String, Object>>)segmentMap.get(0).get("layers")).get(0)).put("nodes", new ArrayList<String>());
+        (((ArrayList<HashMap<String, Object>>)segmentMap.get(0).get("layers")).get(1)).put("nodes", new ArrayList<String>());
+
         segmentMap.get(0).put("groups", new LinkedList<HashMap<String, Object>>());
         ((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).add(new HashMap<String, Object>());
         (((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).get(0)).put("nodes", new LinkedList<String>());
@@ -54,6 +58,11 @@ public class CorfuInfrastructureBuilder {
 
         configMap.put("layout", layoutMap);
 
+    }
+
+    public CorfuInfrastructureBuilder setReplicationProtocol(String protocol) {
+        segmentMap.get(0).put("replication", protocol);
+        return this;
     }
 
     /**
@@ -100,6 +109,20 @@ public class CorfuInfrastructureBuilder {
         }
 
         ((LinkedList<String>)(((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).get(chain)).get("nodes")).add(clientProtocol + "://localhost:" + port);
+        return this;
+    }
+
+    @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public CorfuInfrastructureBuilder addSALoggingUnit(int port, int layer, Class<? extends ICorfuDBServer> loggingType, String clientProtocol, Map<String,Object> baseParams)
+    {
+        Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
+        ICorfuDBServer server = serverConstructor.newInstance();
+        Map<String, Object> configuration = baseParams == null ? new HashMap<>() : baseParams;
+        configuration.put("port", port);
+        serverList.add(server.getInstance(configuration));
+        ((ArrayList<String>)((ArrayList<HashMap<String, Object>>)(segmentMap.get(0).get("layers"))).get(layer).get("nodes")).add(clientProtocol + "://localhost:" + port);
+
         return this;
     }
 

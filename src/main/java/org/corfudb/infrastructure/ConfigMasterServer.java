@@ -832,7 +832,6 @@ public class ConfigMasterServer implements ICorfuDBServer {
                             .add("id", id)
                             .build();
                     response = res.toString();
-                    log.info("Response is " + response);
                 } else {
                     log.debug("PUT request");
                     response = "deny";
@@ -863,7 +862,6 @@ public class ConfigMasterServer implements ICorfuDBServer {
                     jw.writeObject(currentView.getSerializedJSONView());
                 }
                 response = sw.toString();
-                log.debug("Response is", response);
             } else {
                 log.debug("PUT request");
                 response = "deny";
