@@ -48,15 +48,16 @@ public abstract class IStreamAwareAddressSpaceTest {
     public void AddressSpaceIsReadable() throws Exception
     {
         String testString = "hello world";
-        addressSpace.write(0, Collections.singletonMap(stream, 0L), testString);
-        assertEquals(addressSpace.readObject(0), testString);
+        addressSpace.write(0L, Collections.singletonMap(stream, 0L), testString);
+        assertEquals(addressSpace.readObject(0L), testString);
+        assertEquals(addressSpace.readObject(0L, stream), testString);
     }
 
     @Test
     public void AddressSpaceReturnsUnwritten() throws Exception
     {
-        assertRaises(() -> addressSpace.read(1), UnwrittenException.class);
-        assertRaises(() -> addressSpace.read(1, stream), UnwrittenException.class);
+        assertRaises(() -> addressSpace.read(1L), UnwrittenException.class);
+        assertRaises(() -> addressSpace.read(1L, stream), UnwrittenException.class);
     }
 
     @Test

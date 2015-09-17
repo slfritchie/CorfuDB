@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * This view implements a simple write once address space
+ * This view implements a write once address space that accepts stream-aware addresses.
  *
  * Created by taia on 9/15/15
  */
@@ -114,6 +114,7 @@ public class StreamAwareAddressSpace implements IStreamAwareAddressSpace {
             throws UnwrittenException, TrimmedException, ClassNotFoundException, IOException
     {
         byte[] payload = read(address);
+        if (payload == null) return null;
         try (ByteArrayInputStream bis = new ByteArrayInputStream(payload))
         {
             try (ObjectInputStream ois = new ObjectInputStream(bis))
@@ -129,7 +130,7 @@ public class StreamAwareAddressSpace implements IStreamAwareAddressSpace {
         IStreamAwareRepProtocol replicationProtocol = segments.getStreamAwareRepProtocol();
 
         if (logID != null)
-            return replicationProtocol.read(client, -1L, logID, logAddress);
+            return replicationProtocol.read(client, -1L, stream, logAddress);
         return replicationProtocol.read(client, -1L, null, logAddress);
 
     }
@@ -138,6 +139,8 @@ public class StreamAwareAddressSpace implements IStreamAwareAddressSpace {
     public Object readObject(long logAddress, UUID stream)
             throws UnwrittenException, TrimmedException, ClassNotFoundException, IOException {
         byte[] payload = read(logAddress, stream);
+        if (payload == null) return null;
+
         try (ByteArrayInputStream bis = new ByteArrayInputStream(payload))
         {
             try (ObjectInputStream ois = new ObjectInputStream(bis))

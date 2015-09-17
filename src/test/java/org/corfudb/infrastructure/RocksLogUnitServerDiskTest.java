@@ -97,10 +97,9 @@ public class RocksLogUnitServerDiskTest {
     public void checkIfLogIsReadable() throws Exception
     {
         ExtntWrap ew = slus.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 0L)));
-        byte[] data = new byte[ew.getCtnt().get(0).limit()];
-        ew.getCtnt().get(0).position(0);
-        ew.getCtnt().get(0).get(data);
-        assert(test.equals(slus.getPayload(data)));
+        //ew.getCtnt().get(0).position(0);
+        test.position(0);
+        assert(test.equals(ew.getCtnt().get(0)));
     }
 
     @Test
@@ -116,12 +115,12 @@ public class RocksLogUnitServerDiskTest {
         assertEquals(ec, ErrorCode.OK);
 
         ExtntWrap ew = slus.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(uuid, 10L)));
-        byte[] data = new byte[ew.getCtnt().get(0).limit()];
+        assert(ew.getInf().isCommit());
+        assertEquals(ew.getInf().getFlag(), ExtntMarkType.EX_FILLED);
+
         ew.getCtnt().get(0).position(0);
-        ew.getCtnt().get(0).get(data);
-        assert(slus.getCommit(data));
-        assertEquals(slus.getExtntMark(data), ExtntMarkType.EX_FILLED);
-        assert(test.equals(slus.getPayload(data)));
+        test.position(0);
+        assert(test.equals(ew.getCtnt().get(0)));
     }
 
     @Test

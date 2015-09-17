@@ -100,7 +100,7 @@ public class SimpleStream implements IStream {
                 hint = instance.getAddressSpace().readHints(oldPointer);
             } catch (UnwrittenException ue) {
                 //hole, should fill.
-                throw new HoleEncounteredException(new SimpleTimestamp((ue.address)));
+                throw new HoleEncounteredException(new SimpleTimestamp((ue.physAddress)));
             }
         }
         if (hint == null || !hint.isSetNextMap() || (hint.getNextMap().get(streamID.toString()) == null)) {
@@ -121,7 +121,7 @@ public class SimpleStream implements IStream {
                         //ignore, not a entry we understand.
                     } catch (UnwrittenException ue) {
                         //hole, should fill.
-                        throw new HoleEncounteredException(new SimpleTimestamp(ue.address));
+                        throw new HoleEncounteredException(new SimpleTimestamp(ue.physAddress));
                     }
                 }
             }
@@ -138,7 +138,7 @@ public class SimpleStream implements IStream {
                 //ignore, not a entry we understand.
             } catch (UnwrittenException ue) {
                 //hole, should fill.
-                throw new HoleEncounteredException(new SimpleTimestamp(ue.address));
+                throw new HoleEncounteredException(new SimpleTimestamp(ue.physAddress));
             }
         }
         return null;

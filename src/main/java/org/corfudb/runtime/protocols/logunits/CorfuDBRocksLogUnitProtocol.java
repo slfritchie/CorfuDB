@@ -206,6 +206,43 @@ public class CorfuDBRocksLogUnitProtocol implements IServerProtocol, IStreamAwar
     }
 
     @Override
+    public ExtntWrap fullRead(long address, UUID stream)
+            throws UnwrittenException, TrimmedException, NetworkException
+    {
+        ExtntWrap wrap = null;
+        RocksLogUnitService.Client client = thriftPool.getResource();
+        boolean success = false;
+        boolean broken = false;
+        try {
+            ArrayList<Integer> epochlist = new ArrayList<Integer>();
+            epochlist.add(epoch.intValue());
+            wrap = client.read(new StreamUnitServerHdr(epochlist, -1L, Collections.singletonMap(Utils.toThriftUUID(stream), address)));
+            if (wrap.err.equals(ErrorCode.ERR_UNWRITTEN))
+            {
+                throw new UnwrittenException("Unwritten error", address);
+            }
+            else if (wrap.err.equals(ErrorCode.ERR_TRIMMED))
+            {
+                throw new TrimmedException("Trim error", address);
+            }
+            success = true;
+            thriftPool.returnResourceObject(client);
+        }
+        catch (TException e)
+        {
+            broken = true;
+            thriftPool.returnBrokenResource(client);
+            throw new NetworkException("Error connecting to endpoint: " + e.getMessage(), this);
+        }
+        finally {
+            if (!success && !broken){
+                thriftPool.returnResourceObject(client);
+            }
+        }
+        return wrap;
+    }
+
+    @Override
     public void setCommit(long address, UUID stream, boolean commit) throws TrimmedException, NetworkException {
         RocksLogUnitService.Client client = thriftPool.getResource();
         boolean success = false;
