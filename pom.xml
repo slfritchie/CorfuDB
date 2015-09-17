@@ -709,6 +709,7 @@
 				<delete dir="${project.build.directory}/testFile"/>
 				<delete dir="${project.build.directory}/rocksTestFile"/>
 				<delete dir="${project.build.directory}/saTestFile"/>
+				<delete dir="${project.build.directory}/miTestFile"/>
 			    </tasks>
                         </configuration>
                     </execution>

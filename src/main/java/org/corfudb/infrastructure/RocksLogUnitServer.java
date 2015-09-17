@@ -225,37 +225,36 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
 
     private byte[] buildValue(long address, ByteBuffer buf, ExtntMarkType et) throws IOException {
         ByteBuffer value = ByteBuffer.allocate(Integer.BYTES + Long.BYTES + buf.capacity());
-        byte[] payload = buf.array();
-        int header = payload.length << 3;
+        int header = buf.remaining() << 3;
         header |= et.getValue();
         value.putInt(header);
         value.putLong(address);
-        value.put(payload);
+        value.put(buf);
         return value.array();
     }
 
-    public int getLength(byte[] value) {
+    private int getLength(byte[] value) {
         int header = ByteBuffer.wrap(value).getInt();
         return header >> 3;
     }
 
-    public boolean getCommit(byte[] value) {
+    private boolean getCommit(byte[] value) {
         int header = ByteBuffer.wrap(value).getInt();
         return !((header & COMMIT_MASK) == 0);
     }
 
-    public ExtntMarkType getExtntMark(byte[] value) {
+    private ExtntMarkType getExtntMark(byte[] value) {
         int header = ByteBuffer.wrap(value).getInt();
         return ExtntMarkType.findByValue(header & MARK_MASK);
     }
 
-    public long getGlobalSequence(byte[] value) {
+    private long getGlobalSequence(byte[] value) {
         ByteBuffer bb = ByteBuffer.wrap(value);
         bb.getInt();
         return bb.getLong();
     }
 
-    public ByteBuffer getPayload(byte[] value) {
+    private ByteBuffer getPayload(byte[] value) {
         ByteArrayOutputStream bs = new ByteArrayOutputStream();
         bs.write(value, Integer.BYTES + Long.BYTES, value.length - Integer.BYTES - Long.BYTES);
         return ByteBuffer.wrap(bs.toByteArray());
@@ -345,7 +344,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         ExtntWrap wr = new ExtntWrap();
         //TODO : figure out trim story
         byte[] key = buildKey(streamOffset, stream);
-        byte[] value = null;
+        byte[] value;
         try {
             value = db.get(key);
         } catch (RocksDBException e) {
@@ -353,13 +352,13 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
         }
 
         if (value == null) {
-            wr.setInf(new ExtntInfo(streamOffset, 0, ExtntMarkType.EX_EMPTY));
+            wr.setInf(new ExtntInfo(streamOffset, 0, ExtntMarkType.EX_EMPTY, false));
             wr.setErr(ErrorCode.ERR_UNWRITTEN);
         } else {
             // TODO: Check the ET of the value?
-            wr.setInf(new ExtntInfo(streamOffset, getLength(value), getExtntMark(value)));
+            wr.setInf(new ExtntInfo(streamOffset, getLength(value), getExtntMark(value), getCommit(value)));
             ArrayList<ByteBuffer> content = new ArrayList<ByteBuffer>();
-            content.add(ByteBuffer.wrap(value));
+            content.add(getPayload(value));
             wr.setCtnt(content);
             wr.setErr(ErrorCode.OK);
         }
@@ -378,7 +377,7 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
             return ErrorCode.ERR_STALEEPOCH;
         }
 
-        log.debug("commit({})", hdr.off);
+        log.debug("commit({}, {})", hdr.getStreams().get(hdr.getStreams().keySet().iterator().next()), commit);
         try {
             org.corfudb.infrastructure.thrift.UUID stream = hdr.getStreams().keySet().iterator().next();
             byte[] key = buildKey(hdr.getStreams().get(stream), Utils.fromThriftUUID(stream));
@@ -389,9 +388,22 @@ public class RocksLogUnitServer implements RocksLogUnitService.Iface, ICorfuDBSe
                     //TODO: error!!!!!!
                 }
                 else {
-                    //TODO: the "abort bit" is just the null bit --> optimization?
-                        value[3] = (byte) (value[3] | COMMIT_MASK);
-                        db.put(key, value);
+                    if (commit) {
+                        //TODO: the "abort bit" is just the null bit --> optimization?
+                        ByteBuffer valueBuffer = ByteBuffer.wrap(value);
+                        ByteBuffer outBuffer = ByteBuffer.allocate(valueBuffer.capacity());
+                        outBuffer.putInt(valueBuffer.getInt() | COMMIT_MASK);
+                        outBuffer.put(valueBuffer);
+
+                        db.put(key, outBuffer.array());
+                    } else {
+                        ByteBuffer valueBuffer = ByteBuffer.wrap(value);
+                        ByteBuffer outBuffer = ByteBuffer.allocate(valueBuffer.capacity());
+                        outBuffer.putInt(valueBuffer.getInt() & ~COMMIT_MASK);
+                        outBuffer.put(valueBuffer);
+
+                        db.put(key, outBuffer.array());
+                    }
                 }
             } catch (RocksDBException e) {
                 throw new IOException(e.getMessage());

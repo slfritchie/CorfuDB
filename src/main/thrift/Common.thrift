@@ -19,7 +19,8 @@ enum ExtntMarkType {	EX_EMPTY, EX_FILLED, EX_TRIMMED, EX_SKIP }
 struct ExtntInfo {
 	1: i64 metaFirstOff,
 	2: i32 metaLength,
-	3: ExtntMarkType flag=ExtntMarkType.EX_FILLED
+	3: ExtntMarkType flag=ExtntMarkType.EX_FILLED,
+        4: bool commit,
 }
 
 struct UUID {

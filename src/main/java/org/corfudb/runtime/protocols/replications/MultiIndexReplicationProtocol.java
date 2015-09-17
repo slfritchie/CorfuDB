@@ -1,5 +1,6 @@
 package org.corfudb.runtime.protocols.replications;
 
+import org.corfudb.infrastructure.thrift.ExtntWrap;
 import org.corfudb.runtime.*;
 import org.corfudb.runtime.protocols.IServerProtocol;
 import org.corfudb.runtime.protocols.logunits.IStreamAwareLogUnit;
@@ -73,6 +74,7 @@ public class MultiIndexReplicationProtocol implements IStreamAwareRepProtocol {
             throws OverwriteException, TrimmedException, OutOfSpaceException, SubLogException {
         // TODO: Handle multiple segments?
         IStreamAwareRepProtocol reconfiguredRP = null;
+
         while (true)
         {
             try {
@@ -103,7 +105,13 @@ public class MultiIndexReplicationProtocol implements IStreamAwareRepProtocol {
                         throw e;
                     }
                 }
-
+                // Now we write the commit bits
+                for (UUID stream : streams.keySet()) {
+                    ((IWriteOnceLogUnit) first).setCommit(address, stream, true);
+                }
+                for (UUID stream : streams.keySet()) {
+                    ((IStreamAwareLogUnit) second).setCommit(streams.get(stream), stream, true);
+                }
                 return;
             }
             catch (NetworkException e)
@@ -130,16 +138,25 @@ public class MultiIndexReplicationProtocol implements IStreamAwareRepProtocol {
                 if (logAddress == -1L) {
                     long layer0 = physAddress % layers.get(0).size();
                     IServerProtocol first = layers.get(0).get((int)layer0);
-
-                    return ((IWriteOnceLogUnit)first).read(physAddress, stream);
+                    // check commit bit first
+                    ExtntWrap wrap = ((IWriteOnceLogUnit)first).fullRead(physAddress, stream);
+                    if (wrap.getInf().isCommit()) {
+                        byte[] data = new byte[wrap.getCtnt().get(0).remaining()];
+                        wrap.getCtnt().get(0).get(data);
+                        return data;
+                    } else throw new UnwrittenException("Address unwritten", physAddress);
                 }
                 else {
                     assert(physAddress == -1L);
-
                     long layer1 = stream.hashCode() % layers.get(1).size();
                     IServerProtocol second = layers.get(1).get((int)layer1);
 
-                    return ((IStreamAwareLogUnit)second).read(physAddress, stream);
+                    ExtntWrap wrap = ((IStreamAwareLogUnit)second).fullRead(logAddress, stream);
+                    if (wrap.getInf().isCommit()) {
+                        byte[] data = new byte[wrap.getCtnt().get(0).remaining()];
+                        wrap.getCtnt().get(0).get(data);
+                        return data;
+                    } else throw new UnwrittenException("Address unwritten", stream, logAddress);
                 }
             }
             catch (NetworkException e)

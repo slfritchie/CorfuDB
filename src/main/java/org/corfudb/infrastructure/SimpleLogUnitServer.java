@@ -277,6 +277,13 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
 		return mapb.getInt(mi) >> 3;
 	}
 
+    public boolean getCommit(long logOffset) {
+        int mi = mapind(logOffset) + intsz;
+        mapb.position(mi);
+        int length = mapb.getInt();
+        return !((length & 0x4) == 0);
+    }
+
 	public ExtntMarkType getET(long logOffset) {
 		int mi = mapind(logOffset) + intsz;
 		mapb.position(mi);
@@ -304,6 +311,8 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
         int length = mapb.getInt();
         if (commit) {
             length = length | 0x4;
+        } else {
+            length = length & (~0x4);
         }
         mapb.position(mi);
         mapb.putInt(length);
@@ -425,7 +434,7 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
 		} else {
         */
 			mapInfo minf = new mapInfo(logOffset);
-			wr.setInf(new ExtntInfo(logOffset, minf.length, minf.et));
+			wr.setInf(new ExtntInfo(logOffset, minf.length, minf.et, minf.commit));
 			log.debug("read phys {}->{}, {}", minf.physOffset, minf.length, minf.et);
 			if (minf.et == ExtntMarkType.EX_FILLED) {
 				wr.setErr(ErrorCode.OK);
@@ -581,8 +590,6 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
     @Override
     synchronized public ErrorCode setCommit(UnitServerHdr hdr, boolean commit) {
         if (Util.compareIncarnations(hdr.getEpoch(), masterIncarnation) < 0) return ErrorCode.ERR_STALEEPOCH;
-        log.info("setCommit({})", hdr.off);
-
         setExtntCommit(hdr.off, commit);
         return ErrorCode.OK;
     }
@@ -742,7 +749,7 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
     @Override
     synchronized public ErrorCode setHintsFlatTxn(UnitServerHdr hdr, ByteBuffer flatTxn) throws org.apache.thrift.TException {
         if (Util.compareIncarnations(hdr.getEpoch(), masterIncarnation) < 0) return ErrorCode.ERR_STALEEPOCH;
-        log.info("setHintsFlatTxn({})", hdr.off);
+        log.debug("setHintsFlatTxn({})", hdr.off);
 
         mapInfo minf = new mapInfo(hdr.off);
         switch (minf.et) {
@@ -763,7 +770,6 @@ public class SimpleLogUnitServer implements SimpleLogUnitService.Iface, ICorfuDB
 
         curHints.setFlatTxn(flatTxn);
 
-        log.info("streams in this flattxn: {}", hdr.streamID);
         if (hdr.streamID == null)
             return ErrorCode.OK;
         if (!curHints.isSetNextMap() || curHints.getNextMap() == null) {

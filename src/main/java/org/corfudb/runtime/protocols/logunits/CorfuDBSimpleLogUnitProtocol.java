@@ -247,6 +247,46 @@ public class CorfuDBSimpleLogUnitProtocol implements IServerProtocol, IWriteOnce
     }
 
     @Override
+    public ExtntWrap fullRead(long address, UUID stream)
+            throws UnwrittenException, TrimmedException, NetworkException
+    {
+        ExtntWrap wrap = null;
+        SimpleLogUnitService.Client client = thriftPool.getResource();
+        boolean success = false;
+        boolean broken = false;
+        try {
+            ArrayList<Integer> epochlist = new ArrayList<Integer>();
+            epochlist.add(epoch.intValue());
+            Set<org.corfudb.infrastructure.thrift.UUID> streams = null;
+            if (stream != null)
+                streams = Collections.singleton(Utils.toThriftUUID(stream));
+            wrap = client.read(new UnitServerHdr(epochlist, address, streams));
+            if (wrap.err.equals(ErrorCode.ERR_UNWRITTEN))
+            {
+                throw new UnwrittenException("Unwritten error", address);
+            }
+            else if (wrap.err.equals(ErrorCode.ERR_TRIMMED))
+            {
+                throw new TrimmedException("Trim error", address);
+            }
+            success = true;
+            thriftPool.returnResourceObject(client);
+        }
+        catch (TException e)
+        {
+            broken = true;
+            thriftPool.returnBrokenResource(client);
+            throw new NetworkException("Error connecting to endpoint: " + e.getMessage(), this);
+        }
+        finally {
+            if (!success && !broken){
+                thriftPool.returnResourceObject(client);
+            }
+        }
+        return wrap;
+    }
+
+    @Override
     public Hints readHints(long address) throws TrimmedException, NetworkException
     {
         Hints hint = null;

@@ -15,6 +15,7 @@
 
 package org.corfudb.runtime;
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * This exception is thrown whenever a read is attempted on an unwritten page.
@@ -22,11 +23,21 @@ import java.io.IOException;
 @SuppressWarnings("serial")
 public class UnwrittenException extends IOException
 {
-    public long address;
-    public UnwrittenException(String desc, long address)
+    public long physAddress;
+    public UUID stream;
+    public long logAddress;
+
+    public UnwrittenException(String desc, long physAddress)
     {
-        super(desc + "[address=" + address + "]");
-        this.address = address;
+        super(desc + "[address=" + physAddress + "]");
+        this.physAddress = physAddress;
+    }
+
+    public UnwrittenException(String desc, UUID stream, long logAddress)
+    {
+        super(desc + "[address=(stream:" + stream + ", " + logAddress  + ")]");
+        this.stream = stream;
+        this.logAddress = logAddress;
     }
 }
 

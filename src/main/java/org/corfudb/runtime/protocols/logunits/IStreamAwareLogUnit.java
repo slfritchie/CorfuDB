@@ -15,6 +15,7 @@
 
 package org.corfudb.runtime.protocols.logunits;
 
+import org.corfudb.infrastructure.thrift.ExtntWrap;
 import org.corfudb.runtime.*;
 import org.corfudb.runtime.protocols.IServerProtocol;
 
@@ -48,6 +49,10 @@ public interface IStreamAwareLogUnit extends IServerProtocol {
 
     default void setCommit(long address, UUID stream, boolean commit) throws TrimmedException, NetworkException {
         throw new UnsupportedOperationException("Log unit doesn't support commit bits");
+    }
+
+    default ExtntWrap fullRead(long address, UUID stream) throws UnwrittenException, TrimmedException, NetworkException {
+        throw new UnsupportedOperationException("Log unit doesn't support fullReads");
     }
 }
 
