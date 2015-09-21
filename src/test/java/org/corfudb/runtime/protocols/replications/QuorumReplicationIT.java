@@ -1,11 +1,10 @@
-package org.corfudb.samples;
+package org.corfudb.runtime.protocols.replications;
 
 import org.corfudb.infrastructure.SimpleLogUnitServer;
 import org.corfudb.infrastructure.StreamingSequencerServer;
 import org.corfudb.runtime.CorfuDBRuntime;
 import org.corfudb.runtime.view.CorfuDBView;
 import org.corfudb.runtime.view.ICorfuDBInstance;
-import org.corfudb.util.CorfuDBFactory;
 import org.corfudb.util.CorfuInfrastructureBuilder;
 
 import java.util.HashMap;
@@ -14,9 +13,9 @@ import java.util.Map;
 /**
  * Created by dalia on 8/15/15.
  */
-public class OneProcessCorfu implements Runnable {
+public class QuorumReplicationIT implements Runnable {
     private static final String usage =
-            "OneProcessCorfu\n\n";
+            "QuorumReplicationIT\n\n";
 
     CorfuDBView view = null;
     String masterString;
@@ -44,12 +43,12 @@ public class OneProcessCorfu implements Runnable {
     public static void main(String[] args) throws Exception {
 
         System.out.println("creating test thread...");
-        Thread r = new Thread(new OneProcessCorfu(args));
+        Thread r = new Thread(new QuorumReplicationIT(args));
         r.start();
         synchronized(r) {r.wait(); }
     }
 
-    OneProcessCorfu(String[] args) {
+    QuorumReplicationIT(String[] args) {
     }
 
     public void run() {
