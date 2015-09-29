@@ -157,7 +157,7 @@ public class CorfuInfrastructureBuilder {
 
         return this;
     }
-
+    
     @SneakyThrows
     @SuppressWarnings("unchecked")
     public CorfuInfrastructureBuilder addSALoggingUnit(int port, int layer, Class<? extends ICorfuDBServer> loggingType, String clientProtocol, Map<String,Object> baseParams, boolean nettyStream)
@@ -177,7 +177,6 @@ public class CorfuInfrastructureBuilder {
 
         return this;
     }
-
 
     /**
      * Start the configuration by initializing the configmaster at the specified port and running each server.
