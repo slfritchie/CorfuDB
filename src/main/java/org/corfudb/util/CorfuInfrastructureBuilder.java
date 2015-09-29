@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.infrastructure.ConfigMasterServer;
 import org.corfudb.infrastructure.ICorfuDBServer;
+import org.corfudb.infrastructure.NettyLogUnitServer;
 
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -97,8 +98,39 @@ public class CorfuInfrastructureBuilder {
     @SuppressWarnings("unchecked")
     public CorfuInfrastructureBuilder addLoggingUnit(int port, int chain, Class<? extends ICorfuDBServer> loggingType, String clientProtocol, Map<String,Object> baseParams)
     {
-        Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
-        ICorfuDBServer server = serverConstructor.newInstance();
+        ICorfuDBServer server;
+        if (loggingType.equals(NettyLogUnitServer.class)) {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor(boolean.class);
+            server = serverConstructor.newInstance(false);
+        } else {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
+            server = serverConstructor.newInstance();
+        }
+        Map<String, Object> configuration = baseParams == null ? new HashMap<>() : baseParams;
+        configuration.put("port", port);
+        serverList.add(server.getInstance(configuration));
+        for (int i = ((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).size(); i < chain; i++)
+        {
+            ((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).add(new HashMap<String, Object>());
+            (((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).get(i)).put("nodes", new LinkedList<String>());
+        }
+
+        ((LinkedList<String>)(((LinkedList<HashMap<String, Object>>)segmentMap.get(0).get("groups")).get(chain)).get("nodes")).add(clientProtocol + "://localhost:" + port);
+        return this;
+    }
+
+    @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public CorfuInfrastructureBuilder addLoggingUnit(int port, int chain, Class<? extends ICorfuDBServer> loggingType, String clientProtocol, Map<String,Object> baseParams, boolean nettyStream)
+    {
+        ICorfuDBServer server;
+        if (loggingType.equals(NettyLogUnitServer.class)) {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor(boolean.class);
+            server = serverConstructor.newInstance(nettyStream);
+        } else {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
+            server = serverConstructor.newInstance();
+        }
         Map<String, Object> configuration = baseParams == null ? new HashMap<>() : baseParams;
         configuration.put("port", port);
         serverList.add(server.getInstance(configuration));
@@ -118,6 +150,26 @@ public class CorfuInfrastructureBuilder {
     {
         Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
         ICorfuDBServer server = serverConstructor.newInstance();
+        Map<String, Object> configuration = baseParams == null ? new HashMap<>() : baseParams;
+        configuration.put("port", port);
+        serverList.add(server.getInstance(configuration));
+        ((ArrayList<String>)((ArrayList<HashMap<String, Object>>)(segmentMap.get(0).get("layers"))).get(layer).get("nodes")).add(clientProtocol + "://localhost:" + port);
+
+        return this;
+    }
+
+    @SneakyThrows
+    @SuppressWarnings("unchecked")
+    public CorfuInfrastructureBuilder addSALoggingUnit(int port, int layer, Class<? extends ICorfuDBServer> loggingType, String clientProtocol, Map<String,Object> baseParams, boolean nettyStream)
+    {
+        ICorfuDBServer server;
+        if (loggingType.equals(NettyLogUnitServer.class)) {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor(boolean.class);
+            server = serverConstructor.newInstance(nettyStream);
+        } else {
+            Constructor<? extends ICorfuDBServer> serverConstructor = loggingType.getConstructor();
+            server = serverConstructor.newInstance();
+        }
         Map<String, Object> configuration = baseParams == null ? new HashMap<>() : baseParams;
         configuration.put("port", port);
         serverList.add(server.getInstance(configuration));

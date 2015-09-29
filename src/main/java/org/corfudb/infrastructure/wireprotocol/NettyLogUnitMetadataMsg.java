@@ -42,9 +42,19 @@ public abstract class NettyLogUnitMetadataMsg extends NettyCorfuMsg implements I
                         buffer.writeLong(id.getLeastSignificantBits());
                     }
                     break;
+                case STREAM_ADDRESS:
+                    List<Long> addresses = (List<Long>) metadataMap.get(t);
+                    buffer.writeByte(addresses.size());
+                    for (Long address : addresses)
+                    {
+                        buffer.writeLong(address);
+                    }
+                    break;
                 case RANK:
                     buffer.writeLong((Long)metadataMap.get(t));
                     break;
+                case COMMIT:
+                    buffer.writeBoolean((boolean) metadataMap.get(t));
             }
         }
     }
@@ -73,9 +83,20 @@ public abstract class NettyLogUnitMetadataMsg extends NettyCorfuMsg implements I
                     }
                     metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.STREAM, streams);
                     break;
+                case STREAM_ADDRESS:
+                    List<Long> addresses = new ArrayList<>();
+                    count = buffer.readByte();
+                    for (int i = 0; i < count; i++)
+                    {
+                        addresses.add(buffer.readLong());
+                    }
+                    metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.STREAM_ADDRESS, addresses);
+                    break;
                 case RANK:
                     metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.RANK, buffer.readLong());
                     break;
+                case COMMIT:
+                    metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.COMMIT, buffer.readBoolean());
             }
             numEntries--;
         }

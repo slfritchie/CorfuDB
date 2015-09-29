@@ -47,6 +47,7 @@ public class NettyCorfuMsg {
         FILL_HOLE(34, NettyLogUnitFillHoleMsg.class),
         FORCE_GC(35, NettyCorfuMsg.class),
         GC_INTERVAL(36, NettyLogUnitGCIntervalMsg.class),
+        SET_COMMIT(37, NettyLogUnitCommitMsg.class),
 
         // Logging Unit Error Codes
         ERROR_OK(40, NettyCorfuMsg.class),

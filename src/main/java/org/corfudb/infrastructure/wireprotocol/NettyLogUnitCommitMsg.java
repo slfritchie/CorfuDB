@@ -9,24 +9,26 @@ import java.util.UUID;
 
 
 /**
- * Created by mwei on 9/15/15.
+ * Created by taia on 9/29/15.
  */
 @Getter
 @Setter
 @NoArgsConstructor
-public class NettyLogUnitReadRequestMsg extends NettyCorfuMsg {
+public class NettyLogUnitCommitMsg extends NettyCorfuMsg {
 
-    /** The address to read from */
+
     long address;
     UUID stream;
     long localAddress;
+    boolean commit;
 
-    public NettyLogUnitReadRequestMsg(long address, UUID stream, long localAddress)
+    public NettyLogUnitCommitMsg(long address, UUID stream, long localAddress, boolean commit)
     {
-        this.msgType = NettyCorfuMsgType.READ_REQUEST;
+        this.msgType = NettyCorfuMsgType.SET_COMMIT;
         this.address = address;
         this.stream = stream;
         this.localAddress = localAddress;
+        this.commit = commit;
     }
     /**
      * Serialize the message into the given bytebuffer.
@@ -42,6 +44,7 @@ public class NettyLogUnitReadRequestMsg extends NettyCorfuMsg {
             buffer.writeLong(stream.getLeastSignificantBits());
             buffer.writeLong(localAddress);
         }
+        buffer.writeBoolean(commit);
     }
 
     /**
@@ -58,5 +61,7 @@ public class NettyLogUnitReadRequestMsg extends NettyCorfuMsg {
             stream = new UUID(buffer.readLong(), buffer.readLong());
             localAddress = buffer.readLong();
         }
+        commit = buffer.readBoolean();
+
     }
 }

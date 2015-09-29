@@ -125,6 +125,14 @@ public interface INewWriteOnceLogUnit extends IServerProtocol {
      */
     CompletableFuture<WriteResult> write(long address, Map<UUID, Long> streamsAndLogicalAddresses, long rank, Object writeObject);
 
+    default CompletableFuture<WriteResult> setCommit(long address, boolean commit) {
+        throw new UnsupportedOperationException("Thiw NWOLU doesn't support setCommit");
+    }
+
+    default CompletableFuture<WriteResult> setCommit(UUID stream, long localAddress, boolean commit) {
+        throw new UnsupportedOperationException("Thiw NWOLU doesn't support setCommit");
+    }
+
     /** Asynchronously read from the logging unit.
      *
      * @param address       The address to read from.
@@ -132,6 +140,8 @@ public interface INewWriteOnceLogUnit extends IServerProtocol {
      *                      completes.
      */
     CompletableFuture<ReadResult> read(long address);
+
+    CompletableFuture<ReadResult> read(UUID stream, long localAddress);
 
     /** Send a hint to the logging unit that a stream can be trimmed.
      *
