@@ -72,6 +72,11 @@ public interface ISMREngine<T> {
      */
      <R> ITimestamp propose(ISMREngineCommand<T, R> command, CompletableFuture<R> completion, boolean readOnly);
 
+     default <R> CompletableFuture<ITimestamp>
+        proposeAsync(ISMREngineCommand<T,R> command, CompletableFuture<R> completion, boolean readOnly)
+        {
+            return CompletableFuture.completedFuture(propose(command, completion, readOnly));
+        }
     /**
      * Propose a new command to the SMR engine.
      * @param command       A lambda (BiConsumer) representing the command to be proposed.

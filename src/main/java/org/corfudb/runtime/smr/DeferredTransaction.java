@@ -80,7 +80,7 @@ public class DeferredTransaction implements ITransaction, IStreamEntry, Serializ
             if (engine == null && executingEngine instanceof SimpleSMREngine) {
                 engine = (IBufferedSMREngine) ((SimpleSMREngine) executingEngine).getCachedEngines().get(streamID);
                 if (engine == null) {
-                    IStream sTemp = instance.openStream(streamID);
+                    IStream sTemp = instance.openStream(streamID, EnumSet.of(ICorfuDBInstance.OpenStreamFlags.NON_CACHED));
                     engine = new CachedSMREngine(sTemp, objClass, timestamp);
                     engine.sync(timestamp);
                     ((SimpleSMREngine) executingEngine).addCachedEngine(streamID, engine);
@@ -140,19 +140,23 @@ public class DeferredTransaction implements ITransaction, IStreamEntry, Serializ
      */
     @Override
     public void executeTransaction(ISMREngine engine) {
+
         Hints hint = null;
+        /*
         try {
             hint = instance.getAddressSpace().readHints(((SimpleTimestamp) timestamp).address);
         } catch (Exception e) {
             log.error("Exception in reading metadata: {}", e);
         }
-
+*/
         if (hint == null || !hint.isSetFlatTxn()) {
             ITransactionCommand command = getTransaction();
             executingEngine = engine;
             try (TransactionalContext tx = new TransactionalContext(this)) {
                 command.apply(new DeferredTransactionOptions());
             }
+        }
+ /*
             // Collect the commands and write to Hints section.
             HashMap<UUID, ISMREngineCommand[]> multicommandMap = new HashMap<UUID, ISMREngineCommand[]>();
 
@@ -192,6 +196,7 @@ public class DeferredTransaction implements ITransaction, IStreamEntry, Serializ
                     new PassThroughSMREngine(engine.getObject(), engine.check(), instance, engine.getStreamID());
             applyEngine.propose(mc, null, false);
         }
+        */
     }
 
     /**
@@ -219,9 +224,18 @@ public class DeferredTransaction implements ITransaction, IStreamEntry, Serializ
         /* The simple transaction just assumes that everything is on the same log,
          * so picking the next valid sequence is acceptable.
          */
-        Long sequence = instance.getSequencer().getNext();
-        instance.getAddressSpace().write(sequence, this);
-        return new SimpleTimestamp(sequence);
+        try {
+            Long sequence = instance.getNewStreamingSequencer().nextTokenAsync(Collections.<UUID>emptySet(), 1)
+                    .thenApplyAsync(x -> {
+                        instance.getStreamAddressSpace().write(x, Collections.<UUID>emptySet(), this);
+                        return x;
+                    }).get();
+            return new SimpleTimestamp(sequence);
+        } catch (Exception e)
+        {
+            log.error("Error during tx propose", e);
+            throw new RuntimeException(e);
+        }
     }
 
     /**

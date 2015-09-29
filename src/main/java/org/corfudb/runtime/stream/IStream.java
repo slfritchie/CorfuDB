@@ -28,6 +28,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  *  A stream interface.
@@ -61,6 +62,19 @@ public interface IStream extends AutoCloseable {
     {
         throw new UnsupportedOperationException("not supported by this stream");
     }
+
+    /**
+     * Reserves a given number of timestamps in this stream. This operation may or may not retrieve
+     * valid timestamps. For example, a move operation may occur and these timestamps will not be valid on
+     * the stream.
+     * @param numTokens The number of tokens to allocate.
+     * @return          A set of timestamps representing the tokens to allocate.
+     */
+    default CompletableFuture<ITimestamp[]> reserveAsync(int numTokens)
+    {
+        throw new UnsupportedOperationException("not supported by this stream");
+    }
+
 
     /**
      * Write to a specific, previously allocated log position.
@@ -154,6 +168,16 @@ public interface IStream extends AutoCloseable {
     ITimestamp getPreviousTimestamp(ITimestamp ts);
 
     /**
+     * Given a timestamp, get the first timestamp in the stream.
+     * @param ts            The timestamp to decrement.
+     * @return              The first timestamp in the stream, or null, if there is no first timestamps in the stream.
+     */
+    default ITimestamp getFirstTimestamp() {
+        throw new UnsupportedOperationException("not supported");
+    }
+
+
+    /**
      * Returns a fresh timestamp, which can serve as a linearization point. This function
      * may return a non-linearizable (invalid) timestamp which may never occur in the ordering
      * due to a move/epoch change.
@@ -186,6 +210,17 @@ public interface IStream extends AutoCloseable {
      */
     ITimestamp check(boolean cached);
 
+    /**
+     * Asynchronously returns a new timestamp, which can serve as a linearization point.
+     * @return                  A completable future, which will return a timestamp when completed.
+     */
+    default CompletableFuture<ITimestamp> checkAsync() {
+        throw new UnsupportedOperationException("not implemented!");
+    }
+
+    default CompletableFuture<IStreamEntry[]> readToAsync(ITimestamp point) {
+        throw new UnsupportedOperationException("not implemented!");
+    }
     /**
      * Gets the current position the stream has read to (which may not point to an entry in the
      * stream).
