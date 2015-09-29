@@ -12,6 +12,7 @@ import lombok.extern.java.Log;
 import lombok.extern.slf4j.Slf4j;
 
 import org.corfudb.infrastructure.wireprotocol.*;
+import org.corfudb.runtime.smr.Pair;
 import org.corfudb.util.retry.IRetry;
 import org.corfudb.util.retry.IntervalAndSentinelRetry;
 
@@ -25,12 +26,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-@NoArgsConstructor
 public class NettyLogUnitServer extends AbstractNettyServer {
 
     ConcurrentHashMap<java.util.UUID, Long> trimMap;
     Thread gcThread;
     IntervalAndSentinelRetry gcRetry;
+    boolean streamAware;
+
+
+    public NettyLogUnitServer(boolean streamAware) {
+        this.streamAware = streamAware;
+    }
 
     @Data
     @RequiredArgsConstructor
@@ -46,13 +52,57 @@ public class NettyLogUnitServer extends AbstractNettyServer {
             metadataMap = new EnumMap<>(LogUnitMetadataType.class);
             isHole = true;
         }
+        
+	/** Get the streams that belong to this entry.
+         *
+         * @return A set of streams that belong to this entry.
+         */
+        @SuppressWarnings("unchecked")
+        public Set<UUID> getStreams()
+        {
+            return (Set<UUID>) metadataMap.getOrDefault(NettyLogUnitServer.LogUnitMetadataType.STREAM,
+                    Collections.EMPTY_SET);
+        }
+
+        /** Set the streams that belong to this entry.
+         *
+         * @param streams The set of belong to this entry.
+         */
+        public void setStreams(Set<UUID> streams)
+        {
+            metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.STREAM, streams);
+        }
+
+        /** Get the rank of this entry.
+         *
+         * @return The rank of this entry.
+         */
+        @SuppressWarnings("unchecked")
+        public Long getRank()
+        {
+            return (Long) metadataMap.getOrDefault(NettyLogUnitServer.LogUnitMetadataType.RANK,
+                    0L);
+        }
+
+        /** Set the rank of this entry.
+         *
+         * @param rank The rank of this entry.
+         */
+        public void setRank(Long rank)
+        {
+            metadataMap.put(NettyLogUnitServer.LogUnitMetadataType.RANK, rank);
+        }
+
+        public void setCommit(boolean commit) {metadataMap.put(LogUnitMetadataType.COMMIT, commit); }
+
     }
 
     @RequiredArgsConstructor
     public enum LogUnitMetadataType {
         STREAM(0),
         RANK(1),
-        STREAM_ADDRESS(2)
+        STREAM_ADDRESS(2),
+        COMMIT(3)
         ;
 
         final int type;
@@ -87,6 +137,7 @@ public class NettyLogUnitServer extends AbstractNettyServer {
      * it is not backed by anything, but in a disk implementation it is backed by persistent storage.
      */
     LoadingCache<Long, LogUnitEntry> dataCache;
+    LoadingCache<Pair, LogUnitEntry> streamDataCache;
 
     /**
      * This cache services requests for hints.
@@ -111,8 +162,13 @@ public class NettyLogUnitServer extends AbstractNettyServer {
             gcThread.interrupt();
         }
         /** Free all references */
-        dataCache.asMap().values().parallelStream()
-                .map(m -> m.buffer.release());
+        if (!streamAware) {
+            dataCache.asMap().values().parallelStream()
+                    .map(m -> m.buffer.release());
+        } else {
+            streamDataCache.asMap().values().parallelStream()
+                    .map(m -> m.buffer.release());
+        }
         super.close();
     }
 
@@ -157,6 +213,7 @@ public class NettyLogUnitServer extends AbstractNettyServer {
             {
                 NettyLogUnitFillHoleMsg m = (NettyLogUnitFillHoleMsg) msg;
                 dataCache.get(m.getAddress(), (address) -> new LogUnitEntry());
+                //TODO: What about the streamDataCache?
             }
             break;
             case TRIM:
@@ -164,6 +221,10 @@ public class NettyLogUnitServer extends AbstractNettyServer {
                 NettyLogUnitTrimMsg m = (NettyLogUnitTrimMsg) msg;
                 trimMap.compute(m.getStreamID(), (key, prev) ->
                         prev == null ? m.getPrefix() : Math.max(prev, m.getPrefix()));
+            }
+            case SET_COMMIT:
+            {
+                setCommit((NettyLogUnitCommitMsg) msg, ctx);
             }
             break;
         }
@@ -177,15 +238,29 @@ public class NettyLogUnitServer extends AbstractNettyServer {
         contiguousHead = 0L;
         trimRange = TreeRangeSet.create();
 
-        if (dataCache != null)
-        {
-            /** Free all references */
-            dataCache.asMap().values().parallelStream()
-                    .map(m -> m.buffer.release());
+        if (!streamAware) {
+            if (dataCache != null) {
+                /** Free all references */
+                dataCache.asMap().values().parallelStream()
+                        .map(m -> m.buffer.release());
+            }
+            // Currently, only an in-memory configuration is supported.
+            dataCache = Caffeine.newBuilder()
+                    .build((a) -> {
+                        return null;
+                    });
+        } else {
+            if (streamDataCache != null) {
+                /** Free all references */
+                streamDataCache.asMap().values().parallelStream()
+                        .map(m -> m.buffer.release());
+            }
+            // Currently, only an in-memory configuration is supported.
+            streamDataCache = Caffeine.newBuilder()
+                    .build((a) -> {
+                        return null;
+                    });
         }
-        // Currently, only an in-memory configuration is supported.
-        dataCache = Caffeine.newBuilder()
-                .build(a -> null);
 
         // Hints are always in memory and never persisted.
         /*
@@ -207,16 +282,26 @@ public class NettyLogUnitServer extends AbstractNettyServer {
         }
         else
         {
-            LogUnitEntry e = dataCache.get(msg.getAddress());
-            if (e == null)
-            {
-                sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.EMPTY), msg, ctx);
-            }
-            else if (e.isHole)
-            {
-                sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.FILLED_HOLE), msg, ctx);
+            if (!streamAware) {
+                assert(msg.getAddress() != -1L);
+                LogUnitEntry e = dataCache.get(msg.getAddress());
+                if (e == null) {
+                    sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.EMPTY), msg, ctx);
+                } else if (e.isHole) {
+                    sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.FILLED_HOLE), msg, ctx);
+                } else {
+                    sendResponse(new NettyLogUnitReadResponseMsg(e), msg, ctx);
+                }
             } else {
-                sendResponse(new NettyLogUnitReadResponseMsg(e), msg, ctx);
+                assert(msg.getAddress() == -1L);
+                LogUnitEntry e = streamDataCache.get(new Pair(msg.getStream(), msg.getLocalAddress()));
+                if (e == null) {
+                    sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.EMPTY), msg, ctx);
+                } else if (e.isHole) {
+                    sendResponse(new NettyLogUnitReadResponseMsg(ReadResultType.FILLED_HOLE), msg, ctx);
+                } else {
+                    sendResponse(new NettyLogUnitReadResponseMsg(e), msg, ctx);
+                }
             }
         }
     }
@@ -232,14 +317,49 @@ public class NettyLogUnitServer extends AbstractNettyServer {
         else {
             LogUnitEntry e = new LogUnitEntry(msg.getData(), msg.getMetadataMap(), false);
             e.getBuffer().retain();
-            if (e == dataCache.get(msg.getAddress(), (address) -> e)) {
-                sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
+            if (!streamAware) {
+                if (e == dataCache.get(msg.getAddress(), (address) -> e)) {
+                    sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
+                } else {
+                    e.getBuffer().release();
+                    sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE), msg, ctx);
+                }
+            } else {
+                if (e == streamDataCache.get(new Pair(((Set<UUID>)(msg.getMetadataMap().get(LogUnitMetadataType.STREAM))).iterator().next(),
+                        ((List<Long>)msg.getMetadataMap().get(LogUnitMetadataType.STREAM_ADDRESS)).get(0)), (address) -> e)) {
+                    sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
+                } else {
+                    e.getBuffer().release();
+                    sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE), msg, ctx);
+                }
             }
-            else
-            {
-                e.getBuffer().release();
-                sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE), msg, ctx);
+        }
+    }
+
+    public void setCommit(NettyLogUnitCommitMsg msg, ChannelHandlerContext ctx) {
+        if (trimRange.contains(msg.getAddress())) {
+            sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_TRIMMED), msg, ctx);
+        } else {
+            if (!streamAware) {
+                LogUnitEntry currentEntry = dataCache.get(msg.getAddress());
+                if (currentEntry == null)
+                    log.info("Tried to set commit bit on null entry.. address: {}", msg.getAddress());
+                //if (currentEntry.getMetadataMap() == null) {
+                //    EnumMap<LogUnitMetadataType, Object> map = new EnumMap<LogUnitMetadataType, Object>(LogUnitMetadataType.class);
+                //    map.put(LogUnitMetadataType.COMMIT, msg.isCommit());
+                //}
+                currentEntry.setCommit(msg.isCommit());
+                dataCache.put(msg.getAddress(), currentEntry);
+            } else {
+                LogUnitEntry currentEntry = streamDataCache.get(new Pair(msg.getStream(), msg.getLocalAddress()));
+                if (currentEntry == null)
+                    log.info("Tried to set commit bit on null entry.. stream: {}, localAddr: {}",
+                            msg.getStream(), msg.getLocalAddress());
+
+                currentEntry.setCommit(msg.isCommit());
+                streamDataCache.put(new Pair(msg.getStream(), msg.getLocalAddress()), currentEntry);
             }
+            sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
         }
     }
 

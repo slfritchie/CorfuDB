@@ -141,6 +141,14 @@ public class NettyLogUnitProtocol implements IServerProtocol, INewWriteOnceLogUn
         return handler.sendMessageAndGetCompletable(pool, epoch, w);
     }
 
+    public CompletableFuture<WriteResult> setCommit(long address, boolean commit) {
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(address, null, -1L, commit));
+    }
+
+    public CompletableFuture<WriteResult> setCommit(UUID stream, long localAddress, boolean commit) {
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(-1L, stream, localAddress, commit));
+    }
+
     /**
      * Asynchronously read from the logging unit.
      *
@@ -150,7 +158,12 @@ public class NettyLogUnitProtocol implements IServerProtocol, INewWriteOnceLogUn
      */
     @Override
     public CompletableFuture<ReadResult> read(long address) {
-        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitReadRequestMsg(address));
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitReadRequestMsg(address, null, -1L));
+    }
+
+    @Override
+    public CompletableFuture<ReadResult> read(UUID stream, long localAddress) {
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitReadRequestMsg(-1L, stream, localAddress));
     }
 
     /**
