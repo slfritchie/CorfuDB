@@ -17,16 +17,10 @@ package org.corfudb.runtime.protocols.logunits;
 
 import lombok.Data;
 import org.corfudb.infrastructure.NettyLogUnitServer;
-import org.corfudb.infrastructure.thrift.Hint;
-import org.corfudb.infrastructure.thrift.Hints;
-import org.corfudb.infrastructure.thrift.ReadCode;
-import org.corfudb.infrastructure.thrift.ReadResult;
 import org.corfudb.infrastructure.wireprotocol.IMetadata;
 import org.corfudb.infrastructure.wireprotocol.NettyLogUnitReadResponseMsg;
-import org.corfudb.runtime.*;
 import org.corfudb.runtime.protocols.IServerProtocol;
 
-import java.nio.ByteBuffer;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
@@ -55,7 +49,8 @@ public interface INewWriteOnceLogUnit extends IServerProtocol {
         TRIMMED,
         OVERWRITE,
         RANK_SEALED,
-        OOS
+        OOS,
+        SUB_LOG
     }
 
     enum ReadResultType {
@@ -129,7 +124,7 @@ public interface INewWriteOnceLogUnit extends IServerProtocol {
         throw new UnsupportedOperationException("Thiw NWOLU doesn't support setCommit");
     }
 
-    default CompletableFuture<WriteResult> setCommit(UUID stream, long localAddress, boolean commit) {
+    default CompletableFuture<WriteResult> setCommit(Map<UUID, Long> streams, boolean commit) {
         throw new UnsupportedOperationException("Thiw NWOLU doesn't support setCommit");
     }
 

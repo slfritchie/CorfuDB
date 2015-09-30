@@ -6,7 +6,6 @@ import org.corfudb.infrastructure.thrift.ExtntWrap;
 import org.corfudb.runtime.*;
 import org.corfudb.runtime.protocols.IServerProtocol;
 import org.corfudb.runtime.protocols.logunits.INewWriteOnceLogUnit;
-import org.corfudb.runtime.protocols.logunits.IStreamAwareLogUnit;
 import org.corfudb.runtime.protocols.logunits.IWriteOnceLogUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,6 +86,8 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                     return;
                 }
                 long layer0 = address % layers.get(0).size();
+                if (layer0 < 0)
+                    layer0 += layers.get(0).size();
                 IServerProtocol first = layers.get(0).get((int)layer0);
 
                 try {
@@ -99,33 +100,35 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                     }
                 }
                 long layer1 = streams.keySet().iterator().next().hashCode() % layers.get(1).size();
+                if (layer1 < 0)
+                    layer1 += layers.get(1).size();
                 IServerProtocol second = layers.get(1).get((int)layer1);
 
                 // TODO: Netty protocol needs to return a richer write for OverwriteExceptions
                 INewWriteOnceLogUnit.WriteResult asyncResult =
                         ((INewWriteOnceLogUnit) second).write(address, streams, 0, data).thenApplyAsync(
-                                w -> {if (w.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE))
-                                    return w;
-                                else {
-                                    // Now we write the commit bits
-                                    for (UUID stream : streams.keySet()) {
-                                        try {
-                                            ((IWriteOnceLogUnit) first).setCommit(address, stream, true);
-                                        } catch (TrimmedException e) {
-                                            return INewWriteOnceLogUnit.WriteResult.TRIMMED;
-                                        } catch (NetworkException e) {
-                                            return INewWriteOnceLogUnit.WriteResult.OOS; // Diff error??
+                                w -> {
+                                    if (w.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE) ||
+                                            w.equals(INewWriteOnceLogUnit.WriteResult.SUB_LOG))
+                                        return w;
+                                    else {
+                                        // Now we write the commit bits
+                                        for (UUID stream : streams.keySet()) {
+                                            try {
+                                                ((IWriteOnceLogUnit) first).setCommit(address, stream, true);
+                                            } catch (TrimmedException e) {
+                                                return INewWriteOnceLogUnit.WriteResult.TRIMMED;
+                                            } catch (NetworkException e) {
+                                                return INewWriteOnceLogUnit.WriteResult.OOS; // Diff error??
+                                            }
                                         }
+                                        return INewWriteOnceLogUnit.WriteResult.OK;
                                     }
-                                    for (UUID stream : streams.keySet()) {
-                                        ((INewWriteOnceLogUnit) second).setCommit(stream, streams.get(stream), true);
-                                    }
-                                }
-                                    return INewWriteOnceLogUnit.WriteResult.OK;
                                 }
                         ).get();
                 switch (asyncResult) {
                     case OK:
+                        (((INewWriteOnceLogUnit) second).setCommit(streams, true)).get();
                         return;
                     case OOS:
                         throw new OutOfSpaceException("Out of Space, netty MIRP", address);
@@ -133,6 +136,8 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                         throw new TrimmedException("trimmed exception, netty MIRP", address);
                     case OVERWRITE:
                         throw new OverwriteException("Overwrite Exception, netty MIRP, no data", address, null);
+                    case SUB_LOG:
+                        throw new SubLogException("Sublog Netty exception trying to insert..", address, streams);
                     default:
                         throw new RuntimeException("Unknown case in write for nett MIRP" + asyncResult);
                 }
@@ -161,6 +166,8 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                 // Depending on if -1L if in the physAddress or logAddress, we read from a different LU.
                 if (logAddress == -1L) {
                     long layer0 = physAddress % layers.get(0).size();
+                    if (layer0 < 0)
+                        layer0 += layers.get(0).size();
                     IServerProtocol first = layers.get(0).get((int)layer0);
                     // check commit bit first
                     ExtntWrap wrap = ((IWriteOnceLogUnit)first).fullRead(physAddress, stream);
@@ -173,9 +180,12 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                 else {
                     assert(physAddress == -1L);
                     long layer1 = stream.hashCode() % layers.get(1).size();
+                    if (layer1 < 0)
+                        layer1 += layers.get(1).size();
                     IServerProtocol second = layers.get(1).get((int)layer1);
 
                     INewWriteOnceLogUnit.ReadResult rr = ((INewWriteOnceLogUnit)second).read(stream, logAddress).get();
+                    // TODO: check for null
                     if ((boolean)rr.getMetadataMap().get(NettyLogUnitServer.LogUnitMetadataType.COMMIT))
                         return (byte[]) rr.getPayload();
                     else throw new UnwrittenException("Address unwritten", stream, logAddress);

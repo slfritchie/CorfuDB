@@ -54,7 +54,8 @@ public class NettyCorfuMsg {
         ERROR_TRIMMED(41, NettyCorfuMsg.class),
         ERROR_OVERWRITE(42, NettyCorfuMsg.class),
         ERROR_OOS(43, NettyCorfuMsg.class),
-        ERROR_RANK(44, NettyCorfuMsg.class)
+        ERROR_RANK(44, NettyCorfuMsg.class),
+        ERROR_SUBLOG(45, NettyCorfuMsg.class)
         ;
 
         final int type;

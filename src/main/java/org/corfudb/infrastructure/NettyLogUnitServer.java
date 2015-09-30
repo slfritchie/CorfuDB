@@ -1,25 +1,22 @@
 package org.corfudb.infrastructure;
 
-import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import lombok.*;
-import lombok.extern.java.Log;
+import lombok.Data;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
+import lombok.val;
 import org.corfudb.infrastructure.wireprotocol.*;
 import org.corfudb.runtime.smr.Pair;
 import org.corfudb.util.retry.IRetry;
 import org.corfudb.util.retry.IntervalAndSentinelRetry;
 
-import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
-
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -33,6 +30,9 @@ public class NettyLogUnitServer extends AbstractNettyServer {
     IntervalAndSentinelRetry gcRetry;
     boolean streamAware;
 
+    // Optimization for maintaining the "sublog ordering invariant"
+    private HashMap<UUID, RangeSet<Long>> streamRangeMap = new HashMap();
+    private HashMap<UUID, HashMap<Range<Long>, Pair<Long, Long>>> rangeToGlobalMap = new HashMap();
 
     public NettyLogUnitServer(boolean streamAware) {
         this.streamAware = streamAware;
@@ -306,6 +306,56 @@ public class NettyLogUnitServer extends AbstractNettyServer {
         }
     }
 
+    // address is the global (physical) address and the streams Map contains local (logical) stream addresses
+    private NettyCorfuMsg.NettyCorfuMsgType consensusDecision(long address, Map<UUID, Long> streams) {
+        HashMap<UUID, Pair<Range<Long>, Pair<Long, Long>>> temp = new HashMap();
+        for (UUID stream : streams.keySet()) {
+            // All ranges in the RangeSet are assumed to be OPEN!!
+            Range<Long> range;
+            Pair<Long, Long> interval;
+            if (streamRangeMap.get(stream) == null) {
+                // This stream hasn't been written to end. Then its default range is (-infty, infty)
+                range = Range.open(Long.MIN_VALUE, Long.MAX_VALUE);
+                interval = new Pair<Long, Long>(Long.MIN_VALUE, Long.MAX_VALUE);
+            } else {
+                range = streamRangeMap.get(stream).rangeContaining(streams.get(stream));
+                if (range == null)
+                    return NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE;
+                interval = rangeToGlobalMap.get(stream).get(range);
+            }
+            if (!(interval.first < address && interval.second > address))
+                return NettyCorfuMsg.NettyCorfuMsgType.ERROR_SUBLOG;
+            temp.put(stream, new Pair(range, interval));
+        }
+        // If this is a valid commit, we need to update the ranges in all the streams
+        for (UUID stream : temp.keySet()) {
+            Range<Long> oldRange = temp.get(stream).first;
+            Pair<Long, Long> oldInterval = temp.get(stream).second;
+            // Delete the old range
+            if (streamRangeMap.get(stream) == null) {
+                streamRangeMap.put(stream, TreeRangeSet.create());
+                rangeToGlobalMap.put(stream, new HashMap());
+            } else {
+                streamRangeMap.get(stream).remove(oldRange);
+                rangeToGlobalMap.get(stream).remove(oldRange);
+            }
+
+            // Insert two new ranges, if they aren't degenerate
+            Long lower = oldRange.lowerEndpoint();
+            Long upper = oldRange.upperEndpoint();
+            Long newEndpoint = streams.get(stream);
+            if (lower+1 != newEndpoint) {
+                streamRangeMap.get(stream).add(Range.open(lower, newEndpoint));
+                rangeToGlobalMap.get(stream).put(Range.open(lower, newEndpoint), new Pair<Long, Long>(oldInterval.first, address));
+            }
+            if (newEndpoint+1 != upper) {
+                streamRangeMap.get(stream).add(Range.open(newEndpoint, upper));
+                rangeToGlobalMap.get(stream).put(Range.open(newEndpoint, upper), new Pair<Long, Long>(address, oldInterval.second));
+            }
+        }
+        return NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK;
+    }
+
     /** Service an incoming write request. */
     public void write(NettyLogUnitWriteMsg msg, ChannelHandlerContext ctx)
     {
@@ -325,6 +375,29 @@ public class NettyLogUnitServer extends AbstractNettyServer {
                     sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE), msg, ctx);
                 }
             } else {
+                // run the consensus decision first
+                // Zip  together the streams/logids. TODO: These could be out of order..
+                Map<UUID, Long> streams = new HashMap<UUID, Long>();
+                int i = 0;
+                for (UUID stream : (Set<UUID>) msg.getMetadataMap().get(LogUnitMetadataType.STREAM)) {
+                    streams.put(stream, ((List<Long>) msg.getMetadataMap().get(LogUnitMetadataType.STREAM_ADDRESS)).get(i));
+                    i++;
+                }
+                switch (consensusDecision(msg.getAddress(), streams)) {
+                    case ERROR_OK:
+                        break;
+                    case ERROR_OVERWRITE:
+                        e.getBuffer().release();
+                        sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OVERWRITE), msg, ctx);
+                        return;
+                    case ERROR_SUBLOG:
+                        e.getBuffer().release();
+                        sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_SUBLOG), msg, ctx);
+                        return;
+                    default:
+                        break;
+                }
+
                 if (e == streamDataCache.get(new Pair(((Set<UUID>)(msg.getMetadataMap().get(LogUnitMetadataType.STREAM))).iterator().next(),
                         ((List<Long>)msg.getMetadataMap().get(LogUnitMetadataType.STREAM_ADDRESS)).get(0)), (address) -> e)) {
                     sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
@@ -344,20 +417,18 @@ public class NettyLogUnitServer extends AbstractNettyServer {
                 LogUnitEntry currentEntry = dataCache.get(msg.getAddress());
                 if (currentEntry == null)
                     log.info("Tried to set commit bit on null entry.. address: {}", msg.getAddress());
-                //if (currentEntry.getMetadataMap() == null) {
-                //    EnumMap<LogUnitMetadataType, Object> map = new EnumMap<LogUnitMetadataType, Object>(LogUnitMetadataType.class);
-                //    map.put(LogUnitMetadataType.COMMIT, msg.isCommit());
-                //}
                 currentEntry.setCommit(msg.isCommit());
                 dataCache.put(msg.getAddress(), currentEntry);
             } else {
-                LogUnitEntry currentEntry = streamDataCache.get(new Pair(msg.getStream(), msg.getLocalAddress()));
-                if (currentEntry == null)
-                    log.info("Tried to set commit bit on null entry.. stream: {}, localAddr: {}",
-                            msg.getStream(), msg.getLocalAddress());
+                for (UUID stream : msg.getStreams().keySet()) {
+                    LogUnitEntry currentEntry = streamDataCache.get(new Pair(stream, msg.getStreams().get(stream)));
+                    if (currentEntry == null)
+                        log.info("Tried to set commit bit on null entry.. stream: {}, localAddr: {}, est. size: {}",
+                                stream, msg.getStreams().get(stream), streamDataCache.estimatedSize());
 
-                currentEntry.setCommit(msg.isCommit());
-                streamDataCache.put(new Pair(msg.getStream(), msg.getLocalAddress()), currentEntry);
+                    currentEntry.setCommit(msg.isCommit());
+                    streamDataCache.put(new Pair(stream, msg.getStreams().get(stream)), currentEntry);
+                }
             }
             sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.ERROR_OK), msg, ctx);
         }

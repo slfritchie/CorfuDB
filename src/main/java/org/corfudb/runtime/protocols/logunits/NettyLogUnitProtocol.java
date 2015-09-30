@@ -8,7 +8,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.util.concurrent.Future;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +15,6 @@ import org.corfudb.infrastructure.wireprotocol.*;
 import org.corfudb.runtime.NetworkException;
 import org.corfudb.runtime.protocols.IServerProtocol;
 import org.corfudb.runtime.protocols.NettyRPCChannelInboundHandlerAdapter;
-import org.corfudb.runtime.protocols.sequencers.INewStreamSequencer;
 import org.corfudb.util.SizeBufferPool;
 
 import java.util.ArrayList;
@@ -141,12 +139,14 @@ public class NettyLogUnitProtocol implements IServerProtocol, INewWriteOnceLogUn
         return handler.sendMessageAndGetCompletable(pool, epoch, w);
     }
 
+    @Override
     public CompletableFuture<WriteResult> setCommit(long address, boolean commit) {
-        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(address, null, -1L, commit));
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(address, null, commit));
     }
 
-    public CompletableFuture<WriteResult> setCommit(UUID stream, long localAddress, boolean commit) {
-        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(-1L, stream, localAddress, commit));
+    @Override
+    public CompletableFuture<WriteResult> setCommit(Map<UUID, Long> streams, boolean commit) {
+        return handler.sendMessageAndGetCompletable(pool, epoch, new NettyLogUnitCommitMsg(-1L, streams, commit));
     }
 
     /**
@@ -232,6 +232,9 @@ public class NettyLogUnitProtocol implements IServerProtocol, INewWriteOnceLogUn
                     break;
                 case ERROR_TRIMMED:
                     completeRequest(message.getRequestID(), WriteResult.TRIMMED);
+                    break;
+                case ERROR_SUBLOG:
+                    completeRequest(message.getRequestID(), WriteResult.SUB_LOG);
                     break;
                 case PONG:
                     completeRequest(message.getRequestID(), true);

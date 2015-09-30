@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 
@@ -18,16 +20,14 @@ public class NettyLogUnitCommitMsg extends NettyCorfuMsg {
 
 
     long address;
-    UUID stream;
-    long localAddress;
+    Map<UUID, Long> streams = new HashMap<UUID, Long>();
     boolean commit;
 
-    public NettyLogUnitCommitMsg(long address, UUID stream, long localAddress, boolean commit)
+    public NettyLogUnitCommitMsg(long address, Map<UUID, Long> streams, boolean commit)
     {
         this.msgType = NettyCorfuMsgType.SET_COMMIT;
         this.address = address;
-        this.stream = stream;
-        this.localAddress = localAddress;
+        this.streams = streams;
         this.commit = commit;
     }
     /**
@@ -40,9 +40,12 @@ public class NettyLogUnitCommitMsg extends NettyCorfuMsg {
         super.serialize(buffer);
         buffer.writeLong(address);
         if (address == -1L) {
-            buffer.writeLong(stream.getMostSignificantBits());
-            buffer.writeLong(stream.getLeastSignificantBits());
-            buffer.writeLong(localAddress);
+            buffer.writeByte(streams.size());
+            for (UUID stream : streams.keySet()) {
+                buffer.writeLong(stream.getMostSignificantBits());
+                buffer.writeLong(stream.getLeastSignificantBits());
+                buffer.writeLong(streams.get(stream));
+            }
         }
         buffer.writeBoolean(commit);
     }
@@ -58,8 +61,11 @@ public class NettyLogUnitCommitMsg extends NettyCorfuMsg {
         super.fromBuffer(buffer);
         address = buffer.readLong();
         if (address == -1L) {
-            stream = new UUID(buffer.readLong(), buffer.readLong());
-            localAddress = buffer.readLong();
+            int count = buffer.readByte();
+            for (int i = 0; i < count; i++) {
+                UUID stream = new UUID(buffer.readLong(), buffer.readLong());
+                streams.put(stream, buffer.readLong());
+            }
         }
         commit = buffer.readBoolean();
 
