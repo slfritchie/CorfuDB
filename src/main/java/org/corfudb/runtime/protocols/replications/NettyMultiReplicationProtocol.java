@@ -16,6 +16,7 @@ import javax.json.JsonString;
 import javax.json.JsonValue;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 
 /**
@@ -60,8 +61,8 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
     }
 
     public static IStreamAwareRepProtocol initProtocol(Map<String, Object> fields,
-                                             Map<String,Class<? extends IServerProtocol>> availableLogUnitProtocols,
-                                             Long epoch) {
+                                                       Map<String,Class<? extends IServerProtocol>> availableLogUnitProtocols,
+                                                       Long epoch) {
         return new NettyMultiReplicationProtocol(populateLayersFromList((List<Map<String, Object>>) fields.get("layers"), availableLogUnitProtocols, epoch));
     }
 
@@ -80,73 +81,72 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
 
         while (true)
         {
-            try {
-                if (reconfiguredRP != null) {
-                    reconfiguredRP.write(client, address, streams, data);
-                    return;
-                }
-                long layer0 = address % layers.get(0).size();
-                if (layer0 < 0)
-                    layer0 += layers.get(0).size();
-                IServerProtocol first = layers.get(0).get((int)layer0);
-
-                try {
-                    ((IWriteOnceLogUnit)first).write(address, streams.keySet(), data);
-                } catch (OverwriteException e) {
-                    // If the payload of the exception is a different value, then it is a true overwrite,
-                    // pass up to WOAS. Otherwise, just keep executing the protocol
-                    if (!e.payload.equals(ByteBuffer.wrap(data))) {
-                        throw e;
-                    }
-                }
-                long layer1 = streams.keySet().iterator().next().hashCode() % layers.get(1).size();
-                if (layer1 < 0)
-                    layer1 += layers.get(1).size();
-                IServerProtocol second = layers.get(1).get((int)layer1);
-
-                // TODO: Netty protocol needs to return a richer write for OverwriteExceptions
-                INewWriteOnceLogUnit.WriteResult asyncResult =
-                        ((INewWriteOnceLogUnit) second).write(address, streams, 0, data).thenApplyAsync(
-                                w -> {
-                                    if (w.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE) ||
-                                            w.equals(INewWriteOnceLogUnit.WriteResult.SUB_LOG))
-                                        return w;
-                                    else {
-                                        // Now we write the commit bits
-                                        for (UUID stream : streams.keySet()) {
-                                            try {
-                                                ((IWriteOnceLogUnit) first).setCommit(address, stream, true);
-                                            } catch (TrimmedException e) {
-                                                return INewWriteOnceLogUnit.WriteResult.TRIMMED;
-                                            } catch (NetworkException e) {
-                                                return INewWriteOnceLogUnit.WriteResult.OOS; // Diff error??
-                                            }
-                                        }
-                                        return INewWriteOnceLogUnit.WriteResult.OK;
-                                    }
-                                }
-                        ).get();
-                switch (asyncResult) {
-                    case OK:
-                        (((INewWriteOnceLogUnit) second).setCommit(streams, true)).get();
-                        return;
-                    case OOS:
-                        throw new OutOfSpaceException("Out of Space, netty MIRP", address);
-                    case TRIMMED:
-                        throw new TrimmedException("trimmed exception, netty MIRP", address);
-                    case OVERWRITE:
-                        throw new OverwriteException("Overwrite Exception, netty MIRP, no data", address, null);
-                    case SUB_LOG:
-                        throw new SubLogException("Sublog Netty exception trying to insert..", address, streams);
-                    default:
-                        throw new RuntimeException("Unknown case in write for nett MIRP" + asyncResult);
-                }
+            if (reconfiguredRP != null) {
+                reconfiguredRP.write(client, address, streams, data);
+                return;
             }
-            catch (NetworkException e)
-            {
-                log.warn("Unable to write, requesting new view.", e);
-                client.invalidateViewAndWait(e);
+            long layer0 = address % layers.get(0).size();
+            if (layer0 < 0)
+                layer0 += layers.get(0).size();
+            IServerProtocol first = layers.get(0).get((int)layer0);
+
+            long layer1 = streams.keySet().iterator().next().hashCode() % layers.get(1).size();
+            if (layer1 < 0)
+                layer1 += layers.get(1).size();
+            IServerProtocol second = layers.get(1).get((int)layer1);
+
+            // TODO: Netty protocol needs to return a richer write for OverwriteExceptions
+            CompletableFuture<INewWriteOnceLogUnit.WriteResult> asyncResult =
+                    ((INewWriteOnceLogUnit) first).write(address, streams, 0, data).thenComposeAsync(
+                            w -> {
+                                if (w.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE) ||
+                                        w.equals(INewWriteOnceLogUnit.WriteResult.SUB_LOG)) {
+                                    CompletableFuture<INewWriteOnceLogUnit.WriteResult> ret =
+                                            new CompletableFuture<INewWriteOnceLogUnit.WriteResult>();
+                                    ret.complete(w);
+                                    return ret;
+                                }
+                                else {
+                                    return ((INewWriteOnceLogUnit) second).write(address, streams, 0, data).thenCompose(
+                                            sw -> {
+                                                if (sw.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE) ||
+                                                        sw.equals(INewWriteOnceLogUnit.WriteResult.SUB_LOG)) {
+                                                    CompletableFuture<INewWriteOnceLogUnit.WriteResult> ret =
+                                                            new CompletableFuture<INewWriteOnceLogUnit.WriteResult>();
+                                                    ret.complete(sw);
+                                                    return ret;
+                                                }
+                                                else {
+                                                    // Now we write the commit bits
+                                                    return (((INewWriteOnceLogUnit) first).setCommit(address, true)).thenCompose(
+                                                            cw -> (((INewWriteOnceLogUnit) second).setCommit(streams, true))
+                                                    );
+                                                }
+                                            }
+                                    );
+                                }
+                            }
+                    );
+            if (asyncResult == null) {
+                log.warn("Netty returned null CompletableFuture..");
+                client.invalidateViewAndWait(null);
                 reconfiguredRP = client.getView().getSegments().get(0).getStreamAwareRepProtocol();
+                continue;
+            }
+
+            switch (asyncResult.get()) {
+                case OK:
+                    return;
+                case OOS:
+                    throw new OutOfSpaceException("Out of Space, netty MIRP", address);
+                case TRIMMED:
+                    throw new TrimmedException("trimmed exception, netty MIRP", address);
+                case OVERWRITE:
+                    throw new OverwriteException("Overwrite Exception, netty MIRP, no data", address, null);
+                case SUB_LOG:
+                    throw new SubLogException("Sublog Netty exception trying to insert..", address, streams);
+                default:
+                    throw new RuntimeException("Unknown case in write for nett MIRP" + asyncResult);
             }
         }
     }
@@ -158,24 +158,23 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
         IStreamAwareRepProtocol reconfiguredRP = null;
         while (true)
         {
-            try {
                 if (reconfiguredRP != null) {
                     byte[] data = reconfiguredRP.read(client, physAddress, stream, logAddress);
                     return data;
                 }
-                // Depending on if -1L if in the physAddress or logAddress, we read from a different LU.
+                // Depending on if -1L if in the physAddress or logAddress, we read from a different Layer.
                 if (logAddress == -1L) {
                     long layer0 = physAddress % layers.get(0).size();
                     if (layer0 < 0)
                         layer0 += layers.get(0).size();
                     IServerProtocol first = layers.get(0).get((int)layer0);
                     // check commit bit first
-                    ExtntWrap wrap = ((IWriteOnceLogUnit)first).fullRead(physAddress, stream);
-                    if (wrap.getInf().isCommit()) {
-                        byte[] data = new byte[wrap.getCtnt().get(0).remaining()];
-                        wrap.getCtnt().get(0).get(data);
-                        return data;
-                    } else throw new UnwrittenException("Address unwritten", physAddress);
+                    INewWriteOnceLogUnit.ReadResult rr = ((INewWriteOnceLogUnit)first).read(physAddress).get();
+
+                    // TODO: check for null
+                    if ((boolean)rr.getMetadataMap().get(NettyLogUnitServer.LogUnitMetadataType.COMMIT))
+                        return (byte[]) rr.getPayload();
+                    else throw new UnwrittenException("Address unwritten", physAddress);
                 }
                 else {
                     assert(physAddress == -1L);
@@ -190,13 +189,6 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                         return (byte[]) rr.getPayload();
                     else throw new UnwrittenException("Address unwritten", stream, logAddress);
                 }
-            }
-            catch (NetworkException e)
-            {
-                log.warn("Unable to write, requesting new view.", e);
-                client.invalidateViewAndWait(e);
-                reconfiguredRP = client.getView().getSegments().get(0).getStreamAwareRepProtocol();
-            }
         }
     }
 
