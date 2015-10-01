@@ -7,6 +7,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.corfudb.infrastructure.wireprotocol.NettyCorfuMsg;
@@ -15,6 +16,7 @@ import org.corfudb.util.CFUtils;
 import org.corfudb.util.SizeBufferPool;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -45,6 +47,20 @@ public abstract class NettyRPCChannelInboundHandlerAdapter extends ChannelInboun
         requestID = new AtomicLong();
         rpcMap = new ConcurrentHashMap<>();
         random = new Random();
+
+        // Flusher that wakes up every 1 ms and flushes all channels.
+        (new Thread(new Runnable() {
+            @Override
+            @SneakyThrows
+            public void run() {
+                for (; ;) {
+                    Thread.sleep(1);
+                    for (Channel c : channelList) {
+                        c.flush();
+                    }
+                }
+            }
+        })).start();
     }
 
     public @NonNull
@@ -108,7 +124,7 @@ public abstract class NettyRPCChannelInboundHandlerAdapter extends ChannelInboun
 
     public void queueFlush(Channel channel)
     {
-        channel.flush();
+        //channel.flush();
     }
 
     @Override
