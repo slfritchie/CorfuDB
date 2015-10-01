@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.File;
 
+import org.corfudb.infrastructure.wireprotocol.NettyCorfuMsg;
 import org.yaml.snakeyaml.Yaml;
 import java.util.Map;
 import java.util.ArrayList;
@@ -52,8 +53,14 @@ public class ConfigParser {
                  try {
                     // Find the class
                     Class<?> serverClass = Class.forName((String)data.get("role"));
-                    Constructor<ICorfuDBServer> serverConstructor = (Constructor<ICorfuDBServer>) serverClass.getConstructor();
-                    ICorfuDBServer server = serverConstructor.newInstance();
+                     ICorfuDBServer server;
+                     if (serverClass.equals(NettyLogUnitServer.class)) {
+                         Constructor<ICorfuDBServer> serverConstructor = (Constructor<ICorfuDBServer>) serverClass.getConstructor(boolean.class);
+                         server = serverConstructor.newInstance((boolean)data.get("streamAware"));
+                     } else {
+                         Constructor<ICorfuDBServer> serverConstructor = (Constructor<ICorfuDBServer>) serverClass.getConstructor();
+                         server = serverConstructor.newInstance();
+                     }
                     System.out.println("Starting role " + (String)data.get("role"));
                     new Thread(server.getInstance(data)).start();
                 }

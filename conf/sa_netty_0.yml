@@ -1,0 +1,8 @@
+---
+# Node 1 in Layer 0 of the sa_*.yml files
+
+role: org.corfudb.infrastructure.NettyLogUnitServer
+streamAware: false
+port: 12701
+trim: 0
+master: http://localhost:12703/corfu

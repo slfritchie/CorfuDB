@@ -168,10 +168,16 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                     if (layer0 < 0)
                         layer0 += layers.get(0).size();
                     IServerProtocol first = layers.get(0).get((int)layer0);
-                    // check commit bit first
                     INewWriteOnceLogUnit.ReadResult rr = ((INewWriteOnceLogUnit)first).read(physAddress).get();
+                    if (rr == null) {
+                        // This means there was a Netty error, which means we need to reconfig. Equiv to NetworkException
+                        log.warn("Netty returned null CompletableFuture..");
+                        client.invalidateViewAndWait(null);
+                        reconfiguredRP = client.getView().getSegments().get(0).getStreamAwareRepProtocol();
+                        continue;
+                    }
 
-                    // TODO: check for null
+                    // check commit bit first
                     if ((boolean)rr.getMetadataMap().get(NettyLogUnitServer.LogUnitMetadataType.COMMIT))
                         return (byte[]) rr.getPayload();
                     else throw new UnwrittenException("Address unwritten", physAddress);
@@ -184,8 +190,15 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                     IServerProtocol second = layers.get(1).get((int)layer1);
 
                     INewWriteOnceLogUnit.ReadResult rr = ((INewWriteOnceLogUnit)second).read(stream, logAddress).get();
-                    // TODO: check for null
-                    if ((boolean)rr.getMetadataMap().get(NettyLogUnitServer.LogUnitMetadataType.COMMIT))
+                    if (rr == null) {
+                        // This means there was a Netty error, which means we need to reconfig. Equiv to NetworkException
+                        log.warn("Netty returned null CompletableFuture..");
+                        client.invalidateViewAndWait(null);
+                        reconfiguredRP = client.getView().getSegments().get(0).getStreamAwareRepProtocol();
+                        continue;
+                    }
+
+                    if (rr == null || (boolean)rr.getMetadataMap().get(NettyLogUnitServer.LogUnitMetadataType.COMMIT))
                         return (byte[]) rr.getPayload();
                     else throw new UnwrittenException("Address unwritten", stream, logAddress);
                 }

@@ -1,0 +1,8 @@
+---
+# To be used with all sa_*.yml files
+
+role: org.corfudb.infrastructure.NettyLogUnitServer
+port: 12802
+streamAware: true
+trim: 0
+master: http://localhost:12701/corfu

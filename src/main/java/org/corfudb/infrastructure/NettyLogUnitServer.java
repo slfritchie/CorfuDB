@@ -227,6 +227,10 @@ public class NettyLogUnitServer extends AbstractNettyServer {
                 setCommit((NettyLogUnitCommitMsg) msg, ctx);
             }
             break;
+            case RESET:
+            {
+                reset(); // TODO: Look at the ResetMsg and get the latest epoch?
+            }
         }
     }
 
@@ -307,7 +311,7 @@ public class NettyLogUnitServer extends AbstractNettyServer {
     }
 
     // address is the global (physical) address and the streams Map contains local (logical) stream addresses
-    private NettyCorfuMsg.NettyCorfuMsgType consensusDecision(long address, Map<UUID, Long> streams) {
+    synchronized private NettyCorfuMsg.NettyCorfuMsgType consensusDecision(long address, Map<UUID, Long> streams) {
         HashMap<UUID, Pair<Range<Long>, Pair<Long, Long>>> temp = new HashMap();
         for (UUID stream : streams.keySet()) {
             // All ranges in the RangeSet are assumed to be OPEN!!
