@@ -107,7 +107,7 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                                     return ret;
                                 }
                                 else {
-                                    return ((INewWriteOnceLogUnit) second).write(address, streams, 0, data).thenCompose(
+                                    return ((INewWriteOnceLogUnit) second).write(address, streams, 0, data).thenComposeAsync(
                                             sw -> {
                                                 if (sw.equals(INewWriteOnceLogUnit.WriteResult.OVERWRITE) ||
                                                         sw.equals(INewWriteOnceLogUnit.WriteResult.SUB_LOG)) {
@@ -118,7 +118,7 @@ public class NettyMultiReplicationProtocol implements IStreamAwareRepProtocol {
                                                 }
                                                 else {
                                                     // Now we write the commit bits
-                                                    return (((INewWriteOnceLogUnit) first).setCommit(address, true)).thenCompose(
+                                                    return (((INewWriteOnceLogUnit) first).setCommit(address, true)).thenComposeAsync(
                                                             cw -> (((INewWriteOnceLogUnit) second).setCommit(streams, true))
                                                     );
                                                 }
