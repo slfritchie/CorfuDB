@@ -275,7 +275,6 @@ public class NettyLogUnitProtocol implements IServerProtocol, INewWriteOnceLogUn
      * @param epoch
      */
     @Override
-    public void reset(long epoch) throws NetworkException {
-        handler.sendMessage(pool, epoch, new NettyCorfuResetMsg(epoch));
+    public void reset(long epoch) throws NetworkException {handler.sendMessage(pool, epoch, new NettyCorfuResetMsg(epoch));
     }
 }

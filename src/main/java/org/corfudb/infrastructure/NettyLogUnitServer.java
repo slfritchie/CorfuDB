@@ -231,7 +231,16 @@ public class NettyLogUnitServer extends AbstractNettyServer {
             {
                 reset(); // TODO: Look at the ResetMsg and get the latest epoch?
             }
+            case PING:
+            {
+                pong(msg, ctx);
+            }
+
         }
+    }
+
+    public void pong(NettyCorfuMsg msg, ChannelHandlerContext ctx) {
+        sendResponse(new NettyCorfuMsg(NettyCorfuMsg.NettyCorfuMsgType.PONG), msg, ctx);
     }
 
     /**
