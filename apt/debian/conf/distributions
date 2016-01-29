@@ -1,0 +1,7 @@
+Origin: Corfu
+Label: Corfu, A cluster consistency platform.
+Codename: trusty
+Architectures: i386 amd64
+Components: main
+Description: Apt repository for Corfu.
+SignWith: FABBC7D4
