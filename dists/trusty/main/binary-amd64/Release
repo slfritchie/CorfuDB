@@ -1,0 +1,5 @@
+Component: main
+Origin: Corfu
+Label: Corfu, A cluster consistency platform.
+Architecture: amd64
+Description: Apt repository for Corfu.
