@@ -83,10 +83,9 @@ public class CFUtils {
      */
     public static <T> CompletableFuture<T> failAfter(Duration duration) {
         final CompletableFuture<T> promise = new CompletableFuture<>();
-        scheduler.schedule(() -> {
-            final TimeoutException ex = new TimeoutException("Timeout after " + duration.toMillis() + " ms");
-            return promise.completeExceptionally(ex);
-        }, duration.toMillis(), TimeUnit.MILLISECONDS);
+        scheduler.schedule(() ->
+                promise.completeExceptionally(new TimeoutException("Timeout after " + duration.toMillis() + " ms"))
+        , duration.toMillis(), TimeUnit.MILLISECONDS);
         return promise;
     }
 
