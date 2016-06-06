@@ -1,5 +1,6 @@
 package org.corfudb;
 
+import io.netty.util.ResourceLeakDetector;
 import lombok.val;
 import org.corfudb.runtime.exceptions.OutOfSpaceException;
 import org.fusesource.jansi.Ansi;
@@ -71,6 +72,11 @@ public class AbstractCorfuTest {
     @Before
     public void setupTempDirs() {
         temporaryDirectories = new HashSet<>();
+    }
+
+    @Before
+    public void setupNettyMemoryLeakDetection() {
+        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.ADVANCED);
     }
 
     @After

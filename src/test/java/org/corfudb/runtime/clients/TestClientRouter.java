@@ -230,7 +230,9 @@ public class TestClientRouter implements IClientRouter, IServerRouter {
         ByteBuf oBuf = ByteBufAllocator.DEFAULT.buffer();
         message.serialize(oBuf);
         oBuf.resetReaderIndex();
-        return CorfuMsg.deserialize(oBuf);
+        CorfuMsg ret = CorfuMsg.deserialize(oBuf);
+        oBuf.release();
+        return ret;
     }
     @Override
     public void sendResponse(ChannelHandlerContext ctx, CorfuMsg inMsg, CorfuMsg outMsg) {
