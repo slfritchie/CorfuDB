@@ -75,6 +75,7 @@ public class CFUtils {
     T getUninterruptibly(CompletableFuture<T> future){
         return getUninterruptibly(future, RuntimeException.class, RuntimeException.class, RuntimeException.class, RuntimeException.class);
     }
+
     /** Generates a completable future which times out.
      * inspired by NoBlogDefFound: http://www.nurkiewicz.com/2014/12/asynchronous-timeouts-with.html
      * @param duration  The duration to timeout after.
@@ -84,7 +85,7 @@ public class CFUtils {
     public static <T> CompletableFuture<T> failAfter(Duration duration) {
         final CompletableFuture<T> promise = new CompletableFuture<>();
         scheduler.schedule(() ->
-                promise.completeExceptionally(new TimeoutException("Timeout after " + duration.toMillis() + " ms"))
+                promise.completeExceptionally(new TimeoutException())
         , duration.toMillis(), TimeUnit.MILLISECONDS);
         return promise;
     }

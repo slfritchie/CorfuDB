@@ -53,6 +53,28 @@ public class StreamViewTest extends AbstractViewTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    public void canReadWriteManyFromStream()
+            throws Exception {
+        //begin tests
+        CorfuRuntime r = getDefaultRuntime();
+        UUID streamA = UUID.nameUUIDFromBytes("stream A".getBytes());
+        byte[] testPayload = "hello world".getBytes();
+
+        StreamView sv = r.getStreamsView().get(streamA);
+        for (int i = 0; i < 100_000; i++) {
+            sv.write(testPayload);
+
+            assertThat(sv.read().getPayload())
+                    .isEqualTo("hello world".getBytes());
+        }
+
+        assertThat(sv.read())
+                .isEqualTo(null);
+    }
+
+
+    @Test
+    @SuppressWarnings("unchecked")
     public void canReadWriteFromStreamConcurrent()
             throws Exception {
         // default layout is chain replication.
