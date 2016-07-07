@@ -12,12 +12,17 @@ import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.runtime.view.Layout.LayoutSegment;
 import org.corfudb.util.JSONUtils;
+import org.corfudb.util.Utils;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.io.Files.write;
 
@@ -101,6 +106,17 @@ public class LayoutServer extends AbstractServer {
      */
     File phase2File;
 
+    /**
+     * A scheduler, which is used to schedule checkpoints and lease renewal
+     */
+    private final ScheduledExecutorService scheduler =
+            Executors.newScheduledThreadPool(
+                    1,
+                    new ThreadFactoryBuilder()
+                            .setDaemon(true)
+                            .setNameFormat("Config-Mgr-%d")
+                            .build());
+
     public LayoutServer(Map<String, Object> opts, IServerRouter serverRouter) {
         this.opts = opts;
         this.serverRouter = serverRouter;
@@ -141,6 +157,16 @@ public class LayoutServer extends AbstractServer {
             loadPhase1Data();
             loadPhase2Data();
         }
+        // schedule checkpointing.
+        String cmpi = "--cm-poll-interval";
+        long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
+        scheduler.scheduleAtFixedRate(this::configMgrPoll,
+                0, poll_interval, TimeUnit.SECONDS);
+
+    }
+
+    private void configMgrPoll() {
+        log.warn("Hello, world!");
     }
 
     /**

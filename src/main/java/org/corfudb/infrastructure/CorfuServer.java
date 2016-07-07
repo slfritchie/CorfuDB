@@ -60,7 +60,7 @@ public class CorfuServer {
             "Corfu Server, the server for the Corfu Infrastructure.\n"
                     + "\n"
                     + "Usage:\n"
-                    + "\tcorfu_server (-l <path>|-m) [-fs] [-a <address>] [-t <token>] [-c <size>] [-k seconds] [-d <level>] [-p <seconds>] <port>\n"
+                    + "\tcorfu_server (-l <path>|-m) [-fs] [-a <address>] [-t <token>] [-c <size>] [-k seconds] [-d <level>] [-p <seconds>] [-I <seconds>] <port>\n"
                     + "\n"
                     + "Options:\n"
                     + " -l <path>, --log-path=<path>            Set the path to the storage file for the log unit.\n"
@@ -81,6 +81,7 @@ public class CorfuServer {
                     + "                                         contiguous tail) in seconds [default: 60].\n"
                     + " -d <level>, --log-level=<level>         Set the logging level, valid levels are: \n"
                     + "                                         ERROR,WARN,INFO,DEBUG,TRACE [default: INFO].\n"
+                    + " -I <seconds>, --cm-poll-interval=<seconds>   Configuration Manager: polling interval [default: 1]"
                     + " -h, --help  Show this screen\n"
                     + " --version  Show version\n";
 
