@@ -9,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
 import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
+import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.runtime.view.Layout.LayoutSegment;
+import org.corfudb.runtime.view.LayoutView;
 import org.corfudb.util.JSONUtils;
 import org.corfudb.util.Utils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -19,7 +21,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -107,6 +111,17 @@ public class LayoutServer extends AbstractServer {
     File phase2File;
 
     /**
+     * Configuration manager: client runtime
+     */
+    CorfuRuntime rt = null;
+
+    /**
+     * Configuration manager: layout view
+     */
+    LayoutView lv = null;
+
+
+    /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
      */
     private final ScheduledExecutorService scheduler =
@@ -166,7 +181,25 @@ public class LayoutServer extends AbstractServer {
     }
 
     private void configMgrPoll() {
-        log.warn("Hello, world!");
+        List<String> layout_servers;
+
+        if (lv == null) {
+            if (currentLayout == null) {
+                log.info("No currentLayout, no polling work to do");
+                return;
+            }
+            layout_servers = currentLayout.getLayoutServers();
+            rt = new CorfuRuntime();
+            layout_servers.stream().forEach(ls -> {
+                rt.addLayoutServer(ls);
+            });
+            rt.connect();
+            lv = rt.getLayoutView();
+            log.info("Initial client layout for poller = {}", lv.getLayout());
+        }
+
+        layout_servers = currentLayout.getLayoutServers();
+        log.warn("Hello, world! endpoints = {}", layout_servers);
     }
 
     /**
