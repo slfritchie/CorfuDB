@@ -196,6 +196,33 @@ public class LayoutServer extends AbstractServer {
             rt.connect();
             lv = rt.getLayoutView();
             log.info("Initial client layout for poller = {}", lv.getLayout());
+
+            System.out.println("TODO: figure out what endpoint *I* am.");
+            // So, this is a cool problem.  How the hell do I figure out which
+            // endpoint in the layout is *my* server?
+            //
+            // * So, I know a TCP port number.  That doesn't help if we're
+            // deployed on multiple machines and some/all use the same TCP
+            // port.
+            // * I know the --address key in the 'opts' map.  But that
+            // defaults to 'localhost'.  And netty is binding to the "*"
+            // address, so other nodes in the cluster can use any IP address
+            // they wish on this machine.
+            //
+            // In the current implementation, I see only one choice:
+            // each 'corfu_server' invocation must include an --address=ADDR
+            // flag where ADDR is the canonical hostname (or IP address) for
+            // for this machine.  That means that the default for --address
+            // is only usable in toy localhost-only deployments.  Furthermore,
+            // when we get around to having init(8)/init.d(8)/systemd(8)
+            // daemon process management, the value of --address must be
+            // threaded through those daemon proc managers.
+            //
+            // HRM, there are uglier hacks available, I suppose.  The client
+            // could create a magic cookie and send it in a PING call.  The
+            // server side could stash away a history of cookies.  Then we
+            // could peek inside the local server, find the cookie history,
+            // and see if our cookie is in there.  Bwahahaha, that's icky.
         }
 
         layout_servers = currentLayout.getLayoutServers();
