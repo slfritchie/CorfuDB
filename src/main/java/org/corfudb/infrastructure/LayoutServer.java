@@ -120,6 +120,10 @@ public class LayoutServer extends AbstractServer {
      */
     LayoutView lv = null;
 
+    /**
+     * Configuration manager: my endpoint name
+     */
+    String my_endpoint;
 
     /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
@@ -172,20 +176,25 @@ public class LayoutServer extends AbstractServer {
             loadPhase1Data();
             loadPhase2Data();
         }
+
         // schedule checkpointing.
+        my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
         String cmpi = "--cm-poll-interval";
         long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
         scheduler.scheduleAtFixedRate(this::configMgrPoll,
                 0, poll_interval, TimeUnit.SECONDS);
-
     }
 
     private void configMgrPoll() {
         List<String> layout_servers;
 
-        if (lv == null) {
+        if (lv == null) {    // Not bootstrapped yet?
             if (currentLayout == null) {
-                log.info("No currentLayout, no polling work to do");
+                // The local layout server is not bootstrapped, so we have
+                // no hope of participating in Paxos decisions about layout.
+                // We may receive a layout bootstrap sometime in the future,
+                // so do not change the scheduling of this polling task.
+                log.trace("No currentLayout, so skip ConfigMgr poll");
                 return;
             }
             layout_servers = currentLayout.getLayoutServers();
@@ -194,10 +203,12 @@ public class LayoutServer extends AbstractServer {
                 rt.addLayoutServer(ls);
             });
             rt.connect();
-            lv = rt.getLayoutView();
+            lv = rt.getLayoutView();  // Can block for arbitrary time
             log.info("Initial client layout for poller = {}", lv.getLayout());
 
-            System.out.println("TODO: figure out what endpoint *I* am.");
+            // TODO: figure out what endpoint *I* am.
+            // Workaround: see my_endpoint.
+            //
             // So, this is a cool problem.  How the hell do I figure out which
             // endpoint in the layout is *my* server?
             //
@@ -224,9 +235,20 @@ public class LayoutServer extends AbstractServer {
             // could peek inside the local server, find the cookie history,
             // and see if our cookie is in there.  Bwahahaha, that's icky.
         }
-
-        layout_servers = currentLayout.getLayoutServers();
-        log.warn("Hello, world! endpoints = {}", layout_servers);
+        // Get the current layout using the regular CorfuDB client.
+        // The client (in theory) will take care of discovering layout
+        // changes that may have taken place while we were stopped/crashed/
+        // sleeping/whatever ... AH!  Oops, bad assumption.  The client
+        // does *not* perform a discovery/update process.  It appears to
+        // accept the layout from the first layout server in the list that
+        // is available.  For example, if the list is:
+        //   [localhost:8010 @ epoch 0, localhost:8011 @ epoch 1],
+        // ... then if the 8010 server is up, the local client does
+        // not attempt to fetch 8011's copy and lv.getCurrentLayout()
+        // yields epoch 0.
+        // TODO: Cobble together a discovery/update function.
+        lv = rt.getLayoutView();  // Can block for arbitrary time
+        log.warn("Hello, world! Client layout = {}", lv.getCurrentLayout());
     }
 
     /**
