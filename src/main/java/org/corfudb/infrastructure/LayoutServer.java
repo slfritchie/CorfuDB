@@ -10,6 +10,7 @@ import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
 import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
 import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.runtime.view.Layout.LayoutSegment;
@@ -22,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -126,8 +128,8 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: list of layout servers that we monitor for ping'ability.
      */
-    String[] history_layout_servers = null;
-    NettyClientRouter[] history_layout_routers = null;
+    String[] history_servers = null;
+    NettyClientRouter[] history_routers = null;
 
     /**
      * Configuration manager: polling history
@@ -282,19 +284,18 @@ public class LayoutServer extends AbstractServer {
         //          : No?  Then reset polling state.
         Collections.sort(layout_servers);
         String[] l_s = layout_servers.stream().toArray(String[]::new);
-        if (history_layout_servers == null || ! Arrays.equals(history_layout_servers, l_s)) {
-            log.warn("history_layout_servers=" + history_layout_servers + " layout_servers=" + layout_servers);
-            history_layout_servers = l_s;
+        log.warn("TODO FIXME: Poll all servers, not just the layout servers, and when the epoch changes!");
+        if (history_servers == null || ! Arrays.equals(history_servers, l_s)) {
+            log.trace("history_servers=" + history_servers + " layout_servers=" + layout_servers);
+            history_servers = l_s;
             history_poll_failures = new int[l_s.length];
-            history_layout_routers = new NettyClientRouter[l_s.length];
+            history_routers = new NettyClientRouter[l_s.length];
             for (int i = 0; i < l_s.length; i++) {
-                String host = l_s[i].split(":")[0];
-                int port = Integer.parseInt(l_s[i].split(":")[1]);
-                history_layout_routers[i] = new NettyClientRouter(host, port);
-                history_layout_routers[i].start();
-                history_layout_routers[i].setTimeoutConnect(50);
-                history_layout_routers[i].setTimeoutRetry(200);
-                history_layout_routers[i].setTimeoutResponse(1000);
+                history_routers[i] = new NettyClientRouter(l_s[i]);
+                history_routers[i].start();
+                history_routers[i].setTimeoutConnect(50);
+                history_routers[i].setTimeoutRetry(200);
+                history_routers[i].setTimeoutResponse(1000);
                 history_poll_failures[i] = 0;
             }
             history_poll_count = 0;
@@ -303,7 +304,32 @@ public class LayoutServer extends AbstractServer {
         }
 
         // TODO step: Poll servers for health.
+        for (int i = 0; i < history_routers.length; i++) {
+            int ii = i;  // Intermediate var just for the sake of having a final for use inside the lambda below
+            CompletableFuture.runAsync(() -> {
+               try {
+                   CompletableFuture<Boolean> cf = history_routers[ii].getClient(BaseClient.class).ping();
+                   cf.exceptionally(e -> {
+                       log.trace(history_servers[ii] + " exception " + e);
+                       history_poll_failures[ii]++;
+                       return false;
+                   });
+                   cf.thenAccept((x) -> {
+                       log.trace(history_servers[ii] + " " + x);
+                       if (x == true) {
+                           history_poll_failures[ii] = 0;
+                       } else {
+                           history_poll_failures[ii]++;
+                       }
+                       return;
+                   });
 
+               } catch (Exception e) {
+                   log.trace("Ping failed for " + history_servers[ii] + " with " + e);
+                   history_poll_failures[ii]++;
+               }
+            });
+        }
 
         // TODO step: Is there a change in health?
         //          : Yes? Then change layout.
