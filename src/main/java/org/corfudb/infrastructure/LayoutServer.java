@@ -10,6 +10,7 @@ import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
 import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
 import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.runtime.view.Layout.LayoutSegment;
 import org.corfudb.runtime.view.LayoutView;
@@ -20,10 +21,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -126,6 +124,18 @@ public class LayoutServer extends AbstractServer {
     String my_endpoint;
 
     /**
+     * Configuration manager: list of layout servers that we monitor for ping'ability.
+     */
+    String[] history_layout_servers = null;
+    NettyClientRouter[] history_layout_routers = null;
+
+    /**
+     * Configuration manager: polling history
+     */
+    int[] history_poll_failures = null;
+    int   history_poll_count = 0;
+
+    /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
      */
     private final ScheduledExecutorService scheduler =
@@ -177,7 +187,7 @@ public class LayoutServer extends AbstractServer {
             loadPhase2Data();
         }
 
-        // schedule checkpointing.
+        // schedule config manager polling.
         my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
         String cmpi = "--cm-poll-interval";
         long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
@@ -188,67 +198,115 @@ public class LayoutServer extends AbstractServer {
     private void configMgrPoll() {
         List<String> layout_servers;
 
-        if (lv == null) {    // Not bootstrapped yet?
-            if (currentLayout == null) {
-                // The local layout server is not bootstrapped, so we have
-                // no hope of participating in Paxos decisions about layout.
-                // We may receive a layout bootstrap sometime in the future,
-                // so do not change the scheduling of this polling task.
-                log.trace("No currentLayout, so skip ConfigMgr poll");
+        try {
+            if (lv == null) {    // Not bootstrapped yet?
+                if (currentLayout == null) {
+                    // The local layout server is not bootstrapped, so we have
+                    // no hope of participating in Paxos decisions about layout.
+                    // We may receive a layout bootstrap sometime in the future,
+                    // so do not change the scheduling of this polling task.
+                    log.trace("No currentLayout, so skip ConfigMgr poll");
+                    return;
+                }
+                layout_servers = currentLayout.getLayoutServers();
+                rt = new CorfuRuntime();
+                layout_servers.stream().forEach(ls -> {
+                    rt.addLayoutServer(ls);
+                });
+                rt.connect();
+                lv = rt.getLayoutView();  // Can block for arbitrary time
+                log.info("Initial client layout for poller = {}", lv.getLayout());
+
+                // TODO: figure out what endpoint *I* am.
+                // Workaround: see my_endpoint.
+                //
+                // So, this is a cool problem.  How the hell do I figure out which
+                // endpoint in the layout is *my* server?
+                //
+                // * So, I know a TCP port number.  That doesn't help if we're
+                // deployed on multiple machines and some/all use the same TCP
+                // port.
+                // * I know the --address key in the 'opts' map.  But that
+                // defaults to 'localhost'.  And netty is binding to the "*"
+                // address, so other nodes in the cluster can use any IP address
+                // they wish on this machine.
+                //
+                // In the current implementation, I see only one choice:
+                // each 'corfu_server' invocation must include an --address=ADDR
+                // flag where ADDR is the canonical hostname (or IP address) for
+                // for this machine.  That means that the default for --address
+                // is only usable in toy localhost-only deployments.  Furthermore,
+                // when we get around to having init(8)/init.d(8)/systemd(8)
+                // daemon process management, the value of --address must be
+                // threaded through those daemon proc managers.
+                //
+                // HRM, there are uglier hacks available, I suppose.  The client
+                // could create a magic cookie and send it in a PING call.  The
+                // server side could stash away a history of cookies.  Then we
+                // could peek inside the local server, find the cookie history,
+                // and see if our cookie is in there.  Bwahahaha, that's icky.
+            }
+            // Get the current layout using the regular CorfuDB client.
+            // The client (in theory) will take care of discovering layout
+            // changes that may have taken place while we were stopped/crashed/
+            // sleeping/whatever ... AH!  Oops, bad assumption.  The client
+            // does *not* perform a discovery/update process.  It appears to
+            // accept the layout from the first layout server in the list that
+            // is available.  For example, if the list is:
+            //   [localhost:8010 @ epoch 0, localhost:8011 @ epoch 1],
+            // ... then if the 8010 server is up, the local client does
+            // not attempt to fetch 8011's copy and lv.getCurrentLayout()
+            // yields epoch 0.
+            // TODO: Cobble together a discovery/update function?  Or avoid
+            //       the problem by having the Paxos implementation always
+            //       fix any non-unanimous servers?
+            lv = rt.getLayoutView();  // Can block for arbitrary time
+            Layout l = lv.getCurrentLayout();
+            // log.warn("Hello, world! Client layout = {}", l);
+            // For now, assume that lv contains the latest & greatest layout
+            layout_servers = l.getLayoutServers();
+            if (! layout_servers.contains(my_endpoint)) {
+                log.trace("I am not a layout server in epoch " + l.getEpoch() + ", layout server list = " + layout_servers);
                 return;
             }
-            layout_servers = currentLayout.getLayoutServers();
-            rt = new CorfuRuntime();
-            layout_servers.stream().forEach(ls -> {
-                rt.addLayoutServer(ls);
-            });
-            rt.connect();
-            lv = rt.getLayoutView();  // Can block for arbitrary time
-            log.info("Initial client layout for poller = {}", lv.getLayout());
-
-            // TODO: figure out what endpoint *I* am.
-            // Workaround: see my_endpoint.
-            //
-            // So, this is a cool problem.  How the hell do I figure out which
-            // endpoint in the layout is *my* server?
-            //
-            // * So, I know a TCP port number.  That doesn't help if we're
-            // deployed on multiple machines and some/all use the same TCP
-            // port.
-            // * I know the --address key in the 'opts' map.  But that
-            // defaults to 'localhost'.  And netty is binding to the "*"
-            // address, so other nodes in the cluster can use any IP address
-            // they wish on this machine.
-            //
-            // In the current implementation, I see only one choice:
-            // each 'corfu_server' invocation must include an --address=ADDR
-            // flag where ADDR is the canonical hostname (or IP address) for
-            // for this machine.  That means that the default for --address
-            // is only usable in toy localhost-only deployments.  Furthermore,
-            // when we get around to having init(8)/init.d(8)/systemd(8)
-            // daemon process management, the value of --address must be
-            // threaded through those daemon proc managers.
-            //
-            // HRM, there are uglier hacks available, I suppose.  The client
-            // could create a magic cookie and send it in a PING call.  The
-            // server side could stash away a history of cookies.  Then we
-            // could peek inside the local server, find the cookie history,
-            // and see if our cookie is in there.  Bwahahaha, that's icky.
+            // If we're here, then it's poll time.
+            configMgrPollOnce(l);
+        } catch (Exception e) {
+            log.warn("TODO Oops, " + e);
         }
-        // Get the current layout using the regular CorfuDB client.
-        // The client (in theory) will take care of discovering layout
-        // changes that may have taken place while we were stopped/crashed/
-        // sleeping/whatever ... AH!  Oops, bad assumption.  The client
-        // does *not* perform a discovery/update process.  It appears to
-        // accept the layout from the first layout server in the list that
-        // is available.  For example, if the list is:
-        //   [localhost:8010 @ epoch 0, localhost:8011 @ epoch 1],
-        // ... then if the 8010 server is up, the local client does
-        // not attempt to fetch 8011's copy and lv.getCurrentLayout()
-        // yields epoch 0.
-        // TODO: Cobble together a discovery/update function.
-        lv = rt.getLayoutView();  // Can block for arbitrary time
-        log.warn("Hello, world! Client layout = {}", lv.getCurrentLayout());
+    }
+
+    void configMgrPollOnce(Layout l) {
+        List<String> layout_servers = l.getLayoutServers();
+        // TODO step: Are we polling the same servers as last time?
+        //          : No?  Then reset polling state.
+        Collections.sort(layout_servers);
+        String[] l_s = layout_servers.stream().toArray(String[]::new);
+        if (history_layout_servers == null || ! Arrays.equals(history_layout_servers, l_s)) {
+            log.warn("history_layout_servers=" + history_layout_servers + " layout_servers=" + layout_servers);
+            history_layout_servers = l_s;
+            history_poll_failures = new int[l_s.length];
+            history_layout_routers = new NettyClientRouter[l_s.length];
+            for (int i = 0; i < l_s.length; i++) {
+                String host = l_s[i].split(":")[0];
+                int port = Integer.parseInt(l_s[i].split(":")[1]);
+                history_layout_routers[i] = new NettyClientRouter(host, port);
+                history_layout_routers[i].start();
+                history_layout_routers[i].setTimeoutConnect(50);
+                history_layout_routers[i].setTimeoutRetry(200);
+                history_layout_routers[i].setTimeoutResponse(1000);
+                history_poll_failures[i] = 0;
+            }
+            history_poll_count = 0;
+        } else {
+            log.trace("No server list change since last poll.");
+        }
+
+        // TODO step: Poll servers for health.
+
+
+        // TODO step: Is there a change in health?
+        //          : Yes? Then change layout.
     }
 
     /**
