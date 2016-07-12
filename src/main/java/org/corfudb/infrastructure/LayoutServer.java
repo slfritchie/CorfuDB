@@ -136,6 +136,7 @@ public class LayoutServer extends AbstractServer {
      */
     int[] history_poll_failures = null;
     int   history_poll_count = 0;
+    HashMap<String,Boolean> history_status = null;
 
     /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
@@ -278,20 +279,27 @@ public class LayoutServer extends AbstractServer {
         }
     }
 
+    // TODO: Yank this into a separate class, refactor, de-C-ify, ...
+
     void configMgrPollOnce(Layout l) {
-        List<String> layout_servers = l.getLayoutServers();
-        // TODO step: Are we polling the same servers as last time?
-        //          : No?  Then reset polling state.
-        Collections.sort(layout_servers);
-        String[] l_s = layout_servers.stream().toArray(String[]::new);
+        // Are we polling the same servers as last time?  If not, then reset polling state.
+        String[] all_servers = l.getAllServers().stream().toArray(String[]::new);
+        Arrays.sort(all_servers);
+
         log.warn("TODO FIXME: Poll all servers, not just the layout servers, and when the epoch changes!");
-        if (history_servers == null || ! Arrays.equals(history_servers, l_s)) {
-            log.trace("history_servers=" + history_servers + " layout_servers=" + layout_servers);
-            history_servers = l_s;
-            history_poll_failures = new int[l_s.length];
-            history_routers = new NettyClientRouter[l_s.length];
-            for (int i = 0; i < l_s.length; i++) {
-                history_routers[i] = new NettyClientRouter(l_s[i]);
+        if (history_servers == null || ! Arrays.equals(history_servers, all_servers)) {
+            if (history_status == null) {
+                history_status = new HashMap<>();
+            }
+            log.trace("history_servers change, length = " + all_servers.length);
+            history_servers = all_servers;
+            history_routers = new NettyClientRouter[all_servers.length];
+            history_poll_failures = new int[all_servers.length];
+            for (int i = 0; i < all_servers.length; i++) {
+                if (! history_status.containsKey(all_servers[i]) {
+                    history_status.put(all_servers[i], true);  // Assume it's up until we think it isn't.
+                }
+                history_routers[i] = new NettyClientRouter(all_servers[i]);
                 history_routers[i].start();
                 history_routers[i].setTimeoutConnect(50);
                 history_routers[i].setTimeoutRetry(200);
@@ -303,7 +311,9 @@ public class LayoutServer extends AbstractServer {
             log.trace("No server list change since last poll.");
         }
 
-        // TODO step: Poll servers for health.
+        // Poll servers for health.  All ping activity will happen in the background.
+        // We probably won't notice changes in this iteration; a future iteration will
+        // eventually notice changes to history_poll_failures.
         for (int i = 0; i < history_routers.length; i++) {
             int ii = i;  // Intermediate var just for the sake of having a final for use inside the lambda below
             CompletableFuture.runAsync(() -> {
@@ -330,9 +340,16 @@ public class LayoutServer extends AbstractServer {
                }
             });
         }
+        history_poll_count++;
 
         // TODO step: Is there a change in health?
         //          : Yes? Then change layout.
+        if (history_poll_count > 2) {
+            HashMap<String,Integer> e2i = new HashMap<>();
+            for (int i = 0; i < history_servers.length; i++) {
+                e2i.put(history_servers[i], i);
+            }
+        }
     }
 
     /**
