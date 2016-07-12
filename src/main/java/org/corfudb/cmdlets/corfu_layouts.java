@@ -15,6 +15,7 @@ import org.corfudb.util.Utils;
 import org.docopt.Docopt;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.fusesource.jansi.Ansi.Color.WHITE;

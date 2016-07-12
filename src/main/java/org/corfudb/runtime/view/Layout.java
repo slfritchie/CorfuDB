@@ -38,10 +38,20 @@ public class Layout implements Cloneable {
     @Getter
     List<String> layoutServers;
     /**
+     * A list of down layout servers in the layout.
+     */
+    @Getter
+    List<String> down_layoutServers;
+    /**
      * A list of sequencers in the layout.
      */
     @Getter
     List<String> sequencers;
+    /**
+     * A list of down sequencers in the layout.
+     */
+    @Getter
+    List<String> down_sequencers;
     /**
      * A list of the segments in the layout.
      */
@@ -66,7 +76,9 @@ public class Layout implements Cloneable {
 
     public Layout(List<String> layoutServers, List<String> sequencers, List<LayoutSegment> segments, long epoch) {
         this.layoutServers = layoutServers;
+        this.down_layoutServers = null; // TODO: allocate an empty list
         this.sequencers = sequencers;
+        this.down_sequencers = null; // TODO: allocate an empty list
         this.segments = segments;
         this.epoch = epoch;
         this.valid = true;
@@ -342,8 +354,15 @@ public class Layout implements Cloneable {
 
     @Data
     @Getter
-    @AllArgsConstructor
     public static class LayoutStripe {
         final List<String> logServers;
+        final List<String> down_logServers;
+
+        public LayoutStripe(List<String> logServers) {
+            this.logServers = logServers;
+            // List<String> foo = new List<String>([]);
+            // this.down_logServers = foo;
+            this.down_logServers = null; // TODO: allocate an empty list
+        }
     }
 }
