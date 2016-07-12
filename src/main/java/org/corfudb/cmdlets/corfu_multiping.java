@@ -106,7 +106,7 @@ public class corfu_multiping implements ICmdlet {
                 routers[nth].setTimeoutResponse(1000);
             }
             try {
-               CompletableFuture<Boolean> cf = routers[nth].getClient(BaseClient.class).ping();
+                CompletableFuture<Boolean> cf = routers[nth].getClient(BaseClient.class).ping();
                 cf.exceptionally(e -> {
                     log.trace(hosts[nth] + " port " + ports[nth] + " c " + c + " exception " + e);
                     up[nth] = false;

@@ -327,9 +327,9 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
             } else {
                 ctx.writeAndFlush(message);
             }
-            log.trace("Sent message: {}", message);
+            log.trace("Sent message to {} with t.o. {}: {}", host+":"+port, Duration.ofMillis(timeoutResponse), message);
             // Generate a timeout future, which will complete exceptionally if the main future is not completed.
-            final CompletableFuture<T> cfTimeout = CFUtils.within(cf, Duration.ofSeconds(timeoutResponse));
+            final CompletableFuture<T> cfTimeout = CFUtils.within(cf, Duration.ofMillis(timeoutResponse));
             cfTimeout.exceptionally(e -> {
                 outstandingRequests.remove(thisRequest);
                 log.debug("Remove request {} due to timeout!", thisRequest);

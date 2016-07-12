@@ -296,7 +296,7 @@ public class LayoutServer extends AbstractServer {
             history_routers = new NettyClientRouter[all_servers.length];
             history_poll_failures = new int[all_servers.length];
             for (int i = 0; i < all_servers.length; i++) {
-                if (! history_status.containsKey(all_servers[i]) {
+                if (! history_status.containsKey(all_servers[i])) {
                     history_status.put(all_servers[i], true);  // Assume it's up until we think it isn't.
                 }
                 history_routers[i] = new NettyClientRouter(all_servers[i]);
@@ -317,37 +317,62 @@ public class LayoutServer extends AbstractServer {
         for (int i = 0; i < history_routers.length; i++) {
             int ii = i;  // Intermediate var just for the sake of having a final for use inside the lambda below
             CompletableFuture.runAsync(() -> {
-               try {
-                   CompletableFuture<Boolean> cf = history_routers[ii].getClient(BaseClient.class).ping();
-                   cf.exceptionally(e -> {
-                       log.trace(history_servers[ii] + " exception " + e);
-                       history_poll_failures[ii]++;
-                       return false;
-                   });
-                   cf.thenAccept((x) -> {
-                       log.trace(history_servers[ii] + " " + x);
-                       if (x == true) {
-                           history_poll_failures[ii] = 0;
-                       } else {
-                           history_poll_failures[ii]++;
-                       }
-                       return;
-                   });
+                // Any changes that we make to history_poll_failures here can possibly
+                // race with other async CFs that were launched in earlier/later CFs.
+                // We don't care if an increment gets clobbered by another increment:
+                //     being off by one isn't a big problem.
+                // We don't care if a reset to zero gets clobbered by an increment:
+                //     if the endpoint is really pingable, then a later reset to zero
+                //     will succeed, probably.
+                try {
+                    CompletableFuture<Boolean> cf = history_routers[ii].getClient(BaseClient.class).ping();
+                    cf.exceptionally(e -> {
+                        log.trace(history_servers[ii] + " exception " + e);
+                        history_poll_failures[ii]++;
+                        return false;
+                    });
+                    cf.thenAccept((x) -> {
+                        if (x == true) {
+                            history_poll_failures[ii] = 0;
+                        } else {
+                            history_poll_failures[ii]++;
+                        }
+                        return;
+                    });
 
-               } catch (Exception e) {
-                   log.trace("Ping failed for " + history_servers[ii] + " with " + e);
-                   history_poll_failures[ii]++;
-               }
+                } catch (Exception e) {
+                    log.trace("Ping failed for " + history_servers[ii] + " with " + e);
+                    history_poll_failures[ii]++;
+                }
             });
         }
         history_poll_count++;
 
-        // TODO step: Is there a change in health?
-        //          : Yes? Then change layout.
-        if (history_poll_count > 2) {
-            HashMap<String,Integer> e2i = new HashMap<>();
+        if (history_poll_count > 3) {
+            HashMap<String,Boolean> status_change = new HashMap<>();
+            Boolean is_up;
+
+            // Simple failure detector: Is there a change in health?
             for (int i = 0; i < history_servers.length; i++) {
-                e2i.put(history_servers[i], i);
+                // TODO: Be a bit smarter than 'more than 2 failures in a row'
+                is_up = ! (history_poll_failures[i] > 2);
+                if (is_up != history_status.get(history_servers[i])) {
+                    log.trace("Change of status: " + history_servers[i] + " " +
+                            history_status.get(history_servers[i]) + " -> " + is_up);
+                    status_change.put(history_servers[i], is_up);
+                }
+            }
+
+            // TODO step: If change of health, then change layout.
+            if (status_change.size() > 0) {
+                log.warn("Status change: " + status_change);
+            } else {
+                log.trace("No status change");
+            }
+
+            // Update internal status history
+            for (String s: status_change.keySet()) {
+                history_status.put(s, status_change.get(s));
             }
         }
     }
