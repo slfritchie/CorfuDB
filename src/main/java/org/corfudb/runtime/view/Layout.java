@@ -359,10 +359,15 @@ public class Layout implements Cloneable {
         final List<String> down_logServers;
 
         public LayoutStripe(List<String> logServers) {
-            this.logServers = logServers;
             // List<String> foo = new List<String>([]);
             // this.down_logServers = foo;
-            this.down_logServers = null; // TODO: allocate an empty list
+            this(logServers, null); // TODO: allocate an empty list
         }
+
+        public LayoutStripe(List<String> logServers, List<String> down_logServers) {
+            this.logServers = logServers;
+            this.down_logServers = down_logServers;
+        }
+
     }
 }
