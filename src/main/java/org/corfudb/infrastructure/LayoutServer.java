@@ -158,6 +158,11 @@ public class LayoutServer extends AbstractServer {
     public static ConcurrentHashMap<ScheduledFuture<?>,Integer> allPollFutures = new ConcurrentHashMap<>();
 
     /**
+     * TODO DELETE ME.
+     */
+    Layout todo_layout_source_kludge = null;
+
+    /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
      */
     private final ScheduledExecutorService scheduler =
@@ -296,9 +301,15 @@ public class LayoutServer extends AbstractServer {
             // TODO: Cobble together a discovery/update function?  Or avoid
             //       the problem by having the Paxos implementation always
             //       fix any non-unanimous servers?
-            
+
             lv = rt.getLayoutView();  // Can block for arbitrary time
-            Layout l = lv.getCurrentLayout();
+            Layout l;
+
+            if (todo_layout_source_kludge == null) {
+                l = lv.getCurrentLayout();
+            } else {
+                l = todo_layout_source_kludge;
+            }
             // log.warn("Hello, world! Client layout = {}", l);
             // For now, assume that lv contains the latest & greatest layout
             layout_servers = l.getLayoutServers();
@@ -412,6 +423,7 @@ public class LayoutServer extends AbstractServer {
                 Layout nl = l.newLayout_UpdateDownLists(tmph);
                 log.warn("New layout = " + nl);
                 // TODO: Replace the layout cluster-wide.
+                todo_layout_source_kludge = nl;
 
                 history_status = tmph;
             } else {
