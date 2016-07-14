@@ -1,6 +1,9 @@
 package org.corfudb.infrastructure;
 
+import com.google.common.collect.BoundType;
+import com.google.common.collect.HashMultimap;
 import com.google.common.io.Files;
+import com.google.common.primitives.Booleans;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,6 +25,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
@@ -243,7 +248,7 @@ public class LayoutServer extends AbstractServer {
                 // TODO: Warning, rt.connect() will deadlock when run inside a JUnit test.
                 // Until I understand this deadlock, we avoid the problem by avoiding any
                 // polling at all during JUnit tests (see disableConfigMgrPolling var).
-                // SLF reminder: tag tmptag/config-manager-draft1-cf-deadlock
+                // SLF reminder: tag tmptag/config-manager-draft1-cf-deadlock, wireExistingRuntimeToTest()?
                 rt.connect();
                 lv = rt.getLayoutView();  // Can block for arbitrary time
                 log.info("Initial client layout for poller = {}", lv.getLayout());
@@ -291,6 +296,7 @@ public class LayoutServer extends AbstractServer {
             // TODO: Cobble together a discovery/update function?  Or avoid
             //       the problem by having the Paxos implementation always
             //       fix any non-unanimous servers?
+            
             lv = rt.getLayoutView();  // Can block for arbitrary time
             Layout l = lv.getCurrentLayout();
             // log.warn("Hello, world! Client layout = {}", l);
@@ -304,6 +310,7 @@ public class LayoutServer extends AbstractServer {
             configMgrPollOnce(l);
         } catch (Exception e) {
             log.warn("TODO Oops, " + e);
+            e.printStackTrace();
         }
     }
 
@@ -311,7 +318,7 @@ public class LayoutServer extends AbstractServer {
 
     void configMgrPollOnce(Layout l) {
         // Are we polling the same servers as last time?  If not, then reset polling state.
-        String[] all_servers = l.getAllServers().stream().toArray(String[]::new);
+        String[] all_servers = l.getAllServers(true).stream().toArray(String[]::new);
         Arrays.sort(all_servers);
 
         log.warn("TODO FIXME: Poll all servers, not just the layout servers, and when the epoch changes!");
@@ -328,10 +335,10 @@ public class LayoutServer extends AbstractServer {
                     history_status.put(all_servers[i], true);  // Assume it's up until we think it isn't.
                 }
                 history_routers[i] = new NettyClientRouter(all_servers[i]);
-                history_routers[i].start();
                 history_routers[i].setTimeoutConnect(50);
                 history_routers[i].setTimeoutRetry(200);
                 history_routers[i].setTimeoutResponse(1000);
+                history_routers[i].start();
                 history_poll_failures[i] = 0;
             }
             history_poll_count = 0;
@@ -394,13 +401,21 @@ public class LayoutServer extends AbstractServer {
             // TODO step: If change of health, then change layout.
             if (status_change.size() > 0) {
                 log.warn("Status change: " + status_change);
+
+                HashMap<String,Boolean> tmph = new HashMap<String,Boolean>();
+                for (String s : history_status.keySet()) {
+                    tmph.put(s, history_status.get(s));
+                }
+                for (String s: status_change.keySet()) {
+                    tmph.put(s, status_change.get(s));
+                }
+                Layout nl = l.newLayout_UpdateDownLists(tmph);
+                log.warn("New layout = " + nl);
+                // TODO: Replace the layout cluster-wide.
+
+                history_status = tmph;
             } else {
                 log.trace("No status change");
-            }
-
-            // Update internal status history
-            for (String s: status_change.keySet()) {
-                history_status.put(s, status_change.get(s));
             }
         }
     }

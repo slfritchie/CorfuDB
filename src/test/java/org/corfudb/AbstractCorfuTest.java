@@ -104,7 +104,6 @@ public class AbstractCorfuTest {
             sfa[i].cancel(true);
             LayoutServer.allPollFutures.remove(sfa[i]);
         }
-        System.err.println("\nZZZ futures cancelled: " + sflen);
     }
 
     public String getTempDir() {

@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.infrastructure.LayoutServer;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
@@ -16,9 +17,9 @@ import org.corfudb.runtime.clients.SequencerClient;
 import org.corfudb.runtime.exceptions.WrongEpochException;
 import org.corfudb.util.CFUtils;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.Collections;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -76,9 +77,9 @@ public class Layout implements Cloneable {
 
     public Layout(List<String> layoutServers, List<String> sequencers, List<LayoutSegment> segments, long epoch) {
         this.layoutServers = layoutServers;
-        this.down_layoutServers = null; // TODO: allocate an empty list
+        this.down_layoutServers = new ArrayList<String>();
         this.sequencers = sequencers;
-        this.down_sequencers = null; // TODO: allocate an empty list
+        this.down_sequencers = new ArrayList<String>();
         this.segments = segments;
         this.epoch = epoch;
         this.valid = true;
@@ -112,21 +113,98 @@ public class Layout implements Cloneable {
      * @return A set containing all servers in the layout.
      */
     public Set<String> getAllServers() {
+        return getAllServers(false);
+    }
+
+    /**
+     * This function returns a set of all servers in the layout, including down servers.
+     *
+     * @return A set containing all servers (up or down) in the layout.
+     */
+    public Layout newLayout_UpdateDownLists(HashMap<String,Boolean> status) {
+        log.warn("old ls/downls " + layoutServers + " " + down_layoutServers + " qs/downqs " + sequencers + " " + down_sequencers);
+        List<String> ls_up = filter_lists(layoutServers, down_layoutServers, true, status);
+        List<String> ls_dn = filter_lists(layoutServers, down_layoutServers, false, status);
+        List<String> qs_up = filter_lists(sequencers, down_sequencers, true, status);
+        List<String> qs_dn = filter_lists(sequencers, down_sequencers, false, status);
+        log.warn("ls up/dn " + ls_up + " " + ls_dn + " qs up/dn " + qs_up + " " + qs_dn);
+        log.warn("QQQ new Arraylist<>() = " + new ArrayList<>());
+        log.warn("QQQ new Arraylist<String>() = " + new ArrayList<String>());
+        List<LayoutSegment> segs = getSegments().stream()
+                .map(x -> {
+                    List<LayoutStripe> stripes = x.getStripes().stream()
+                            .map(y -> {
+                                // TODO: Missing repair logic
+                                // Until repair is implemented, the down list can only grow,
+                                // and the up list can only shrink.
+                                List<String> dn = new ArrayList<>(y.getDown_logServers() == null ?
+                                                                  Collections.EMPTY_LIST :
+                                                                  y.getDown_logServers());
+                                for (String down_now: y.getLogServers().stream()
+                                                        .filter(z -> status.get(z) == false)
+                                                        .collect(Collectors.toList())) {
+                                    dn.add(down_now);
+                                }
+                                List<String> up = y.getLogServers().stream()
+                                                    .filter(z -> status.get(z) == true)
+                                                    .collect(Collectors.toList());
+                                return new LayoutStripe(up, dn);
+                            }).collect(Collectors.toList());
+                    return new LayoutSegment(x.replicationMode, x.start, x.end, stripes);
+                }).collect(Collectors.toList());
+
+        Layout l = new Layout(ls_up, qs_up, segs, this.epoch + 1);
+        l.down_layoutServers = ls_dn;
+        l.down_sequencers = qs_dn;
+        return l;
+    }
+
+    List<String> filter_lists(List<String> l1, List<String> l2,
+                              Boolean desired_status, HashMap<String,Boolean> status) {
+        Set<String> all = new HashSet<>();
+        if (l1 != null) {
+            l1.stream().forEach(all::add);
+        }
+        if (l2 != null) {
+            l2.stream().forEach(all::add);
+        }
+
+        return all.stream().filter(x -> status.get(x) == desired_status).collect(Collectors.toList());
+    }
+
+    /**
+     * This function returns a set of all servers in the layout, including down servers.
+     *
+     * @return A set containing all servers (up or down) in the layout.
+     */
+    public Set<String> getAllServers(boolean includeDownServers) {
         Set<String> allServers = new HashSet<>();
         layoutServers.stream()
                 .forEach(allServers::add);
         sequencers.stream()
                 .forEach(allServers::add);
+        if (includeDownServers && down_layoutServers != null) {
+            down_layoutServers.stream()
+                    .forEach(allServers::add);
+        }
+        if (down_sequencers != null && down_sequencers != null) {
+            down_sequencers.stream()
+                    .forEach(allServers::add);
+        }
         segments.stream()
                 .forEach(x -> {
                     x.getStripes().stream()
-                            .forEach(y ->
-                                    y.getLogServers().stream()
-                                            .forEach(allServers::add));
+                            .forEach(y -> {
+                                y.getLogServers().stream()
+                                        .forEach(allServers::add);
+                                if (includeDownServers && y.getDown_logServers() != null) {
+                                    y.getDown_logServers().stream()
+                                            .forEach(allServers::add);
+                                }
+                            });
                 });
         return allServers;
     }
-
     /**
      * Return the layout client for a particular index.
      *
@@ -359,9 +437,7 @@ public class Layout implements Cloneable {
         final List<String> down_logServers;
 
         public LayoutStripe(List<String> logServers) {
-            // List<String> foo = new List<String>([]);
-            // this.down_logServers = foo;
-            this(logServers, null); // TODO: allocate an empty list
+            this(logServers, new ArrayList<String>());
         }
 
         public LayoutStripe(List<String> logServers, List<String> down_logServers) {
