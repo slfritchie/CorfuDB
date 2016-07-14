@@ -5,6 +5,7 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
@@ -23,10 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static com.google.common.io.Files.write;
 
@@ -111,6 +109,11 @@ public class LayoutServer extends AbstractServer {
     File phase2File;
 
     /**
+     * Configuration manager: disable polling loop
+     */
+    static public boolean disableConfigMgrPolling = false;
+
+    /**
      * Configuration manager: client runtime
      */
     CorfuRuntime rt = null;
@@ -137,6 +140,17 @@ public class LayoutServer extends AbstractServer {
     int[] history_poll_failures = null;
     int   history_poll_count = 0;
     HashMap<String,Boolean> history_status = null;
+
+    /**
+     * Configuration manager: future handle thingie to cancel periodic polling
+     */
+    ScheduledFuture<?> pollFuture = null;
+
+    /**
+     * Configuration manager: all future handle thingies
+     */
+    @Getter
+    public static ConcurrentHashMap<ScheduledFuture<?>,Integer> allPollFutures = new ConcurrentHashMap<>();
 
     /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
@@ -191,11 +205,21 @@ public class LayoutServer extends AbstractServer {
         }
 
         // schedule config manager polling.
-        my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
-        String cmpi = "--cm-poll-interval";
-        long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
-        scheduler.scheduleAtFixedRate(this::configMgrPoll,
-                0, poll_interval, TimeUnit.SECONDS);
+        if (! disableConfigMgrPolling) {
+            my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
+            String cmpi = "--cm-poll-interval";
+            long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
+            pollFuture = scheduler.scheduleAtFixedRate(this::configMgrPoll,
+                    0, poll_interval, TimeUnit.SECONDS);
+            allPollFutures.put(pollFuture, 1);
+        }
+    }
+
+    protected void finalize() {
+        if (pollFuture != null) {
+            allPollFutures.remove(pollFuture);
+            pollFuture.cancel(true);
+        }
     }
 
     private void configMgrPoll() {
@@ -216,6 +240,10 @@ public class LayoutServer extends AbstractServer {
                 layout_servers.stream().forEach(ls -> {
                     rt.addLayoutServer(ls);
                 });
+                // TODO: Warning, rt.connect() will deadlock when run inside a JUnit test.
+                // Until I understand this deadlock, we avoid the problem by avoiding any
+                // polling at all during JUnit tests (see disableConfigMgrPolling var).
+                // SLF reminder: tag tmptag/config-manager-draft1-cf-deadlock
                 rt.connect();
                 lv = rt.getLayoutView();  // Can block for arbitrary time
                 log.info("Initial client layout for poller = {}", lv.getLayout());

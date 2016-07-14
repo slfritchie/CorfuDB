@@ -1,5 +1,6 @@
 package org.corfudb;
 
+import org.corfudb.infrastructure.LayoutServer;
 import org.fusesource.jansi.Ansi;
 import org.junit.After;
 import org.junit.Before;
@@ -12,13 +13,7 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,12 +79,32 @@ public class AbstractCorfuTest {
         temporaryDirectories = new HashSet<>();
     }
 
+    @Before
+    public void disableConfigManagerPolling() {
+        LayoutServer.disableConfigMgrPolling = true;
+    }
+
     @After
     public void cleanupScheduledThreads() {
         assertThat(scheduledThreads)
                 .hasSize(0)
                 .as("Test ended but there are still threads scheduled!");
         scheduledThreads.clear();
+    }
+
+    @After
+    public void cleanupCorfuServerPolling() {
+        int sflen = LayoutServer.allPollFutures.size();
+        ScheduledFuture<?>[] sfa = new ScheduledFuture<?>[sflen];
+        int sfi = 0;
+        for (ScheduledFuture<?> sf: LayoutServer.allPollFutures.keySet()) {
+            sfa[sfi++] = sf;
+        }
+        for (int i = 0; i < sflen; i++) {
+            sfa[i].cancel(true);
+            LayoutServer.allPollFutures.remove(sfa[i]);
+        }
+        System.err.println("\nZZZ futures cancelled: " + sflen);
     }
 
     public String getTempDir() {
