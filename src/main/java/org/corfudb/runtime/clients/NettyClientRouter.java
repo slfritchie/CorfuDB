@@ -136,6 +136,10 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
     @Getter
     Boolean connected_p;
 
+    public NettyClientRouter(String endpoint) {
+        this(endpoint.split(":")[0], Integer.parseInt(endpoint.split(":")[1]));
+    }
+
     public NettyClientRouter(String host, Integer port) {
         this.host = host;
         this.port = port;

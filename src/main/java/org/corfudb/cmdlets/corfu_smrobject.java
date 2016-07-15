@@ -2,6 +2,7 @@ package org.corfudb.cmdlets;
 
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.util.GitRepositoryState;
+import org.corfudb.util.Utils;
 import org.docopt.Docopt;
 
 import java.lang.reflect.InvocationTargetException;
@@ -35,7 +36,7 @@ public class corfu_smrobject implements ICmdlet {
                     + " --version                                      Show version\n";
 
     @Override
-    public void main(String[] args) {
+    public String[] main(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -95,5 +96,6 @@ public class corfu_smrobject implements ICmdlet {
         } else {
             System.out.println(ansi().fg(GREEN).a("SUCCESS").reset());
         }
+        return Utils.err("FIXME 1");
     }
 }

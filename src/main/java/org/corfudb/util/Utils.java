@@ -328,4 +328,20 @@ public class Utils {
         return simpleUUIDHash(uuid, seed);
     }
 
+    public static String[] ok(String... args) {
+        return makeStringArray("OK", args);
+    }
+
+    public static String[] err(String... args) {
+        return makeStringArray("ERROR", args);
+    }
+
+    public static String[] makeStringArray(String zeroth, String... args) {
+        String[] a = new String[args.length + 1];
+        for (int i = 0; i < args.length; i++) {
+            a[i + 1] = args[i];
+        }
+        a[0] = zeroth;
+        return a;
+    }
 }
