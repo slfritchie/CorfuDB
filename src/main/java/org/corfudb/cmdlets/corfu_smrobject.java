@@ -63,14 +63,12 @@ public class corfu_smrobject implements ICmdlet {
         if (argz == null) {
             arity = 0;
         } else {
-            splitz = argz.split(",");
-            arity = splitz.length;
-            // if (argz.charAt(argz.length()) == ',') {
-            //     arity = splitz.length() + 1;
-            //     splitz[arity - 1] = "";
-            // } else {
-            //     arity = splitz.length();
-            // }
+            if (argz.charAt(argz.length()) == ',') {
+                arity = splitz.length + 1;
+                splitz[arity - 1] = "";
+            } else {
+                arity = splitz.length;
+            }
         }
 
         // Attempt to open the object
