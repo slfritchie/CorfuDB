@@ -279,7 +279,7 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
                 }
             }
         });
-        connected_p = true; // QQQ SLF verify!
+        connected_p = true;
     }
 
     /**
