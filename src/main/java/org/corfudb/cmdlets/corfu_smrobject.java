@@ -69,13 +69,13 @@ public class corfu_smrobject implements ICmdlet {
                             0 : ((String) opts.get("<args>")).split(",").length))
                     .findFirst().get();
         } catch (NoSuchElementException nsee) {
-            throw new RuntimeException("Method " + opts.get("<method>") + " with " +
+            return Utils.err("Method " + opts.get("<method>") + " with " +
                     (opts.get("<args>") == null ?
                             0 : ((String) opts.get("<args>")).split(",").length)
                     + " arguments not found!");
         }
         if (m == null) {
-            throw new RuntimeException("Method " + opts.get("<method>") + " with " +
+            return Utils.err("Method " + opts.get("<method>") + " with " +
                     (opts.get("<args>") == null ?
                             0 : ((String) opts.get("<args>")).split(",").length)
                     + " arguments not found!");
@@ -83,19 +83,18 @@ public class corfu_smrobject implements ICmdlet {
 
         Object ret;
         try {
+            String[] yo = (opts.get("<args>") == null ?
+                    null : ((String) opts.get("<args>")).split(","));
             ret = m.invoke(o, (opts.get("<args>") == null ?
                     null : ((String) opts.get("<args>")).split(",")));
         } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("Couldn't invoke method on object", e);
+            return Utils.err("Couldn't invoke method on object" + e);
         }
 
         if (ret != null) {
-            System.out.println(ansi().fg(WHITE).a("Output:").reset());
-            System.out.println(ret.toString());
-            System.out.println(ansi().fg(GREEN).a("SUCCESS").reset());
+            return Utils.ok(ret.toString());
         } else {
-            System.out.println(ansi().fg(GREEN).a("SUCCESS").reset());
+            return Utils.ok("");
         }
-        return Utils.err("FIXME 1");
     }
 }

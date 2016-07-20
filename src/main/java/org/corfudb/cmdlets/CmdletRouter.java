@@ -16,8 +16,11 @@ import static java.lang.System.exit;
  * Created by mwei on 12/10/15.
  */
 public class CmdletRouter {
-    public static String[] main(String[] args) {
-        return main2(args);
+    public static void main(String[] args) {
+        String[] res = main2(args);
+        for (int i = 1; i < res.length; i++) {
+            System.out.println(res[0] + " " + res[i]);
+        }
     }
 
     public static String[] main2(String[] args) {
