@@ -21,7 +21,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 gen_key() ->
-    [choose($a, $z)].                           % make it a list
+    oneof([[choose($a, $b)],                     % make it a list
+           [choose($a, $z)]]).                   % make it a list
 
 gen_val() ->
     ?LET(L, choose(0, 50),
@@ -55,26 +56,38 @@ put_args(#state{stream=Stream}) ->
     [Stream, gen_key(), gen_val()].
 
 put(Stream, Key, Val) ->
+    io:format(user, "p", []),
     java_rpc(Stream, ["put", Key ++ "," ++ Val]).
 
 put_post(#state{d=D}, [_Str, Key, _Val], Ret) ->
-    %% io:format(user, "put ~s <~s> -> ~p\n", [Key, Val, Ret]),
     case Ret of
         timeout ->
             false;
-        ["OK", Prev=[]] ->
+        ["OK", Prev] ->
             case orddict:find(Key, D) of
-                error                  -> true;
+                error                  -> Prev == [];
                 {ok, V} when V == Prev -> true;
                 {ok, Else}             -> {key, Key, exp, Else, got, Prev}
-            end;
-        ["OK", Previous] ->
-            {ok, Previous} = orddict:find(Key, D),
-            true
+            end
     end.
 
 put_next(S=#state{d=D}, _V, [_Str, Key, Val]) ->
     S#state{d=orddict:store(Key, Val, D)}.
+
+get_args(#state{stream=Stream}) ->
+    [Stream, gen_key()].
+
+get(Stream, Key) ->
+    io:format(user, "g", []),
+    java_rpc(Stream, ["get", Key]).
+
+get_post(S, [Str, Key], Ret) ->
+    %% get's return value is the same as post's return value, so
+    %% mock up a put call and share put_post().
+    put_post(S, [Str, Key, <<"mock val from get_post()">>], Ret).
+
+get_next(S, _V, _Args) ->
+    S.
 
 prop() ->
     random:seed(now()),
@@ -105,7 +118,7 @@ java_rpc_call(AllArgs) ->
     receive
         {ID, Res} ->
             Res
-    after 5000 ->
+    after 2*1000 ->
             timeout
     end.
 
