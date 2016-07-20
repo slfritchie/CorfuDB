@@ -43,7 +43,6 @@ reset_args(_) ->
     [].
 
 reset() ->
-    io:format(user, "******* RESET!\n", []),
     java_rpc(reset).
 
 reset_post(#state{reset_p=false}, _Args, ["OK"]) ->
