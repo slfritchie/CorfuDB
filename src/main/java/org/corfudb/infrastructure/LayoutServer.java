@@ -119,7 +119,7 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: disable polling loop
      */
-    static public boolean disableConfigMgrPolling = false;
+    static public boolean disableConfigMgrPolling = true; // QQQ debugging only, put me back to false!!!!
 
     /**
      * Configuration manager: client runtime
