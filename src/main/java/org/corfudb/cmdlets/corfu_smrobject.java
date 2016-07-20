@@ -63,9 +63,15 @@ public class corfu_smrobject implements ICmdlet {
         if (argz == null) {
             arity = 0;
         } else {
-            if (argz.charAt(argz.length()) == ',') {
+            splitz = argz.split(",");
+            if (argz.charAt(argz.length() - 1) == ',') {
                 arity = splitz.length + 1;
-                splitz[arity - 1] = "";
+                String[] new_splitz = new String[arity];
+                for (int i = 0; i < arity - 1; i++) {
+                    new_splitz[i] = splitz[i];
+                }
+                new_splitz[arity - 1] = "";
+                splitz = new_splitz;
             } else {
                 arity = splitz.length;
             }
@@ -106,8 +112,7 @@ public class corfu_smrobject implements ICmdlet {
         try {
             String[] yo = (opts.get("<args>") == null ?
                     null : ((String) opts.get("<args>")).split(","));
-            ret = m.invoke(o, (opts.get("<args>") == null ?
-                    null : ((String) opts.get("<args>")).split(",")));
+            ret = m.invoke(o, splitz);
         } catch (IllegalAccessException | InvocationTargetException e) {
             return Utils.err("Couldn't invoke method on object" + e);
         }

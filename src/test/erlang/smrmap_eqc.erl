@@ -56,27 +56,18 @@ put_args(#state{stream=Stream}) ->
     [Stream, gen_key(), gen_val()].
 
 put(Stream, Key, Val) ->
-    %% The args list string "key," (where our value is an empty string)
-    %% isn't split correctly by corfu_smrobject.java.  Work around by
-    %% using a space.  Perhaps that will be a good-enough work-around.
-    %%
-    %% The substitute value is only used for the put()
-    %% argument and is not used in our state dictionary.
-    Val2 = if Val == [] -> " ";
-              true      -> Val
-           end,
-    java_rpc(Stream, ["put", Key ++ "," ++ Val2]).
+    java_rpc(Stream, ["put", Key ++ "," ++ Val]).
 
-put_post(#state{d=D}, [_Str, Key, Val], Ret) ->
+put_post(#state{d=D}, [_Str, Key, _Val], Ret) ->
     %% io:format(user, "put ~s <~s> -> ~p\n", [Key, Val, Ret]),
     case Ret of
         timeout ->
             false;
-        ["OK", []] ->
+        ["OK", Prev=[]] ->
             case orddict:find(Key, D) of
-                error                 -> true;
-                {ok, V} when V == Val -> true;
-                {ok, Else}            -> {false, key, Key, expected, Else}
+                error                  -> true;
+                {ok, V} when V == Prev -> true;
+                {ok, Else}             -> {key, Key, exp, Else, got, Prev}
             end;
         ["OK", Previous] ->
             {ok, Previous} = orddict:find(Key, D),
