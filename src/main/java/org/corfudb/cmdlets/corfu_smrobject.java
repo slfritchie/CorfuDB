@@ -20,6 +20,8 @@ import static org.fusesource.jansi.Ansi.ansi;
  */
 public class corfu_smrobject implements ICmdlet {
 
+    static private CorfuRuntime rt = null;
+
     private static final String USAGE =
             "corfu_smrobject, interact with SMR objects in Corfu.\n"
                     + "\n"
@@ -37,6 +39,11 @@ public class corfu_smrobject implements ICmdlet {
 
     @Override
     public String[] main(String[] args) {
+        if (args[0].contentEquals("reset")) {
+            rt = null;
+            return new String[] { "OK" };
+        }
+
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -45,7 +52,26 @@ public class corfu_smrobject implements ICmdlet {
         configureBase(opts);
 
         // Get a org.corfudb.runtime instance from the options.
-        CorfuRuntime rt = configureRuntime(opts);
+        if (rt == null) {
+            rt = configureRuntime(opts);
+        }
+
+        String argz = ((String) opts.get("<args>"));
+        int arity;
+        String[] splitz = null;
+
+        if (argz == null) {
+            arity = 0;
+        } else {
+            splitz = argz.split(",");
+            arity = splitz.length;
+            // if (argz.charAt(argz.length()) == ',') {
+            //     arity = splitz.length() + 1;
+            //     splitz[arity - 1] = "";
+            // } else {
+            //     arity = splitz.length();
+            // }
+        }
 
         // Attempt to open the object
         Class<?> cls;
@@ -65,19 +91,16 @@ public class corfu_smrobject implements ICmdlet {
         try {
             m = Arrays.stream(cls.getDeclaredMethods())
                     .filter(x -> x.getName().equals(opts.get("<method>")))
-                    .filter(x -> x.getParameterCount() == (opts.get("<args>") == null ?
-                            0 : ((String) opts.get("<args>")).split(",").length))
+                    .filter(x -> x.getParameterCount() == arity)
                     .findFirst().get();
         } catch (NoSuchElementException nsee) {
             return Utils.err("Method " + opts.get("<method>") + " with " +
-                    (opts.get("<args>") == null ?
-                            0 : ((String) opts.get("<args>")).split(",").length)
+                    arity
                     + " arguments not found!");
         }
         if (m == null) {
             return Utils.err("Method " + opts.get("<method>") + " with " +
-                    (opts.get("<args>") == null ?
-                            0 : ((String) opts.get("<args>")).split(",").length)
+                    arity
                     + " arguments not found!");
         }
 
