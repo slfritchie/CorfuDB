@@ -260,8 +260,10 @@ entrySet_post(#state{d=D}, [_Str], Ret) ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
             Ps = string:tokens(X2, ", "),
             KVs = [begin
-                       [K, V] = string:tokens(Pair, "="),
-                       {K, V}
+                       case string:tokens(Pair, "=") of
+                           [K, V] -> {K, V};
+                           [K]    -> {K, ""}
+                       end
                    end || Pair <- Ps],
             lists:sort(KVs) == lists:sort(orddict:to_list(D))
     end.
