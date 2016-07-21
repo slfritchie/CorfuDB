@@ -66,7 +66,6 @@ put_args(#state{stream=Stream}) ->
     [Stream, gen_key(), gen_val()].
 
 put(Stream, Key, Val) ->
-    io:format(user, "p", []),
     java_rpc(Stream, ["put", Key ++ "," ++ Val]).
 
 put_post(#state{d=D}, [_Str, Key, _Val], Ret) ->
@@ -88,7 +87,6 @@ get_args(#state{stream=Stream}) ->
     [Stream, gen_key()].
 
 get(Stream, Key) ->
-    io:format(user, "g", []),
     java_rpc(Stream, ["get", Key]).
 
 get_post(S, [Str, Key], Ret) ->
@@ -160,7 +158,6 @@ containsValue(Stream, Value) ->
     java_rpc(Stream, ["containsValue", Value]).
 
 containsValue_post(#state{d=D}, [_Stream, Value], Res) ->
-    io:format(user, "c", []),
     case Res of
         ["OK", Bool] ->
             Val_in_d = case [V || {_K, V} <- orddict:to_list(D),
@@ -180,7 +177,6 @@ remove_args(#state{stream=Stream}) ->
     [Stream, gen_key()].
 
 remove(Stream, Key) ->
-    io:format(user, "e", []),
     java_rpc(Stream, ["remove", Key]).
 
 remove_post(S, [Str, Key], Ret) ->
@@ -198,7 +194,6 @@ clear_args(#state{stream=Stream}) ->
     [Stream].
 
 clear(Stream) ->
-    io:format(user, "*", []),
     java_rpc(Stream, ["clear"]).
 
 clear_post(_S, [_Str], ["OK", []]) ->
@@ -211,7 +206,6 @@ keySet_args(#state{stream=Stream}) ->
     [Stream].
 
 keySet(Stream) ->
-    io:format(user, "K", []),
     java_rpc(Stream, ["keySet"]).
 
 keySet_post(#state{d=D}, [_Str], Ret) ->
@@ -229,7 +223,6 @@ values_args(#state{stream=Stream}) ->
     [Stream].
 
 values(Stream) ->
-    io:format(user, "V", []),
     java_rpc(Stream, ["values"]).
 
 values_post(#state{d=D}, [_Str], Ret) ->
@@ -251,7 +244,6 @@ entrySet_args(#state{stream=Stream}) ->
     [Stream].
 
 entrySet(Stream) ->
-    io:format(user, "V", []),
     java_rpc(Stream, ["entrySet"]).
 
 entrySet_post(#state{d=D}, [_Str], Ret) ->
@@ -277,8 +269,9 @@ prop() ->
             begin
                 {H,S,Res} = run_commands(?MODULE, Cmds),
                 ["OK", []] = java_rpc(S#state.stream, ["clear"]),
+                aggregate(command_names(Cmds),
                 pretty_commands(client, Cmds, {H, S, Res},
-                                Res == ok)
+                                Res == ok))
             end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
