@@ -37,38 +37,38 @@ initial_state() ->
     %% #state{stream=random:uniform(999*999)}.
     #state{stream=42}.
 
-precondition_common(S) ->
+precondition(S, {call,_,reset,_}) ->
+    not S#state.reset_p;
+precondition(S, _Call) ->
     S#state.reset_p.
 
-weight(_S, put) ->
-    50;
-weight(_S, clear) ->
-    3;
-weight(_S, _) ->
-    10.
+command(#state{reset_p=false}) ->
+    {call, ?MODULE, reset, []};
+command(#state{stream=Stream, reset_p=true}) ->
+    frequency([
+               {20, {call, ?MODULE, put, [Stream, gen_key(), gen_val()]}},
+               { 5, {call, ?MODULE, get, [Stream, gen_key()]}},
+               { 3, {call, ?MODULE, size, [Stream]}},
+               { 3, {call, ?MODULE, isEmpty, [Stream]}},
+               { 3, {call, ?MODULE, containsKey, [Stream, gen_key()]}},
+               %% BOO.  Our ASCII-oriented protocol can't tell the difference
+               %% between an arity 0 function and an arity 1 function with
+               %% an argument of length 0.
+               { 3, {call, ?MODULE, containsValue, [Stream, non_empty(
+                                                              gen_val())]}},
+               { 5, {call, ?MODULE, remove, [Stream, gen_key()]}},
+               { 3, {call, ?MODULE, clear, [Stream]}},
+               { 3, {call, ?MODULE, keySet, [Stream]}},
+               { 3, {call, ?MODULE, values, [Stream]}},
+               { 3, {call, ?MODULE, entrySet, [Stream]}}
+              ]).
 
-reset_pre(S) ->
-    not S#state.reset_p.
-
-reset_args(_) ->
-    [].
-
-reset() ->
-    java_rpc(reset).
-
-reset_post(#state{reset_p=false}, _Args, ["OK"]) ->
-    true.
-
-reset_next(S, _, _) ->
-    S#state{reset_p=true}.
-
-put_args(#state{stream=Stream}) ->
-    [Stream, gen_key(), gen_val()].
-
-put(Stream, Key, Val) ->
-    java_rpc(Stream, ["put", Key ++ "," ++ Val]).
-
-put_post(#state{d=D}, [_Str, Key, _Val], Ret) ->
+postcondition(_S, {call,_,reset,[]}, Ret) ->
+    case Ret of
+        ["OK"] -> true;
+        Else   -> {got, Else}
+    end;
+postcondition(#state{d=D}, {call,_,put,[_Str, Key, _Val]}, Ret) ->
     case Ret of
         timeout ->
             false;
@@ -76,88 +76,35 @@ put_post(#state{d=D}, [_Str, Key, _Val], Ret) ->
             case orddict:find(Key, D) of
                 error                  -> Prev == [];
                 {ok, V} when V == Prev -> true;
-                {ok, Else}             -> {key, Key, exp, Else, got, Prev}
+                {ok, Else}             -> {key, Key, expected, Else, got, Prev}
             end
-    end.
-
-put_next(S=#state{d=D}, _V, [_Str, Key, Val]) ->
-    S#state{d=orddict:store(Key, Val, D)}.
-
-get_args(#state{stream=Stream}) ->
-    [Stream, gen_key()].
-
-get(Stream, Key) ->
-    java_rpc(Stream, ["get", Key]).
-
-get_post(S, [Str, Key], Ret) ->
+    end;
+postcondition(S, {call,_,get,[Str, Key]}, Ret) ->
     %% get's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    put_post(S, [Str, Key, <<"mock val from get_post()">>], Ret).
-
-get_next(S, _V, _Args) ->
-    S.
-
-size_args(#state{stream=Stream}) ->
-    [Stream].
-
-size(Stream) ->
-    java_rpc(Stream, ["size"]).
-
-size_post(#state{d=D}, [_Stream], Res) ->
+    postcondition(S, {call,x,put,[Str, Key, <<"get_post()">>]}, Ret);
+postcondition(#state{d=D}, {call,_,size,[_Stream]}, Res) ->
     case Res of
         ["OK", SizeStr] ->
             list_to_integer(SizeStr) == length(orddict:to_list(D));
         Else ->
             {got, Else}
-    end.
-
-size_next(S, _V, _Args) ->
-    S.
-
-isEmpty_args(#state{stream=Stream}) ->
-    [Stream].
-
-isEmpty(Stream) ->
-    java_rpc(Stream, ["isEmpty"]).
-
-isEmpty_post(#state{d=D}, [_Stream], Res) ->
+    end;
+postcondition(#state{d=D}, {call,_,isEmpty,[_Stream]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_empty(D);
         Else ->
             {got, Else}
-    end.
-
-isEmpty_next(S, _V, _Args) ->
-    S.
-
-containsKey_args(#state{stream=Stream}) ->
-    [Stream, gen_key()].
-
-containsKey(Stream, Key) ->
-    java_rpc(Stream, ["containsKey", Key]).
-
-containsKey_post(#state{d=D}, [_Stream, Key], Res) ->
+    end;
+postcondition(#state{d=D}, {call,_,containsKey,[_Stream, Key]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_key(Key, D);
         Else ->
             {got, Else}
-    end.
-
-containsKey_next(S, _V, _Args) ->
-    S.
-
-containsValue_args(#state{stream=Stream}) ->
-    %% BOO.  Our ASCII-oriented protocol can't tell the difference
-    %% between an arity 0 function and an arity 1 function with
-    %% an argument of length 0.
-    [Stream, non_empty(gen_val())].
-
-containsValue(Stream, Value) ->
-    java_rpc(Stream, ["containsValue", Value]).
-
-containsValue_post(#state{d=D}, [_Stream, Value], Res) ->
+    end;
+postcondition(#state{d=D}, {call,_,containsValue,[_Stream, Value]}, Res) ->
     case Res of
         ["OK", Bool] ->
             Val_in_d = case [V || {_K, V} <- orddict:to_list(D),
@@ -168,64 +115,21 @@ containsValue_post(#state{d=D}, [_Stream, Value], Res) ->
             list_to_atom(Bool) == Val_in_d;
         Else ->
             {got, Else}
-    end.
-
-containsValue_next(S, _V, _Args) ->
-    S.
-
-remove_args(#state{stream=Stream}) ->
-    [Stream, gen_key()].
-
-remove(Stream, Key) ->
-    java_rpc(Stream, ["remove", Key]).
-
-remove_post(S, [Str, Key], Ret) ->
+    end;
+postcondition(S, {call,_,remove,[Str, Key]}, Ret) ->
     %% remove's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    put_post(S, [Str, Key, <<"mock val from remove_post()">>], Ret).
-
-remove_next(S=#state{d=D}, _V, [_Str, Key]) ->
-    S#state{d=orddict:erase(Key, D)}.
-
-%% putAll() can't be tested because our ASCII protocol can't represent
-%% the needed map.
-
-clear_args(#state{stream=Stream}) ->
-    [Stream].
-
-clear(Stream) ->
-    java_rpc(Stream, ["clear"]).
-
-clear_post(_S, [_Str], ["OK", []]) ->
-    true.
-
-clear_next(S, _V, [_Str]) ->
-    S#state{d=orddict:new()}.
-
-keySet_args(#state{stream=Stream}) ->
-    [Stream].
-
-keySet(Stream) ->
-    java_rpc(Stream, ["keySet"]).
-
-keySet_post(#state{d=D}, [_Str], Ret) ->
+    postcondition(S, {call,x,put,[Str, Key, <<"remove_post()">>]}, Ret);
+postcondition(_S, {call,_,clear,[_Str]}, ["OK", []]) ->
+    true;
+postcondition(#state{d=D}, {call,_,keySet,[_Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
             Ks = string:tokens(X2, ", "),
             lists:sort(Ks) == lists:sort([K || {K,_V} <- orddict:to_list(D)])
-    end.
-
-keySet_next(S, _V, _Args) ->
-    S.
-
-values_args(#state{stream=Stream}) ->
-    [Stream].
-
-values(Stream) ->
-    java_rpc(Stream, ["values"]).
-
-values_post(#state{d=D}, [_Str], Ret) ->
+    end;
+postcondition(#state{d=D}, {call,_,values,[_Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -235,18 +139,8 @@ values_post(#state{d=D}, [_Str], Ret) ->
             %% empty string.
             lists:sort(Vs) == lists:sort([V || {_K,V} <- orddict:to_list(D),
                                                V /= ""])
-    end.
-
-values_next(S, _V, _Args) ->
-    S.
-
-entrySet_args(#state{stream=Stream}) ->
-    [Stream].
-
-entrySet(Stream) ->
-    java_rpc(Stream, ["entrySet"]).
-
-entrySet_post(#state{d=D}, [_Str], Ret) ->
+    end;
+postcondition(#state{d=D}, {call,_,entrySet,[_Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -260,8 +154,57 @@ entrySet_post(#state{d=D}, [_Str], Ret) ->
             lists:sort(KVs) == lists:sort(orddict:to_list(D))
     end.
 
-entrySet_next(S, _V, _Args) ->
+next_state(S, _V, {call,_,reset,[]}) ->
+    S#state{reset_p=true};
+next_state(S=#state{d=D}, _V, {call,_,put,[_Str, Key, Val]}) ->
+    S#state{d=orddict:store(Key, Val, D)};
+next_state(S=#state{d=D}, _V, {call,_,remove,[_Str, Key]}) ->
+    S#state{d=orddict:erase(Key, D)};
+next_state(S, _V, {call,_,clear,[_Str]}) ->
+    S#state{d=orddict:new()};
+next_state(S, _V, _NoSideEffectCall) ->
     S.
+
+%%%%
+
+reset() ->
+    java_rpc(reset).
+
+put(Stream, Key, Val) ->
+    java_rpc(Stream, ["put", Key ++ "," ++ Val]).
+
+get(Stream, Key) ->
+    java_rpc(Stream, ["get", Key]).
+
+size(Stream) ->
+    java_rpc(Stream, ["size"]).
+
+isEmpty(Stream) ->
+    java_rpc(Stream, ["isEmpty"]).
+
+containsKey(Stream, Key) ->
+    java_rpc(Stream, ["containsKey", Key]).
+
+containsValue(Stream, Value) ->
+    java_rpc(Stream, ["containsValue", Value]).
+
+remove(Stream, Key) ->
+    java_rpc(Stream, ["remove", Key]).
+
+%% %% putAll() can't be tested because our ASCII protocol can't represent
+%% %% the needed map.
+
+clear(Stream) ->
+    java_rpc(Stream, ["clear"]).
+
+keySet(Stream) ->
+    java_rpc(Stream, ["keySet"]).
+
+values(Stream) ->
+    java_rpc(Stream, ["values"]).
+
+entrySet(Stream) ->
+    java_rpc(Stream, ["entrySet"]).
 
 prop() ->
     random:seed(now()),
@@ -273,6 +216,16 @@ prop() ->
                 pretty_commands(client, Cmds, {H, S, Res},
                                 Res == ok))
             end).
+
+%% prop_parallel() ->
+%%     random:seed(now()),
+%%     ?FORALL(Cmds, parallel_commands(?MODULE),
+%%             begin
+%%                 {H,Hs,Res} = run_parallel_commands(?MODULE, Cmds),
+%%                 aggregate(command_names(Cmds),
+%%                 pretty_commands(client, Cmds, {H, Hs, Res},
+%%                                 Res == ok))
+%%             end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
