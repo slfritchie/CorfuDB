@@ -1,16 +1,31 @@
 -module(smrmap_eqc).
 
-% -ifdef(EQC).
+%% To compile and run with Quviq's QuickCheck:
+%%
+%% $ erl -sname foo -pz ~/lib/eqc/ebin
+%%
+%% > c(smrmap_eqc, [{d, 'EQC'}]).
+%% > eqc:quickcheck(smrmap_eqc:prop()).
+%%
+%% To compile and run with Proper:
+%%
+%% $ erl -sname foo -pz /Users/fritchie/src/erlang/proper/ebin
+%%
+%% > c(smrmap_eqc, [{d, 'PROPER'}]).
+%% > proper:quickcheck(smrmap_eqc:prop()).
 
+-ifdef(PROPER).
+-include_lib("proper/include/proper.hrl").
+-endif.
+
+-ifdef(EQC).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
--include_lib("eunit/include/eunit.hrl").
+-endif.
+
+%% -include_lib("eunit/include/eunit.hrl").
 
 -compile(export_all).
-
--define(QC_OUT(P),
-        eqc:on_output(fun(Str, Args) -> io:format(user, Str, Args) end, P)).
--define(TEST_TIME, 30).                      % seconds
 
 -record(state, {
           reset_p = false :: boolean(),
@@ -34,16 +49,16 @@ gen_val() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initial_state() ->
-    %% #state{stream=random:uniform(999*999)}.
-    #state{stream=42}.
+    #state{stream=random:uniform(999*999)}.
+    %% #state{stream=42}.
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
 precondition(S, _Call) ->
     S#state.reset_p.
 
-command(#state{reset_p=false}) ->
-    {call, ?MODULE, reset, []};
+command(#state{stream=Stream, reset_p=false}) ->
+    {call, ?MODULE, reset, [Stream]};
 command(#state{stream=Stream, reset_p=true}) ->
     frequency([
                {20, {call, ?MODULE, put, [Stream, gen_key(), gen_val()]}},
@@ -63,7 +78,7 @@ command(#state{stream=Stream, reset_p=true}) ->
                { 3, {call, ?MODULE, entrySet, [Stream]}}
               ]).
 
-postcondition(_S, {call,_,reset,[]}, Ret) ->
+postcondition(_S, {call,_,reset,[_Str]}, Ret) ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
@@ -154,7 +169,7 @@ postcondition(#state{d=D}, {call,_,entrySet,[_Str]}, Ret) ->
             lists:sort(KVs) == lists:sort(orddict:to_list(D))
     end.
 
-next_state(S, _V, {call,_,reset,[]}) ->
+next_state(S, _V, {call,_,reset,[_Str]}) ->
     S#state{reset_p=true};
 next_state(S=#state{d=D}, _V, {call,_,put,[_Str, Key, Val]}) ->
     S#state{d=orddict:store(Key, Val, D)};
@@ -167,8 +182,8 @@ next_state(S, _V, _NoSideEffectCall) ->
 
 %%%%
 
-reset() ->
-    java_rpc(reset).
+reset(Stream) ->
+    java_rpc(reset, Stream).
 
 put(Stream, Key, Val) ->
     java_rpc(Stream, ["put", Key ++ "," ++ Val]).
@@ -207,15 +222,21 @@ entrySet(Stream) ->
     java_rpc(Stream, ["entrySet"]).
 
 prop() ->
+    prop(1).
+
+%% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
+
+prop(MoreCmds) ->
     random:seed(now()),
-    ?FORALL(Cmds, commands(?MODULE),
+    ?FORALL(Cmds, more_commands(MoreCmds, commands(?MODULE)),
             begin
                 {H,S,Res} = run_commands(?MODULE, Cmds),
-                ["OK", []] = java_rpc(S#state.stream, ["clear"]),
+                %% ["OK", []] = clear(S#state.stream),
+                ?WHENFAIL(
+                io:format("H: ~p~nS: ~w~nR: ~w~n", [H,S,Res]),
                 aggregate(command_names(Cmds),
                 collect(length(Cmds) div 10,
-                pretty_commands(client, Cmds, {H, S, Res},
-                                Res == ok)))
+                        Res == ok)))
             end).
 
 %% prop_parallel() ->
@@ -230,10 +251,10 @@ prop() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-java_rpc(reset) ->
+java_rpc(reset, Stream) ->
+    clear(Stream),
     AllArgs = ["corfu_smrobject", "reset"],
-    java_rpc_call(AllArgs).
-
+    java_rpc_call(AllArgs);
 java_rpc(Stream, Args) ->
     StreamStr = integer_to_list(Stream),
     AllArgs = ["corfu_smrobject", "-c", "localhost:8000",
@@ -251,4 +272,3 @@ java_rpc_call(AllArgs) ->
             timeout
     end.
 
-% -endif. % EQC
