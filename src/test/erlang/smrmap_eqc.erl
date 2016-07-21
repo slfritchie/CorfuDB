@@ -213,8 +213,9 @@ prop() ->
                 {H,S,Res} = run_commands(?MODULE, Cmds),
                 ["OK", []] = java_rpc(S#state.stream, ["clear"]),
                 aggregate(command_names(Cmds),
+                collect(length(Cmds) div 10,
                 pretty_commands(client, Cmds, {H, S, Res},
-                                Res == ok))
+                                Res == ok)))
             end).
 
 %% prop_parallel() ->
