@@ -237,7 +237,11 @@ values_post(#state{d=D}, [_Str], Ret) ->
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
             Vs = string:tokens(X2, ", "),
-            lists:sort(Vs) == lists:sort([V || {_K,V} <- orddict:to_list(D)])
+            %% BOO.  Our ASCII protocol can't tell us the difference between
+            %% an empty list and a list of length one that contains an
+            %% empty string.
+            lists:sort(Vs) == lists:sort([V || {_K,V} <- orddict:to_list(D),
+                                               V /= ""])
     end.
 
 values_next(S, _V, _Args) ->
