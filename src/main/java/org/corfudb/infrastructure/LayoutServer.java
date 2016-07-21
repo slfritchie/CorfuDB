@@ -729,7 +729,15 @@ public class LayoutServer extends AbstractServer {
                         OtpErlangList cmd = (OtpErlangList) msg.elementAt(2);
                         String[] sopts = new String[cmd.elements().length];
                         for (int i = 0; i < sopts.length; i++) {
-                            sopts[i] = ((OtpErlangString) cmd.elementAt(i)).stringValue();
+                            if (cmd.elementAt(i).getClass() == OtpErlangList.class) {
+                                // We're expecting a string always, but
+                                // the Erlang side will send an empty list
+                                // for a zero length string.
+                                sopts[i] = "";
+                            } else {
+                                sopts[i] = ((OtpErlangString) cmd.elementAt(i))
+                                    .stringValue();
+                            }
                         }
                         String[] res = cr.main2(sopts);
                         OtpErlangObject[] reslist = new OtpErlangObject[res.length];
