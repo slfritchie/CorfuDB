@@ -239,15 +239,28 @@ prop(MoreCmds) ->
                         Res == ok)))
             end).
 
-%% prop_parallel() ->
-%%     random:seed(now()),
-%%     ?FORALL(Cmds, parallel_commands(?MODULE),
-%%             begin
-%%                 {H,Hs,Res} = run_parallel_commands(?MODULE, Cmds),
-%%                 aggregate(command_names(Cmds),
-%%                 pretty_commands(client, Cmds, {H, Hs, Res},
-%%                                 Res == ok))
-%%             end).
+prop_parallel() ->
+    prop_parallel(1).
+
+prop_parallel(MoreCmds) ->
+    random:seed(now()),
+    ?FORALL(Cmds, more_commands(MoreCmds, parallel_commands(?MODULE)),
+            begin
+                %% io:format(user, "Cmds ~p\n", [Cmds]),
+                {H,Hs,Res} = run_parallel_commands(?MODULE, Cmds),
+                {Seq, Pars} = Cmds,
+                Len = length(Seq) +
+                    lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
+                ?WHENFAIL(
+                io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
+                aggregate(command_names(Cmds),
+                collect(if Len == 0 -> 0;
+                           true     -> (Len div 10) + 1
+                        end,
+                        Res == ok)))
+                %% pretty_commands(client, Cmds, {H, Hs, Res},
+                %%                 Res == ok)))
+            end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
