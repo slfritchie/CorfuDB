@@ -235,48 +235,50 @@ public class LayoutServer extends AbstractServer {
             pollFuture = scheduler.scheduleAtFixedRate(this::configMgrPoll,
                     0, poll_interval, TimeUnit.SECONDS);
             allPollFutures.put(pollFuture, 1);
+
+            // Create the distributed Erlang message handling threads
+            System.out.println("\n\n***************** Creating lots of OtpNode Threads ************\n\n");
+            try {
+                node = new OtpNode("corfu");
+            } catch (IOException e) {
+                System.err.println("Error creating OtpNode: " + e);
+                e.printStackTrace();
+                System.exit(44);
+            }
+            Thread erlNodeThread0 = new Thread(this::runErlMbox0);
+            erlNodeThread0.start();
+            Thread erlNodeThread1 = new Thread(this::runErlMbox1);
+            erlNodeThread1.start();
+            Thread erlNodeThread2 = new Thread(this::runErlMbox2);
+            erlNodeThread2.start();
+            Thread erlNodeThread3 = new Thread(this::runErlMbox3);
+            erlNodeThread3.start();
+            Thread erlNodeThread4 = new Thread(this::runErlMbox4);
+            erlNodeThread4.start();
+            Thread erlNodeThread5 = new Thread(this::runErlMbox5);
+            erlNodeThread5.start();
+            Thread erlNodeThread6 = new Thread(this::runErlMbox6);
+            erlNodeThread6.start();
+            Thread erlNodeThread7 = new Thread(this::runErlMbox7);
+            erlNodeThread7.start();
+            Thread erlNodeThread8 = new Thread(this::runErlMbox8);
+            erlNodeThread8.start();
+            Thread erlNodeThread9 = new Thread(this::runErlMbox9);
+            erlNodeThread9.start();
+            Thread erlNodeThread10 = new Thread(this::runErlMbox10);
+            erlNodeThread10.start();
+            Thread erlNodeThread11 = new Thread(this::runErlMbox11);
+            erlNodeThread11.start();
+            Thread erlNodeThread12 = new Thread(this::runErlMbox12);
+            erlNodeThread12.start();
+            Thread erlNodeThread13 = new Thread(this::runErlMbox13);
+            erlNodeThread13.start();
+            Thread erlNodeThread14 = new Thread(this::runErlMbox14);
+            erlNodeThread14.start();
+            Thread erlNodeThread15 = new Thread(this::runErlMbox15);
+            erlNodeThread15.start();
         }
 
-        // Create the distributed Erlang message handling threads
-        try {
-            node = new OtpNode("corfu");
-        } catch (IOException e) {
-            System.err.println("Error creating OtpNode: " + e);
-            e.printStackTrace();
-            System.exit(44);
-        }
-        Thread erlNodeThread0 = new Thread(this::runErlMbox0);
-        erlNodeThread0.start();
-        Thread erlNodeThread1 = new Thread(this::runErlMbox1);
-        erlNodeThread1.start();
-        Thread erlNodeThread2 = new Thread(this::runErlMbox2);
-        erlNodeThread2.start();
-        Thread erlNodeThread3 = new Thread(this::runErlMbox3);
-        erlNodeThread3.start();
-        Thread erlNodeThread4 = new Thread(this::runErlMbox4);
-        erlNodeThread4.start();
-        Thread erlNodeThread5 = new Thread(this::runErlMbox5);
-        erlNodeThread5.start();
-        Thread erlNodeThread6 = new Thread(this::runErlMbox6);
-        erlNodeThread6.start();
-        Thread erlNodeThread7 = new Thread(this::runErlMbox7);
-        erlNodeThread7.start();
-        Thread erlNodeThread8 = new Thread(this::runErlMbox8);
-        erlNodeThread8.start();
-        Thread erlNodeThread9 = new Thread(this::runErlMbox9);
-        erlNodeThread9.start();
-        Thread erlNodeThread10 = new Thread(this::runErlMbox10);
-        erlNodeThread10.start();
-        Thread erlNodeThread11 = new Thread(this::runErlMbox11);
-        erlNodeThread11.start();
-        Thread erlNodeThread12 = new Thread(this::runErlMbox12);
-        erlNodeThread12.start();
-        Thread erlNodeThread13 = new Thread(this::runErlMbox13);
-        erlNodeThread13.start();
-        Thread erlNodeThread14 = new Thread(this::runErlMbox14);
-        erlNodeThread14.start();
-        Thread erlNodeThread15 = new Thread(this::runErlMbox15);
-        erlNodeThread15.start();
     }
 
     protected void finalize() {

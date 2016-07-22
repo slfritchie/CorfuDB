@@ -38,13 +38,13 @@ public class corfu_smrobject implements ICmdlet {
                     + " --version                                      Show version\n";
 
     @Override
-    public String[] main(String[] args) {
+    public String[] main2(String[] args) {
         if (args[0].contentEquals("reset")) {
             if (rt != null) {
                 rt.stop();
             }
             rt = null;
-            return new String[] { "OK" };
+            return cmdlet.ok();
         }
 
         // Parse the options given, using docopt.
@@ -101,29 +101,27 @@ public class corfu_smrobject implements ICmdlet {
                     .filter(x -> x.getParameterCount() == arity)
                     .findFirst().get();
         } catch (NoSuchElementException nsee) {
-            return Utils.err("Method " + opts.get("<method>") + " with " +
+            return cmdlet.err("Method " + opts.get("<method>") + " with " +
                     arity
                     + " arguments not found!");
         }
         if (m == null) {
-            return Utils.err("Method " + opts.get("<method>") + " with " +
+            return cmdlet.err("Method " + opts.get("<method>") + " with " +
                     arity
                     + " arguments not found!");
         }
 
         Object ret;
         try {
-            String[] yo = (opts.get("<args>") == null ?
-                    null : ((String) opts.get("<args>")).split(","));
             ret = m.invoke(o, splitz);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            return Utils.err("Couldn't invoke method on object" + e);
+            return cmdlet.err("Couldn't invoke method on object" + e);
         }
 
         if (ret != null) {
-            return Utils.ok(ret.toString());
+            return cmdlet.ok(ret.toString());
         } else {
-            return Utils.ok("");
+            return cmdlet.ok();
         }
     }
 }

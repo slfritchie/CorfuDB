@@ -34,7 +34,7 @@ public class corfu_sequencer implements ICmdlet {
                     + " --version  Show version\n";
 
     @Override
-    public String[] main(String[] args) {
+    public String[] main2(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -67,6 +67,6 @@ public class corfu_sequencer implements ICmdlet {
             log.error("Exception getting layout", e);
             throw new RuntimeException(e);
         }
-        return Utils.err("FIXME 2");
+        return cmdlet.err("FIXME 2");
     }
 }

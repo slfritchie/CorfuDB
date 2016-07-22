@@ -37,7 +37,7 @@ public class corfu_stream implements ICmdlet {
                     + " --version                                      Show version\n";
 
     @Override
-    public String[] main(String[] args) {
+    public String[] main2(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -61,7 +61,7 @@ public class corfu_stream implements ICmdlet {
             log.error("Exception", e);
             throw new RuntimeException(e);
         }
-        return Utils.err("FIXME 0");
+        return cmdlet.err("FIXME 0");
     }
 
     void write(CorfuRuntime runtime, Map<String, Object> opts)

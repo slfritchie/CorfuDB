@@ -42,7 +42,7 @@ public class corfu_logunit implements ICmdlet {
                     + " --version  Show version\n";
 
     @Override
-    public String[] main(String[] args) {
+    public String[] main2(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -82,7 +82,7 @@ public class corfu_logunit implements ICmdlet {
             log.error("Exception", e);
             throw new RuntimeException(e);
         }
-        return Utils.err("FIXME 8");
+        return cmdlet.err("FIXME 8");
     }
 
     void write(NettyClientRouter router, Map<String, Object> opts)

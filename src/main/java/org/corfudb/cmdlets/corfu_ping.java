@@ -36,7 +36,7 @@ public class corfu_ping implements ICmdlet {
 
 
     @Override
-    public String[] main(String[] args) {
+    public String[] main2(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -96,6 +96,6 @@ public class corfu_ping implements ICmdlet {
             } catch (InterruptedException ie) {
             }
         }
-        // return Utils.err("FIXME 5");
+        // return cmdlet.err("FIXME 5");
     }
 }
