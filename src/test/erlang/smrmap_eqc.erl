@@ -23,14 +23,15 @@
 -include_lib("eqc/include/eqc_statem.hrl").
 -endif.
 
-%% -include_lib("eunit/include/eunit.hrl").
+-define(NUM_LOCALHOST_CMDLETS, 16).
 
 -compile(export_all).
 
 -record(state, {
           reset_p = false :: boolean(),
           stream :: non_neg_integer(),
-          d=orddict:new() :: orddict:orddict()
+          d=orddict:new() :: orddict:orddict(),
+          server_list=[] :: list()
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,44 +47,50 @@ gen_val() ->
            ?LET(L, choose(0, 50),
                 vector(L, choose($a, $z)))]).
 
+gen_svr(#state{server_list=Svrs}) ->
+    noshrink(oneof(Svrs)).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initial_state() ->
-    #state{stream=random:uniform(999*999)}.
-    %% #state{stream=42}.
+    initial_state([{cmdlet0, 'corfu@sbb5'}]).
+
+initial_state(ServerList) ->
+    #state{stream=random:uniform(999*999), server_list=ServerList}.
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
 precondition(S, _Call) ->
     S#state.reset_p.
 
-command(#state{stream=Stream, reset_p=false}) ->
-    {call, ?MODULE, reset, [Stream]};
-command(#state{stream=Stream, reset_p=true}) ->
-    frequency([
-               {20, {call, ?MODULE, put, [Stream, gen_key(), gen_val()]}},
-               { 5, {call, ?MODULE, get, [Stream, gen_key()]}},
-               { 3, {call, ?MODULE, size, [Stream]}},
-               { 3, {call, ?MODULE, isEmpty, [Stream]}},
-               { 3, {call, ?MODULE, containsKey, [Stream, gen_key()]}},
-               %% BOO.  Our ASCII-oriented protocol can't tell the difference
-               %% between an arity 0 function and an arity 1 function with
-               %% an argument of length 0.
-               { 3, {call, ?MODULE, containsValue, [Stream, non_empty(
-                                                              gen_val())]}},
-               { 5, {call, ?MODULE, remove, [Stream, gen_key()]}},
-               { 3, {call, ?MODULE, clear, [Stream]}},
-               { 3, {call, ?MODULE, keySet, [Stream]}},
-               { 3, {call, ?MODULE, values, [Stream]}},
-               { 3, {call, ?MODULE, entrySet, [Stream]}}
-              ]).
+command(S=#state{stream=Stream, reset_p=false}) ->
+    {call, ?MODULE, reset, [gen_svr(S), Stream]};
+command(S=#state{stream=Stream, reset_p=true}) ->
+    frequency(
+      [
+       {20, {call, ?MODULE, put, [gen_svr(S), Stream, gen_key(), gen_val()]}},
+       { 5, {call, ?MODULE, get, [gen_svr(S), Stream, gen_key()]}},
+       { 3, {call, ?MODULE, size, [gen_svr(S), Stream]}},
+       { 3, {call, ?MODULE, isEmpty, [gen_svr(S), Stream]}},
+       { 3, {call, ?MODULE, containsKey, [gen_svr(S), Stream, gen_key()]}},
+       %% BOO.  Our ASCII-oriented protocol can't tell the difference
+       %% between an arity 0 function and an arity 1 function with
+       %% an argument of length 0.
+       { 3, {call, ?MODULE, containsValue, [gen_svr(S),
+                                            Stream, non_empty(gen_val())]}},
+       { 5, {call, ?MODULE, remove, [gen_svr(S), Stream, gen_key()]}},
+       { 3, {call, ?MODULE, clear, [gen_svr(S), Stream]}},
+       { 3, {call, ?MODULE, keySet, [gen_svr(S), Stream]}},
+       { 3, {call, ?MODULE, values, [gen_svr(S), Stream]}},
+       { 3, {call, ?MODULE, entrySet, [gen_svr(S), Stream]}}
+      ]).
 
-postcondition(_S, {call,_,reset,[_Str]}, Ret) ->
+postcondition(_S, {call,_,reset,[_Svr, _Str]}, Ret) ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,put,[_Str, Key, _Val]}, Ret) ->
+postcondition(#state{d=D}, {call,_,put,[_Svr, _Str, Key, _Val]}, Ret) ->
     case Ret of
         timeout ->
             false;
@@ -94,32 +101,32 @@ postcondition(#state{d=D}, {call,_,put,[_Str, Key, _Val]}, Ret) ->
                 {ok, Else}             -> {key, Key, expected, Else, got, Prev}
             end
     end;
-postcondition(S, {call,_,get,[Str, Key]}, Ret) ->
+postcondition(S, {call,_,get,[_Svr, Str, Key]}, Ret) ->
     %% get's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    postcondition(S, {call,x,put,[Str, Key, <<"get_post()">>]}, Ret);
-postcondition(#state{d=D}, {call,_,size,[_Stream]}, Res) ->
+    postcondition(S, {call,x,put,[_Svr, Str, Key, <<"get_post()">>]}, Ret);
+postcondition(#state{d=D}, {call,_,size,[_Svr, _Stream]}, Res) ->
     case Res of
         ["OK", SizeStr] ->
             list_to_integer(SizeStr) == length(orddict:to_list(D));
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,isEmpty,[_Stream]}, Res) ->
+postcondition(#state{d=D}, {call,_,isEmpty,[_Svr, _Stream]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_empty(D);
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,containsKey,[_Stream, Key]}, Res) ->
+postcondition(#state{d=D}, {call,_,containsKey,[_Svr, _Stream, Key]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_key(Key, D);
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,containsValue,[_Stream, Value]}, Res) ->
+postcondition(#state{d=D}, {call,_,containsValue,[_Svr, _Stream, Value]}, Res) ->
     case Res of
         ["OK", Bool] ->
             Val_in_d = case [V || {_K, V} <- orddict:to_list(D),
@@ -131,20 +138,20 @@ postcondition(#state{d=D}, {call,_,containsValue,[_Stream, Value]}, Res) ->
         Else ->
             {got, Else}
     end;
-postcondition(S, {call,_,remove,[Str, Key]}, Ret) ->
+postcondition(S, {call,_,remove,[_Svr, Str, Key]}, Ret) ->
     %% remove's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    postcondition(S, {call,x,put,[Str, Key, <<"remove_post()">>]}, Ret);
-postcondition(_S, {call,_,clear,[_Str]}, ["OK", []]) ->
+    postcondition(S, {call,x,put,[_Svr, Str, Key, <<"remove_post()">>]}, Ret);
+postcondition(_S, {call,_,clear,[_Svr, _Str]}, ["OK", []]) ->
     true;
-postcondition(#state{d=D}, {call,_,keySet,[_Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,keySet,[_Svr, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
             Ks = string:tokens(X2, ", "),
             lists:sort(Ks) == lists:sort([K || {K,_V} <- orddict:to_list(D)])
     end;
-postcondition(#state{d=D}, {call,_,values,[_Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,values,[_Svr, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -155,7 +162,7 @@ postcondition(#state{d=D}, {call,_,values,[_Str]}, Ret) ->
             lists:sort(Vs) == lists:sort([V || {_K,V} <- orddict:to_list(D),
                                                V /= ""])
     end;
-postcondition(#state{d=D}, {call,_,entrySet,[_Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,entrySet,[_Svr, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -169,71 +176,85 @@ postcondition(#state{d=D}, {call,_,entrySet,[_Str]}, Ret) ->
             lists:sort(KVs) == lists:sort(orddict:to_list(D))
     end.
 
-next_state(S, _V, {call,_,reset,[_Str]}) ->
+next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
     S#state{reset_p=true};
-next_state(S=#state{d=D}, _V, {call,_,put,[_Str, Key, Val]}) ->
+next_state(S=#state{d=D}, _V, {call,_,put,[_Svr, _Str, Key, Val]}) ->
     S#state{d=orddict:store(Key, Val, D)};
-next_state(S=#state{d=D}, _V, {call,_,remove,[_Str, Key]}) ->
+next_state(S=#state{d=D}, _V, {call,_,remove,[_Svr, _Str, Key]}) ->
     S#state{d=orddict:erase(Key, D)};
-next_state(S, _V, {call,_,clear,[_Str]}) ->
+next_state(S, _V, {call,_,clear,[_Svr, _Str]}) ->
     S#state{d=orddict:new()};
 next_state(S, _V, _NoSideEffectCall) ->
     S.
 
 %%%%
 
-reset(Stream) ->
-    java_rpc(reset, Stream).
+reset(Node, Stream) ->
+    java_rpc(Node, reset, Stream).
 
-put(Stream, Key, Val) ->
-    java_rpc(Stream, ["put", Key ++ "," ++ Val]).
+put(Node, Stream, Key, Val) ->
+    java_rpc(Node, Stream, ["put", Key ++ "," ++ Val]).
 
-get(Stream, Key) ->
-    java_rpc(Stream, ["get", Key]).
+get(Node, Stream, Key) ->
+    java_rpc(Node, Stream, ["get", Key]).
 
-size(Stream) ->
-    java_rpc(Stream, ["size"]).
+size(Node, Stream) ->
+    java_rpc(Node, Stream, ["size"]).
 
-isEmpty(Stream) ->
-    java_rpc(Stream, ["isEmpty"]).
+isEmpty(Node, Stream) ->
+    java_rpc(Node, Stream, ["isEmpty"]).
 
-containsKey(Stream, Key) ->
-    java_rpc(Stream, ["containsKey", Key]).
+containsKey(Node, Stream, Key) ->
+    java_rpc(Node, Stream, ["containsKey", Key]).
 
-containsValue(Stream, Value) ->
-    java_rpc(Stream, ["containsValue", Value]).
+containsValue(Node, Stream, Value) ->
+    java_rpc(Node, Stream, ["containsValue", Value]).
 
-remove(Stream, Key) ->
-    java_rpc(Stream, ["remove", Key]).
+remove(Node, Stream, Key) ->
+    java_rpc(Node, Stream, ["remove", Key]).
 
 %% %% putAll() can't be tested because our ASCII protocol can't represent
 %% %% the needed map.
 
-clear(Stream) ->
-    java_rpc(Stream, ["clear"]).
+clear(Node, Stream) ->
+    java_rpc(Node, Stream, ["clear"]).
 
-keySet(Stream) ->
-    java_rpc(Stream, ["keySet"]).
+keySet(Node, Stream) ->
+    java_rpc(Node, Stream, ["keySet"]).
 
-values(Stream) ->
-    java_rpc(Stream, ["values"]).
+values(Node, Stream) ->
+    java_rpc(Node, Stream, ["values"]).
 
-entrySet(Stream) ->
-    java_rpc(Stream, ["entrySet"]).
+entrySet(Node, Stream) ->
+    java_rpc(Node, Stream, ["entrySet"]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+local_servers() ->
+    [_, ShortNameRHS] = string:tokens(atom_to_list(node()), "@"),
+    CorfuLocalNode = list_to_atom("corfu@" ++ ShortNameRHS),
+    local_servers(?NUM_LOCALHOST_CMDLETS, CorfuLocalNode).
+
+local_servers(NumCmdlets, CorfuLocalNode) ->
+    [{list_to_atom("cmdlet" ++ integer_to_list(X)), CorfuLocalNode} ||
+        X <- lists:seq(0, NumCmdlets - 1)].
 
 prop() ->
     prop(1).
 
-%% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
-
 prop(MoreCmds) ->
+    prop(MoreCmds, local_servers()).
+
+prop(MoreCmds, ServerList) ->
     random:seed(now()),
-    ?FORALL(Cmds, more_commands(MoreCmds, commands(?MODULE)),
+    %% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
+    ?FORALL(Cmds, more_commands(MoreCmds,
+                                commands(?MODULE, initial_state(ServerList))),
             begin
                 {H,S,Res} = run_commands(?MODULE, Cmds),
                 %% ["OK", []] = clear(S#state.stream),
                 ?WHENFAIL(
-                io:format("H: ~p~nS: ~w~nR: ~w~n", [H,S,Res]),
+                io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
                 aggregate(command_names(Cmds),
                 collect(length(Cmds) div 10,
                         Res == ok)))
@@ -243,14 +264,24 @@ prop_parallel() ->
     prop_parallel(1).
 
 prop_parallel(MoreCmds) ->
+    prop_parallel(MoreCmds, local_servers()).
+
+prop_parallel(MoreCmds, ServerList) ->
     random:seed(now()),
-    ?FORALL(Cmds, more_commands(MoreCmds, parallel_commands(?MODULE)),
+    %% Drat.  EQC 1.35.2's more_commands()
+    ?FORALL(Cmds0, more_commands(MoreCmds,
+                                parallel_commands(?MODULE,
+                                                  initial_state(ServerList))),
             begin
                 %% io:format(user, "Cmds ~p\n", [Cmds]),
+                {SeqX, ParsX} = Cmds0,
+                io:format(user, "~p,", [length(SeqX)]),
+                Cmds = {lists:sublist(SeqX, 2), ParsX},
                 {H,Hs,Res} = run_parallel_commands(?MODULE, Cmds),
                 {Seq, Pars} = Cmds,
                 Len = length(Seq) +
                     lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
+io:format(user, "~p", [ lists:map(fun(L) -> length(L) end, Pars) ]),
                 ?WHENFAIL(
                 io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
                 aggregate(command_names(Cmds),
@@ -264,20 +295,20 @@ prop_parallel(MoreCmds) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-java_rpc(reset, Stream) ->
-    clear(Stream),
+java_rpc(Node, reset, Stream) ->
+    clear(Node, Stream),
     AllArgs = ["corfu_smrobject", "reset"],
-    java_rpc_call(AllArgs);
-java_rpc(Stream, Args) ->
+    java_rpc_call(Node, AllArgs);
+java_rpc(Node, Stream, Args) ->
     StreamStr = integer_to_list(Stream),
     AllArgs = ["corfu_smrobject", "-c", "localhost:8000",
                "-s", StreamStr, "org.corfudb.runtime.collections.SMRMap"]
               ++ Args,
-    java_rpc_call(AllArgs).
+    java_rpc_call(Node, AllArgs).
 
-java_rpc_call(AllArgs) ->
+java_rpc_call(Node, AllArgs) ->
     ID = make_ref(),
-    {cmdlet, 'corfu@sbb5'} ! {self(), ID, AllArgs},
+    Node ! {self(), ID, AllArgs},
     receive
         {ID, Res} ->
             Res

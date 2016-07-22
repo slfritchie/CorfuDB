@@ -168,7 +168,12 @@ public class LayoutServer extends AbstractServer {
     /**
      * TODO refactor/move to another class
      */
-    Thread erlNodeThread;
+    private Thread erlNodeThread;
+
+    /**
+     * TODO refactor/move to another class
+     */
+    private OtpNode node;
 
     /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
@@ -232,9 +237,46 @@ public class LayoutServer extends AbstractServer {
             allPollFutures.put(pollFuture, 1);
         }
 
-        // Create the distributed Erlang message handling thread
-        erlNodeThread = new Thread(this::runErlNode);
-        erlNodeThread.start();
+        // Create the distributed Erlang message handling threads
+        try {
+            node = new OtpNode("corfu");
+        } catch (IOException e) {
+            System.err.println("Error creating OtpNode: " + e);
+            e.printStackTrace();
+            System.exit(44);
+        }
+        Thread erlNodeThread0 = new Thread(this::runErlMbox0);
+        erlNodeThread0.start();
+        Thread erlNodeThread1 = new Thread(this::runErlMbox1);
+        erlNodeThread1.start();
+        Thread erlNodeThread2 = new Thread(this::runErlMbox2);
+        erlNodeThread2.start();
+        Thread erlNodeThread3 = new Thread(this::runErlMbox3);
+        erlNodeThread3.start();
+        Thread erlNodeThread4 = new Thread(this::runErlMbox4);
+        erlNodeThread4.start();
+        Thread erlNodeThread5 = new Thread(this::runErlMbox5);
+        erlNodeThread5.start();
+        Thread erlNodeThread6 = new Thread(this::runErlMbox6);
+        erlNodeThread6.start();
+        Thread erlNodeThread7 = new Thread(this::runErlMbox7);
+        erlNodeThread7.start();
+        Thread erlNodeThread8 = new Thread(this::runErlMbox8);
+        erlNodeThread8.start();
+        Thread erlNodeThread9 = new Thread(this::runErlMbox9);
+        erlNodeThread9.start();
+        Thread erlNodeThread10 = new Thread(this::runErlMbox10);
+        erlNodeThread10.start();
+        Thread erlNodeThread11 = new Thread(this::runErlMbox11);
+        erlNodeThread11.start();
+        Thread erlNodeThread12 = new Thread(this::runErlMbox12);
+        erlNodeThread12.start();
+        Thread erlNodeThread13 = new Thread(this::runErlMbox13);
+        erlNodeThread13.start();
+        Thread erlNodeThread14 = new Thread(this::runErlMbox14);
+        erlNodeThread14.start();
+        Thread erlNodeThread15 = new Thread(this::runErlMbox15);
+        erlNodeThread15.start();
     }
 
     protected void finalize() {
@@ -708,11 +750,27 @@ public class LayoutServer extends AbstractServer {
         }
     }
 
-    public void runErlNode() {
-        Thread.currentThread().setName("DistErl");
+    public void runErlMbox0() { runErlMbox(0); }
+    public void runErlMbox1() { runErlMbox(1); }
+    public void runErlMbox2() { runErlMbox(2); }
+    public void runErlMbox3() { runErlMbox(3); }
+    public void runErlMbox4() { runErlMbox(4); }
+    public void runErlMbox5() { runErlMbox(5); }
+    public void runErlMbox6() { runErlMbox(6); }
+    public void runErlMbox7() { runErlMbox(7); }
+    public void runErlMbox8() { runErlMbox(8); }
+    public void runErlMbox9() { runErlMbox(9); }
+    public void runErlMbox10() { runErlMbox(10); }
+    public void runErlMbox11() { runErlMbox(11); }
+    public void runErlMbox12() { runErlMbox(12); }
+    public void runErlMbox13() { runErlMbox(13); }
+    public void runErlMbox14() { runErlMbox(14); }
+    public void runErlMbox15() { runErlMbox(15); }
+
+    public void runErlMbox(int num) {
+        Thread.currentThread().setName("DistErl-" + num);
         try {
-            OtpNode node = new OtpNode("corfu");
-            OtpMbox mbox = node.createMbox("cmdlet");
+            OtpMbox mbox = node.createMbox("cmdlet" + num);
 
             OtpErlangObject o;
             OtpErlangTuple msg;
@@ -722,6 +780,7 @@ public class LayoutServer extends AbstractServer {
             while (true) {
                 try {
                     o = mbox.receive();
+                    System.err.print("{"); System.err.flush(); // Thread.sleep(100);
                     if (o instanceof OtpErlangTuple) {
                         msg = (OtpErlangTuple) o;
                         from = (OtpErlangPid) msg.elementAt(0);
@@ -747,6 +806,7 @@ public class LayoutServer extends AbstractServer {
                         OtpErlangList reply_reslist = new OtpErlangList(reslist);
                         OtpErlangTuple reply = new OtpErlangTuple(new OtpErlangObject[] { id, reply_reslist });
                         mbox.send(from, reply);
+System.err.print("}"); System.err.flush();
                     }
                 } catch (Exception e) {
                         System.out.println("Qxx " + e);
