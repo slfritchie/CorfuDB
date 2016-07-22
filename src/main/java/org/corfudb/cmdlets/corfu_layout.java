@@ -9,6 +9,7 @@ import org.corfudb.runtime.clients.LayoutClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.util.GitRepositoryState;
+import org.corfudb.util.Utils;
 import org.docopt.Docopt;
 
 import java.nio.file.Files;
@@ -49,7 +50,7 @@ public class corfu_layout implements ICmdlet {
                     + " --version  Show version\n";
 
     @Override
-    public void main(String[] args) {
+    public String[] main2(String[] args) {
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);
@@ -70,55 +71,42 @@ public class corfu_layout implements ICmdlet {
                 .start();
 
         if ((Boolean) opts.get("query")) {
-            System.out.println(ansi().a("QUERY ").fg(WHITE).a(host + ":" + port).reset().a(":"));
-
             try {
                 Layout l = router.getClient(LayoutClient.class).getLayout().get();
                 Gson gs = new GsonBuilder().setPrettyPrinting().create();
-                System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port).reset().a(":"));
-                System.out.println(gs.toJson(l));
+                return cmdlet.ok(gs.toJson(l));
             } catch (ExecutionException ex) {
-                log.error("Exception getting layout", ex.getCause());
-                throw new RuntimeException(ex.getCause());
+                return cmdlet.err("ERROR Exception getting layout" + ex.getCause());
             } catch (Exception e) {
-                log.error("Exception getting layout", e);
-                throw new RuntimeException(e);
+                return cmdlet.err("ERROR Exception getting layout" + e);
             }
         } else if ((Boolean) opts.get("bootstrap")) {
             Layout l = getLayout(opts);
             log.debug("Bootstrapping with layout {}", l);
             try {
                 if (router.getClient(LayoutClient.class).bootstrapLayout(l).get()) {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(GREEN).a(": ACK"));
+                    return cmdlet.ok();
                 } else {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(RED).a(": NACK"));
+                    return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                log.error("Exception bootstrapping layout", ex.getCause());
-                throw new RuntimeException(ex.getCause());
+                return cmdlet.err("Exception bootstrapping layout {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                log.error("Exception bootstrapping layout", e);
-                throw new RuntimeException(e);
+                return cmdlet.err("Exception bootstrapping layout {}\n", e.toString());
             }
         } else if ((Boolean) opts.get("prepare")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
             log.debug("Prepare with new rank={}", rank);
             try {
                 if (router.getClient(LayoutClient.class).prepare(rank).get()) {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(GREEN).a(": ACK"));
+                    return cmdlet.ok();
                 } else {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(RED).a(": NACK"));
+                    return cmdlet.err("ACK");
                 }
             } catch (ExecutionException ex) {
-                log.error("Exception during prepare", ex.getCause());
-                throw new RuntimeException(ex.getCause());
+                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                log.error("Exception during prepare", e);
-                throw new RuntimeException(e);
+                return cmdlet.err("Exception during prepare {}\n", e.toString());
             }
         } else if ((Boolean) opts.get("propose")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
@@ -126,38 +114,31 @@ public class corfu_layout implements ICmdlet {
             log.debug("Propose with new rank={}, layout={}", rank, l);
             try {
                 if (router.getClient(LayoutClient.class).propose(rank, l).get()) {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(GREEN).a(": ACK"));
+                    return cmdlet.ok();
                 } else {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(RED).a(": NACK"));
+                    return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                log.error("Exception during prepare", ex.getCause());
-                throw new RuntimeException(ex.getCause());
+                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                log.error("Exception during prepare", e);
-                throw new RuntimeException(e);
+                return cmdlet.err("Exception during prepare {}\n", e.toString());
             }
         } else if ((Boolean) opts.get("committed")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
             log.debug("Propose with new rank={}", rank);
             try {
                 if (router.getClient(LayoutClient.class).committed(rank).get()) {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(GREEN).a(": ACK"));
+                    return cmdlet.ok();
                 } else {
-                    System.out.println(ansi().a("RESPONSE from ").fg(WHITE).a(host + ":" + port)
-                            .reset().fg(RED).a(": NACK"));
+                    return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                log.error("Exception during prepare", ex.getCause());
-                throw new RuntimeException(ex.getCause());
+                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                log.error("Exception during prepare", e);
-                throw new RuntimeException(e);
+                return cmdlet.err("Exception during prepare {}\n", e.toString());
             }
         }
+        return cmdlet.err("FIXME 10");
     }
 
     Layout getLayout(Map<String, Object> opts) {
