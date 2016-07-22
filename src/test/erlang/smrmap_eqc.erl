@@ -56,7 +56,8 @@ initial_state() ->
     initial_state([{cmdlet0, 'corfu@sbb5'}]).
 
 initial_state(ServerList) ->
-    #state{stream=random:uniform(999*999), server_list=ServerList}.
+    #state{stream=42, server_list=ServerList}.
+    %% #state{stream=random:uniform(999*999), server_list=ServerList}.
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
@@ -268,20 +269,38 @@ prop_parallel(MoreCmds) ->
 
 prop_parallel(MoreCmds, ServerList) ->
     random:seed(now()),
-    %% Drat.  EQC 1.35.2's more_commands()
-    ?FORALL(Cmds0, more_commands(MoreCmds,
-                                parallel_commands(?MODULE,
-                                                  initial_state(ServerList))),
+    %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
+    %% commands lists aren't resized.  So, we're going to do it
+    %% ourself, bleh.
+    ?FORALL(NumPars,
+            choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
+    ?FORALL(NewCs,
+            [more_commands(MoreCmds,
+                           non_empty(
+                             commands(?MODULE,
+                                      initial_state(ServerList)))) ||
+                _ <- lists:seq(1, NumPars)],
             begin
-                %% io:format(user, "Cmds ~p\n", [Cmds]),
-                {SeqX, ParsX} = Cmds0,
-                io:format(user, "~p,", [length(SeqX)]),
-                Cmds = {lists:sublist(SeqX, 2), ParsX},
-                {H,Hs,Res} = run_parallel_commands(?MODULE, Cmds),
+                [Init|Rest] = hd(NewCs),
+                SeqList = case Rest of
+                              [{set,_,{call,_,reset,_}}|_] ->
+%% io:format(user, "\n\n **** Keep original reset\n", []),
+                                  hd(NewCs);
+                              _ ->
+%% io:format(user, "\n\n **** INSERT reset\n", []),
+                                  [Init,
+                                   {set,{var,1},{call,?MODULE,reset,[hd(ServerList), 42]}}] ++ Rest
+                          end,
+                Cmds = {SeqList,
+                        lists:map(fun(L) -> seq_to_par_cmds(L) end,
+                                  tl(NewCs))},
+%% io:format(user, "****\n\nCmds ~P\n", [Cmds, 25]),
                 {Seq, Pars} = Cmds,
                 Len = length(Seq) +
                     lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
-io:format(user, "~p", [ lists:map(fun(L) -> length(L) end, Pars) ]),
+io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
+                {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
+io:format(user, "=~w sec,", [Elapsed / 1000000]),
                 ?WHENFAIL(
                 io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
                 aggregate(command_names(Cmds),
@@ -289,9 +308,12 @@ io:format(user, "~p", [ lists:map(fun(L) -> length(L) end, Pars) ]),
                            true     -> (Len div 10) + 1
                         end,
                         Res == ok)))
-                %% pretty_commands(client, Cmds, {H, Hs, Res},
-                %%                 Res == ok)))
-            end).
+            end)).
+
+seq_to_par_cmds(L) ->
+    [Cmd || Cmd <- L,
+            element(1, Cmd) /= init,
+            element(3, element(3, Cmd)) /= reset].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
