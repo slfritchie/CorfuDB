@@ -193,7 +193,9 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Node, Stream) ->
-    java_rpc(Node, reset, Stream).
+    io:format(user, "!R", []),
+    java_rpc(Node, Stream, ["clear"]).
+    %% java_rpc(Node, reset, Stream).
 
 put(Node, Stream, Key, Val) ->
     java_rpc(Node, Stream, ["put", Key ++ "," ++ Val]).
@@ -269,6 +271,9 @@ prop_parallel() ->
 prop_parallel(MoreCmds) ->
     prop_parallel(MoreCmds, local_servers()).
 
+% % EQC has an exponential worst case for checking {SIGH}
+-define(PAR_CMDS_LIMIT, 6).
+
 prop_parallel(MoreCmds, ServerList) ->
     random:seed(now()),
     %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
@@ -286,23 +291,27 @@ prop_parallel(MoreCmds, ServerList) ->
                 [Init|Rest] = hd(NewCs),
                 SeqList = case Rest of
                               [{set,_,{call,_,reset,_}}|_] ->
-io:format(user, "\n\n **** Keep original reset\n", []),
+                                  %% io:format(user, "\n\n **** Keep original reset\n", []),
                                   hd(NewCs);
                               _ ->
-io:format(user, "\n\n **** INSERT reset\n", []),
+                                  %% io:format(user, "\n\n **** INSERT reset\n", []),
                                   [Init,
                                    {set,{var,1},{call,?MODULE,reset,[hd(ServerList), 42]}}] ++ Rest
                           end,
                 Cmds = {SeqList,
-                        lists:map(fun(L) -> seq_to_par_cmds(L) end,
+                        lists:map(fun(L) -> lists:sublist(seq_to_par_cmds(L),
+                                                          ?PAR_CMDS_LIMIT) end,
                                   tl(NewCs))},
-io:format(user, "****\n\nCmds ~P\n", [Cmds, 25]),
                 {Seq, Pars} = Cmds,
                 Len = length(Seq) +
                     lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
-io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
                 {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
-io:format(user, "=~w sec,", [Elapsed / 1000000]),
+                if Elapsed > 1*1000*1000 ->
+                        io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
+                        io:format(user, "=~w sec,", [Elapsed / 1000000]);
+                   true ->
+                        ok
+                end,
                 ?WHENFAIL(
                 io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
                 aggregate(command_names(Cmds),

@@ -782,7 +782,7 @@ public class LayoutServer extends AbstractServer {
             while (true) {
                 try {
                     o = mbox.receive();
-                    System.err.print("{"); System.err.flush(); // Thread.sleep(100);
+                    // System.err.print("{"); System.err.flush(); // Thread.sleep(100);
                     if (o instanceof OtpErlangTuple) {
                         msg = (OtpErlangTuple) o;
                         from = (OtpErlangPid) msg.elementAt(0);
@@ -808,7 +808,7 @@ public class LayoutServer extends AbstractServer {
                         OtpErlangList reply_reslist = new OtpErlangList(reslist);
                         OtpErlangTuple reply = new OtpErlangTuple(new OtpErlangObject[] { id, reply_reslist });
                         mbox.send(from, reply);
-System.err.print("}"); System.err.flush();
+                        // System.err.print("}"); System.err.flush();
                     }
                 } catch (Exception e) {
                         System.out.println("Qxx " + e);
