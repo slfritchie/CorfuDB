@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.fusesource.jansi.Ansi.Color.*;
@@ -26,6 +27,8 @@ import static org.fusesource.jansi.Ansi.ansi;
  */
 @Slf4j
 public class corfu_layout implements ICmdlet {
+
+    private static Map<String, NettyClientRouter> routers = new HashMap<>();
 
     private static final String USAGE =
             "corfu_layout, directly interact with a layout server.\n"
@@ -63,12 +66,16 @@ public class corfu_layout implements ICmdlet {
         String host = addressport.split(":")[0];
         Integer port = Integer.parseInt(addressport.split(":")[1]);
 
-        // Create a client router and get layout.
-        log.trace("Creating router for {}:{}", host, port);
-        NettyClientRouter router = new NettyClientRouter(host, port);
-        router.addClient(new BaseClient())
+        NettyClientRouter router;
+        if ((router = routers.get(addressport)) == null) {
+            // Create a client router and get layout.
+            log.trace("Creating router for {}:{}", host, port);
+            router = new NettyClientRouter(host, port);
+            router.addClient(new BaseClient())
                 .addClient(new LayoutClient())
                 .start();
+            routers.put(addressport, router);
+        }
 
         if ((Boolean) opts.get("query")) {
             try {
