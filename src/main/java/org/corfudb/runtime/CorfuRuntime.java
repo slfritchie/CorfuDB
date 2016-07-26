@@ -146,6 +146,7 @@ public class CorfuRuntime {
     public void stop() {
         for (IClientRouter r: nodeRouters.values()) {
             if (r.getClass() == NettyClientRouter.class) {
+                /*
                 int handlers = ((NettyClientRouter) r).handlerMap.size();
                 System.out.println("handlers " + handlers);
                 int clients = ((NettyClientRouter) r).clientList.size();
@@ -153,6 +154,7 @@ public class CorfuRuntime {
                 int outstandings = ((NettyClientRouter) r).outstandingRequests.size();
                 System.out.println("outstandings " + outstandings);
                 // (NettyClientRouter) r).context.channel().close();
+                */
             }
             r.stop();
         }

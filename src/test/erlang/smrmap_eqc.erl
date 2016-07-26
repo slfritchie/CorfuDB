@@ -272,7 +272,7 @@ prop_parallel(MoreCmds) ->
     prop_parallel(MoreCmds, local_servers()).
 
 % % EQC has an exponential worst case for checking {SIGH}
--define(PAR_CMDS_LIMIT, 6).
+-define(PAR_CMDS_LIMIT, 6). % worst case so far @ 7 = 52 seconds!
 
 prop_parallel(MoreCmds, ServerList) ->
     random:seed(now()),
