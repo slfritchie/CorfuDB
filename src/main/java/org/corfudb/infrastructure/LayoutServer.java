@@ -119,7 +119,7 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: disable polling loop
      */
-    static public boolean disableConfigMgrPolling = false; // QQQ debugging only, put me back to false!!!!
+    static public boolean disableConfigMgrPolling = true; // QQQ debugging only, put me back to false!!!!
 
     /**
      * Configuration manager: client runtime
@@ -726,6 +726,17 @@ public class LayoutServer extends AbstractServer {
 
     }
 
+    /**
+     * Shutdown the server.
+     */
+    @Override
+    public void shutdown() {
+        try {
+            // TODO
+        } catch (Exception e) {
+            log.warn("Error during layout server shutdown!", e);
+        }
+    }
     /**
      * Phase2 data consists of rank and the proposed layout.
      * The container class provides a convenience to persist and retrieve
