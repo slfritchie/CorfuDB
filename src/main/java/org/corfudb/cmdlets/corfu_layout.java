@@ -4,6 +4,8 @@ import com.google.common.io.ByteStreams;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.infrastructure.CorfuServer;
+import org.corfudb.infrastructure.LayoutServer;
 import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
@@ -54,6 +56,18 @@ public class corfu_layout implements ICmdlet {
 
     @Override
     public String[] main2(String[] args) {
+        if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
+            System.out.println("corfu_layout top: reset");
+            LayoutServer ls = CorfuServer.getLayoutServer();
+            if (ls != null) {
+                System.out.println("corfu_layout top: reset now");
+                ls.reset();
+                return cmdlet.ok();
+            } else {
+                return cmdlet.err("No active layout server");
+            }
+        }
+
         // Parse the options given, using docopt.
         Map<String, Object> opts =
                 new Docopt(USAGE).withVersion(GitRepositoryState.getRepositoryState().describe).parse(args);

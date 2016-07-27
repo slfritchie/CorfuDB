@@ -119,7 +119,7 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: disable polling loop
      */
-    static public boolean disableConfigMgrPolling = true; // QQQ debugging only, put me back to false!!!!
+    public static boolean disableConfigMgrPolling = false; // QQQ debugging only, put me back to false!!!!
 
     /**
      * Configuration manager: client runtime
@@ -152,13 +152,8 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: future handle thingie to cancel periodic polling
      */
-    ScheduledFuture<?> pollFuture = null;
-
-    /**
-     * Configuration manager: all future handle thingies
-     */
-    @Getter
-    public static ConcurrentHashMap<ScheduledFuture<?>,Integer> allPollFutures = new ConcurrentHashMap<>();
+    public static ScheduledFuture<?> pollFuture = null;
+    private static Object pollFutureLock = new Object();
 
     /**
      * TODO DELETE ME.
@@ -173,7 +168,8 @@ public class LayoutServer extends AbstractServer {
     /**
      * TODO refactor/move to another class
      */
-    private OtpNode node;
+    private static OtpNode otpNode = null;
+    private static Object otpNodeLock = new Object();
 
     /**
      * A scheduler, which is used to schedule checkpoints and lease renewal
@@ -218,79 +214,111 @@ public class LayoutServer extends AbstractServer {
 
             phase1Rank = phase2Rank = null;
         } else {
-            loadCurrentLayout();
-            if (currentLayout != null) {
-                getServerRouter().setServerEpoch(currentLayout.getEpoch());
-            }
-            log.info("Layout server started with layout from disk: {}.", currentLayout);
-            loadPhase1Data();
-            loadPhase2Data();
+            reset();
         }
 
         // schedule config manager polling.
         if (! disableConfigMgrPolling) {
-            my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
-            String cmpi = "--cm-poll-interval";
-            long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
-            pollFuture = scheduler.scheduleAtFixedRate(this::configMgrPoll,
-                    0, poll_interval, TimeUnit.SECONDS);
-            allPollFutures.put(pollFuture, 1);
+            start_config_manager_polling();
+        }
 
-            // Create the distributed Erlang message handling threads, perhaps
-            int port = Integer.parseInt((String) opts.get("<port>"));
-            String nodename = "corfu-" + port;
-            try {
-                node = new OtpNode(nodename);
+        // QuickCheck: Create the distributed Erlang message handling threads
+        Object test_mode = opts.get("--quickcheck-test-mode");
+        if (test_mode != null && (Boolean) test_mode) {
+            start_quickcheck_test_mode();
+        }
+    }
 
-                System.out.println("\n\n***************** Creating lots of OtpNode Threads ************\n\n");
-                Thread erlNodeThread0 = new Thread(this::runErlMbox0);
-                erlNodeThread0.start();
-                Thread erlNodeThread1 = new Thread(this::runErlMbox1);
-                erlNodeThread1.start();
-                Thread erlNodeThread2 = new Thread(this::runErlMbox2);
-                erlNodeThread2.start();
-                Thread erlNodeThread3 = new Thread(this::runErlMbox3);
-                erlNodeThread3.start();
-                Thread erlNodeThread4 = new Thread(this::runErlMbox4);
-                erlNodeThread4.start();
-                Thread erlNodeThread5 = new Thread(this::runErlMbox5);
-                erlNodeThread5.start();
-                Thread erlNodeThread6 = new Thread(this::runErlMbox6);
-                erlNodeThread6.start();
-                Thread erlNodeThread7 = new Thread(this::runErlMbox7);
-                erlNodeThread7.start();
-                Thread erlNodeThread8 = new Thread(this::runErlMbox8);
-                erlNodeThread8.start();
-                Thread erlNodeThread9 = new Thread(this::runErlMbox9);
-                erlNodeThread9.start();
-                Thread erlNodeThread10 = new Thread(this::runErlMbox10);
-                erlNodeThread10.start();
-                Thread erlNodeThread11 = new Thread(this::runErlMbox11);
-                erlNodeThread11.start();
-                Thread erlNodeThread12 = new Thread(this::runErlMbox12);
-                erlNodeThread12.start();
-                Thread erlNodeThread13 = new Thread(this::runErlMbox13);
-                erlNodeThread13.start();
-                Thread erlNodeThread14 = new Thread(this::runErlMbox14);
-                erlNodeThread14.start();
-                Thread erlNodeThread15 = new Thread(this::runErlMbox15);
-                erlNodeThread15.start();
-            } catch (IOException e) {
-                log.info("Error creating OtpNode {}: {}", nodename, e);
+    private void start_config_manager_polling() {
+        synchronized (pollFutureLock) {
+            if (pollFuture == null) {
+                my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
+                String cmpi = "--cm-poll-interval";
+                long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
+                pollFuture = scheduler.scheduleAtFixedRate(this::configMgrPoll,
+                        0, poll_interval, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    private void start_quickcheck_test_mode() {
+        synchronized (otpNodeLock) {
+            if (otpNode == null) {
+                int port = Integer.parseInt((String) opts.get("<port>"));
+                String nodename = "corfu-" + port;
+                try {
+                    otpNode = new OtpNode(nodename);
+
+                    System.out.println("\n\n***************** Creating lots of OtpNode Threads ************\n\n");
+                    Thread erlNodeThread0 = new Thread(this::runErlMbox0);
+                    erlNodeThread0.start();
+                    Thread erlNodeThread1 = new Thread(this::runErlMbox1);
+                    erlNodeThread1.start();
+                    Thread erlNodeThread2 = new Thread(this::runErlMbox2);
+                    erlNodeThread2.start();
+                    Thread erlNodeThread3 = new Thread(this::runErlMbox3);
+                    erlNodeThread3.start();
+                    Thread erlNodeThread4 = new Thread(this::runErlMbox4);
+                    erlNodeThread4.start();
+                    Thread erlNodeThread5 = new Thread(this::runErlMbox5);
+                    erlNodeThread5.start();
+                    Thread erlNodeThread6 = new Thread(this::runErlMbox6);
+                    erlNodeThread6.start();
+                    Thread erlNodeThread7 = new Thread(this::runErlMbox7);
+                    erlNodeThread7.start();
+                    Thread erlNodeThread8 = new Thread(this::runErlMbox8);
+                    erlNodeThread8.start();
+                    Thread erlNodeThread9 = new Thread(this::runErlMbox9);
+                    erlNodeThread9.start();
+                    Thread erlNodeThread10 = new Thread(this::runErlMbox10);
+                    erlNodeThread10.start();
+                    Thread erlNodeThread11 = new Thread(this::runErlMbox11);
+                    erlNodeThread11.start();
+                    Thread erlNodeThread12 = new Thread(this::runErlMbox12);
+                    erlNodeThread12.start();
+                    Thread erlNodeThread13 = new Thread(this::runErlMbox13);
+                    erlNodeThread13.start();
+                    Thread erlNodeThread14 = new Thread(this::runErlMbox14);
+                    erlNodeThread14.start();
+                    Thread erlNodeThread15 = new Thread(this::runErlMbox15);
+                    erlNodeThread15.start();
+                } catch (IOException e) {
+                    log.info("Error creating OtpNode {}: {}", nodename, e);
+                }
             }
         }
     }
 
     protected void finalize() {
-        if (pollFuture != null) {
-            allPollFutures.remove(pollFuture);
-            pollFuture.cancel(true);
-        }
+        //
     }
 
     private void configMgrPoll() {
         List<String> layout_servers;
 
+        System.out.printf("Poll top, "); System.out.flush();
+        try {
+            String l = Files.toString(new File("/tmp/shutdown-layout-server"), Charset.defaultCharset());
+            System.out.println("SHUTDOWN FOUND");
+            shutdown();
+        } catch (IOException e) {
+        }
+        try {
+            String l = Files.toString(new File("/tmp/abort-poll"), Charset.defaultCharset());
+            System.out.println("disableConfigMgrPolling = true");
+            disableConfigMgrPolling = true;
+        } catch (IOException e) {
+            disableConfigMgrPolling = false;
+        }
+
+        // NOTE: This polling action is associated with a particular LayoutServer
+        //       object.  If that object is shutdown, then polling will stop,
+        //       no matter how many other LayoutServer objects have been created
+        //       and are not shut down.
+        if (isShutdown() || disableConfigMgrPolling) {
+            log.warn("I am shutdown, skipping configMgrPoll");
+            return;
+        }
         try {
             if (lv == null) {    // Not bootstrapped yet?
                 if (currentLayout == null) {
@@ -721,9 +749,18 @@ public class LayoutServer extends AbstractServer {
         return new Rank(msg.getRank(), msg.getClientID());
     }
 
+    /**
+     * Reset internal state with data on disk.
+     */
     @Override
     public void reset() {
-
+        loadCurrentLayout();
+        if (currentLayout != null) {
+            getServerRouter().setServerEpoch(currentLayout.getEpoch());
+        }
+        log.info("Layout server started with layout from disk: {}.", currentLayout);
+        loadPhase1Data();
+        loadPhase2Data();
     }
 
     /**
@@ -732,7 +769,9 @@ public class LayoutServer extends AbstractServer {
     @Override
     public void shutdown() {
         try {
-            // TODO
+            setShutdown(true);
+            // The shutdown flag will cause the config manager polling thread's iterations
+            // to return immediately.  We won't try to stop that polling thread.
         } catch (Exception e) {
             log.warn("Error during layout server shutdown!", e);
         }
@@ -783,7 +822,7 @@ public class LayoutServer extends AbstractServer {
     public void runErlMbox(int num) {
         Thread.currentThread().setName("DistErl-" + num);
         try {
-            OtpMbox mbox = node.createMbox("cmdlet" + num);
+            OtpMbox mbox = otpNode.createMbox("cmdlet" + num);
 
             OtpErlangObject o;
             OtpErlangTuple msg;

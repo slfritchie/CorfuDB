@@ -39,7 +39,7 @@ public class corfu_smrobject implements ICmdlet {
 
     @Override
     public String[] main2(String[] args) {
-        if (args[0].contentEquals("reset")) {
+        if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
             if (rt != null) {
                 rt.stop();
             }
