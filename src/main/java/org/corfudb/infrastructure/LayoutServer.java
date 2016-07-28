@@ -81,6 +81,15 @@ public class LayoutServer extends AbstractServer {
     Layout currentLayout;
 
     /**
+     * The initial layout for a single node + memory configuration.
+     * If reset() is used, and if we're configured "-ms", memory
+     * plus single node, then without this mechanism (or equivalent),
+     * a reset() would fall back to unbootstrapped state, which is
+     * not what the server starts at.
+     */
+    private Layout singleMemoryLayout = null;
+
+    /**
      * The current phase 1 rank
      */
     Rank phase1Rank;
@@ -192,7 +201,6 @@ public class LayoutServer extends AbstractServer {
             phase2File = new File(opts.get("--log-path") + File.separator + "phase2Data");
         }
 
-        reset();
         if ((Boolean) opts.get("--single")) {
             if (currentLayout == null) {
                 String localAddress = opts.get("--address") + ":" + opts.get("<port>");
@@ -213,12 +221,12 @@ public class LayoutServer extends AbstractServer {
                         )),
                         0L
                 ));
-
                 phase1Rank = phase2Rank = null;
             } else {
                 log.info("Single-node mode requested, but layout & phase rank state are available: {} rank1 {} rank2 {}", currentLayout, phase1Rank, phase2Rank);
             }
         }
+        reset();
 
         // schedule config manager polling.
         if (! disableConfigMgrPolling) {
@@ -524,7 +532,7 @@ public class LayoutServer extends AbstractServer {
      */
     public synchronized void saveCurrentLayout(Layout layout) {
         if (layoutFile == null) {
-            currentLayout = layout;
+            singleMemoryLayout = currentLayout = layout;
             return;
         }
         try {
@@ -759,13 +767,19 @@ public class LayoutServer extends AbstractServer {
      */
     @Override
     public void reset() {
-        log.warn("reset 1");
-        loadCurrentLayout();
-        log.warn("reset 2");
+        log.trace("Layout server reset");
+        if (singleMemoryLayout == null) {
+            loadCurrentLayout();
+        } else {
+            log.info("Single node + memory mode, using original layout");
+            currentLayout = singleMemoryLayout;
+        }
         if (currentLayout != null) {
             getServerRouter().setServerEpoch(currentLayout.getEpoch());
         }
         log.info("Layout server started with layout from disk: {}.", currentLayout);
+        phase1Rank = null;
+        phase2Rank = null;
         loadPhase1Data();
         loadPhase2Data();
     }
