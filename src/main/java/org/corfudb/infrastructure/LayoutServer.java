@@ -192,29 +192,32 @@ public class LayoutServer extends AbstractServer {
             phase2File = new File(opts.get("--log-path") + File.separator + "phase2Data");
         }
 
+        reset();
         if ((Boolean) opts.get("--single")) {
-            String localAddress = opts.get("--address") + ":" + opts.get("<port>");
-            log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
-                    localAddress);
-            saveCurrentLayout(new Layout(
-                    Collections.singletonList(localAddress),
-                    Collections.singletonList(localAddress),
-                    Collections.singletonList(new LayoutSegment(
-                            Layout.ReplicationMode.CHAIN_REPLICATION,
-                            0L,
-                            -1L,
-                            Collections.singletonList(
-                                    new Layout.LayoutStripe(
-                                            Collections.singletonList(localAddress)
-                                    )
-                            )
-                    )),
-                    0L
-            ));
+            if (currentLayout == null) {
+                String localAddress = opts.get("--address") + ":" + opts.get("<port>");
+                log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
+                        localAddress);
+                saveCurrentLayout(new Layout(
+                        Collections.singletonList(localAddress),
+                        Collections.singletonList(localAddress),
+                        Collections.singletonList(new LayoutSegment(
+                                Layout.ReplicationMode.CHAIN_REPLICATION,
+                                0L,
+                                -1L,
+                                Collections.singletonList(
+                                        new Layout.LayoutStripe(
+                                                Collections.singletonList(localAddress)
+                                        )
+                                )
+                        )),
+                        0L
+                ));
 
-            phase1Rank = phase2Rank = null;
-        } else {
-            reset();
+                phase1Rank = phase2Rank = null;
+            } else {
+                log.info("Single-node mode requested, but layout & phase rank state are available: {} rank1 {} rank2 {}", currentLayout, phase1Rank, phase2Rank);
+            }
         }
 
         // schedule config manager polling.
@@ -595,6 +598,7 @@ public class LayoutServer extends AbstractServer {
             } else {
                 String r = Files.toString(phase1File, Charset.defaultCharset());
                 phase1Rank = Rank.fromJSONString(r);
+                log.info("Loaded phase1Rank {}", phase1Rank);
             }
         } catch (Exception e) {
             log.error("Error reading phase1 rank from data file for phase1.", e);
@@ -679,6 +683,7 @@ public class LayoutServer extends AbstractServer {
             case LAYOUT_PREPARE: {
                 LayoutRankMsg m = (LayoutRankMsg) msg;
                 Rank prepareRank = getRank(m);
+                log.warn("DBG: prepare: phase1Rank = " + ((phase1Rank == null) ? "null" : phase1Rank.toString()) + ", m rank = " + prepareRank.toString());
                 // This is a prepare. If the rank is less than or equal to the phase 1 rank, reject.
                 if (phase1Rank != null && prepareRank.compareTo(phase1Rank) <= 0) {
                     log.debug("Rejected phase 1 prepare of rank={}, phase1Rank={}", prepareRank, phase1Rank);
@@ -754,7 +759,9 @@ public class LayoutServer extends AbstractServer {
      */
     @Override
     public void reset() {
+        log.warn("reset 1");
         loadCurrentLayout();
+        log.warn("reset 2");
         if (currentLayout != null) {
             getServerRouter().setServerEpoch(currentLayout.getEpoch());
         }
