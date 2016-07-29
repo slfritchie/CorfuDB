@@ -768,6 +768,10 @@ public class LayoutServer extends AbstractServer {
     @Override
     public void reset() {
         log.trace("Layout server reset");
+        currentLayout = null;
+        phase1Rank = null;
+        phase2Rank = null;
+
         if (singleMemoryLayout == null) {
             loadCurrentLayout();
         } else {

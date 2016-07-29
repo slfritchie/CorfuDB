@@ -2,6 +2,7 @@ package org.corfudb.infrastructure;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
+import com.google.common.util.concurrent.ExecutionError;
 import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
 import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
@@ -449,5 +450,68 @@ public class LayoutServerTest extends AbstractServerTest {
         s2.shutdown();
     }
 
+    @Test
+    public void testReset() throws Exception {
+        String serviceDir = getTempDir();
+
+        LayoutServer s1 = new LayoutServer(new ImmutableMap.Builder<String, Object>()
+                .put("--log-path", serviceDir)
+                .put("--memory", false)
+                .put("--single", false)
+                .build(), getRouter());
+
+        setServer(s1);
+        Layout l100 = TestLayoutBuilder.single(9000);
+        l100.setEpoch(100);
+        bootstrapServer(l100);
+
+        // Reset, then check that our epoch 100 layout is still there.
+        s1.reset();
+
+        sendMessage(new CorfuMsg(CorfuMsg.CorfuMsgType.LAYOUT_REQUEST));
+        assertThat(getLastMessage().getMsgType())
+                .isEqualTo(CorfuMsg.CorfuMsgType.LAYOUT_RESPONSE);
+        assertThat(((LayoutMsg) getLastMessage()).getLayout().getEpoch())
+                .isEqualTo(100);
+        s1.shutdown();
+
+        for (int i = 0; i < 16; i++) {
+            String serviceDir2 = getTempDir();
+            LayoutServer s2 = new LayoutServer(new ImmutableMap.Builder<String, Object>()
+                    .put("--log-path", serviceDir2)
+                    .put("--memory", false)
+                    .put("--single", false)
+                    .build(), getRouter());
+            setServer(s2);
+            bootstrapServer(l100);
+            commitReturnsAck(s2, i);
+            s2.shutdown();
+        }
+    }
+
+    // Same as commitReturnsAck() test, but we perhaps make a .reset() call
+    // between each step.
+
+    private void commitReturnsAck(LayoutServer s1, Integer reset) {
+        if ((reset & 1) > 0) { s1.reset(); }
+
+        sendMessage(new LayoutRankMsg(null, 100, CorfuMsg.CorfuMsgType.LAYOUT_PREPARE));
+        assertThat(getLastMessage().getMsgType())
+                .isEqualTo(CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_ACK);
+        if ((reset & 2) > 0) { s1.reset(); }
+
+        sendMessage(new LayoutRankMsg(TestLayoutBuilder.single(9000), 100, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE));
+        assertThat(getLastMessage().getMsgType())
+                .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
+        if ((reset & 4) > 0) { s1.reset(); }
+
+        sendMessage(new LayoutRankMsg(null, 1000, CorfuMsg.CorfuMsgType.LAYOUT_COMMITTED));
+        assertThat(getLastMessage().getMsgType())
+                .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
+        if ((reset & 8) > 0) {s1.reset(); }
+        sendMessage(new LayoutRankMsg(null, 1000, CorfuMsg.CorfuMsgType.LAYOUT_COMMITTED));
+        assertThat(getLastMessage().getMsgType())
+                .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
+    }
 
 }
