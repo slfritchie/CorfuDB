@@ -35,7 +35,8 @@
           reset_p = false :: boolean(),
           endpoint :: string(),
           reg_names :: list(),
-          last_rank=0 :: non_neg_integer()
+          last_rank=0 :: non_neg_integer(),
+          proposed_ok_rank=0 :: non_neg_integer()
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,6 +47,15 @@ gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
 
 gen_rank() ->
     choose(1, 100).
+
+gen_rank(#state{last_rank=0}) ->
+    gen_rank();
+gen_rank(#state{last_rank=LR}) ->
+    frequency([{10, LR},
+               { 2, gen_rank()}]).
+
+gen_layout() ->
+    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": 0\n}".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -68,7 +78,8 @@ command(S=#state{endpoint=Endpoint, reset_p=true}) ->
        %% {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
        {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
-       {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}}
+       {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}},
+       {20, {call, ?MODULE, propose, [gen_mbox(S), Endpoint, gen_rank(S), gen_layout()]}}
       ]).
 
 postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
@@ -96,6 +107,16 @@ postcondition(#state{last_rank=LastRank},
             Rank =< LastRank;
         Else ->
             {prepare, Rank, last_rank, LastRank, Else}
+    end;
+postcondition(#state{last_rank=LastRank},
+              {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+    case termify(RetStr) of
+        ok ->
+            Rank == LastRank;
+        {error, outrankedException} ->
+            Rank /= LastRank;
+        Else ->
+            {propose, Rank, last_rank, LastRank, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
@@ -106,6 +127,13 @@ next_state(S=#state{last_rank=LastRank}, _V,
            {call,_,prepare,[_Mbox, _EP, Rank]}) ->
     if Rank > LastRank ->
             S#state{last_rank=Rank};
+       true ->
+            S
+    end;
+next_state(S=#state{last_rank=LastRank}, _V,
+           {call,_,propose,[_Mbox, _EP, Rank, _Layout]}) ->
+    if Rank == LastRank ->
+            S#state{proposed_ok_rank=Rank};
        true ->
             S
     end;
@@ -130,6 +158,14 @@ query(Mbox, Endpoint) ->
 
 prepare(Mbox, Endpoint, Rank) ->
     java_rpc(Mbox, "prepare", Endpoint, ["-r", integer_to_list(Rank)]).
+
+propose(Mbox, Endpoint, Rank, Layout) ->
+    TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
+    ok = file:write_file(TmpPath, Layout),
+    Res = java_rpc(Mbox, "propose", Endpoint, ["-r", integer_to_list(Rank),
+                                               "-l", TmpPath]),
+    file:delete(TmpPath),
+    Res.
 
 termify(["OK"]) ->
     ok;
@@ -187,7 +223,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
     %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
     %% commands lists aren't resized.  So, we're going to do it
     %% ourself, bleh.
-    ?FORALL(NumPars,
+    ?FORALL(_NumPars,
             choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
     ?FORALL(NewCs,
             %% [more_commands(MoreCmds,
@@ -216,9 +252,9 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                    true ->
                         ok
                 end,
-                %% ?WHENFAIL(
-                %% io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
-                pretty_commands(?MODULE, Cmds, {H,Hs,Res},
+                ?WHENFAIL(
+                io:format("H: ~p~nHs: ~p~nR: ~p~n", [H,Hs,Res]),
+                %% pretty_commands(?MODULE, Cmds, {H,Hs,Res},
                 aggregate(command_names(Cmds),
                 collect(if Len == 0 -> 0;
                            true     -> (Len div 10) + 1
