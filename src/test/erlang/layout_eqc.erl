@@ -59,14 +59,14 @@ command(S=#state{endpoint=Endpoint, reset_p=false}) ->
 command(S=#state{endpoint=Endpoint, reset_p=true}) ->
     frequency(
       [
-       {5,  {call, ?MODULE, reset, [gen_mbox(S), Endpoint]}},
+       {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
        {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}}
       ]).
 
 postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
-  when RRR == reboot; RRR == reset ->
+  when RRR == reboot; RRR == reset; RRR == resetAMNESIA ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
@@ -94,6 +94,8 @@ postcondition(#state{last_rank=LastRank},
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
     S#state{reset_p=true};
+next_state(S, _V, {call,_,resetAMNESIA,[_Svr, _Str]}) ->
+    S#state{reset_p=true};
 next_state(S=#state{last_rank=LastRank}, _V,
            {call,_,prepare,[_Mbox, _EP, Rank]}) ->
     if Rank > LastRank ->
@@ -109,6 +111,9 @@ next_state(S, _V, _NoSideEffectCall) ->
 reset(Mbox, Endpoint) ->
     io:format(user, "!R", []),
     java_rpc(Mbox, reset, Endpoint).
+
+resetAMNESIA(Mbox, Endpoint) ->
+    reset(Mbox, Endpoint).
 
 reboot(Mbox, Endpoint) ->
     io:format(user, "!r", []),
