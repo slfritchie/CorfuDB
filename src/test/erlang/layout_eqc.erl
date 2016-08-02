@@ -26,8 +26,10 @@
 -compile(export_all).
 
 -record(state, {
+          reset_p = false :: boolean(),
           endpoint :: string(),
-          reg_names :: list()
+          reg_names :: list(),
+          last_rank=0 :: non_neg_integer()
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -35,6 +37,9 @@
 gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
     noshrink( ?LET(RegName, oneof(RegNames),
                    {RegName, endpoint2nodename(Endpoint)} )).
+
+gen_rank() ->
+    choose(1, 100).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -44,35 +49,84 @@ initial_state() ->
 initial_state(Mboxes, Endpoint) ->
     #state{endpoint=Endpoint, reg_names=Mboxes}.
 
-precondition(_S, _Call) ->
-    true.
+precondition(S, {call,_,reset,_}) ->
+    not S#state.reset_p;
+precondition(S, _Call) ->
+    S#state.reset_p.
 
-command(S=#state{endpoint=Endpoint}) ->
+command(S=#state{endpoint=Endpoint, reset_p=false}) ->
+    {call, ?MODULE, reset, [gen_mbox(S), Endpoint]};
+command(S=#state{endpoint=Endpoint, reset_p=true}) ->
     frequency(
       [
-       {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}}
+       {5,  {call, ?MODULE, reset, [gen_mbox(S), Endpoint]}},
+       {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
+       {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
+       {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}}
       ]).
 
+postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
+  when RRR == reboot; RRR == reset ->
+    case Ret of
+        ["OK"] -> true;
+        Else   -> {got, Else}
+    end;
 postcondition(#state{}, {call,_,query,[_Mbox, _EP]}, Ret) ->
     case Ret of
         timeout ->
             false;
-        ["OK", JSON] ->
+        ["OK", _JSON] ->
             true;
         Else ->
             io:format(user, "Q ~p\n", [Else]),
             false
+    end;
+postcondition(#state{last_rank=LastRank},
+              {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
+    case termify(RetStr) of
+        ok ->
+            Rank > LastRank;
+        {error, outrankedException} ->
+            Rank =< LastRank;
+        Else ->
+            {prepare, Rank, last_rank, LastRank, Else}
     end.
 
-next_state(S=#state{}, _V, {call,_,query,[_Mbox, _EP]}) ->
-    S;
+next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
+    S#state{reset_p=true};
+next_state(S=#state{last_rank=LastRank}, _V,
+           {call,_,prepare,[_Mbox, _EP, Rank]}) ->
+    if Rank > LastRank ->
+            S#state{last_rank=Rank};
+       true ->
+            S
+    end;
 next_state(S, _V, _NoSideEffectCall) ->
     S.
 
 %%%%
 
+reset(Mbox, Endpoint) ->
+    io:format(user, "!R", []),
+    java_rpc(Mbox, reset, Endpoint).
+
+reboot(Mbox, Endpoint) ->
+    io:format(user, "!r", []),
+    java_rpc(Mbox, reboot, Endpoint).
+
 query(Mbox, Endpoint) ->
     java_rpc(Mbox, "query", Endpoint, []).
+
+prepare(Mbox, Endpoint, Rank) ->
+    java_rpc(Mbox, "prepare", Endpoint, ["-r", integer_to_list(Rank)]).
+
+termify(["OK"]) ->
+    ok;
+termify(["ERROR", "Exception during prepare" ++ _E1, E2]) ->
+    case string:str(E2, "OutrankedException") of
+        I when I >= 0 ->
+            {error, outrankedException}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -160,6 +214,13 @@ prop(MoreCmds, Mboxes, Endpoint) ->
 %%             element(1, Cmd) /= init].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+java_rpc(Node, reset, Endpoint) ->
+    AllArgs = ["corfu_layout", "reset", Endpoint],
+    java_rpc_call(Node, AllArgs);
+java_rpc(Node, reboot, Endpoint) ->
+    AllArgs = ["corfu_layout", "reboot", Endpoint],
+    java_rpc_call(Node, AllArgs).
 
 java_rpc({_RegName, _NodeName} = Mbox, CmdName, Endpoint, Args) ->
     AllArgs = ["corfu_layout", CmdName, Endpoint] ++ Args,

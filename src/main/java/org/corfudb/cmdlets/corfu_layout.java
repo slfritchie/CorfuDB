@@ -67,6 +67,17 @@ public class corfu_layout implements ICmdlet {
                 return cmdlet.err("No active layout server");
             }
         }
+        if (args != null && args.length > 0 && args[0].contentEquals("reboot")) {
+            System.out.println("corfu_layout top: reboot");
+            LayoutServer ls = CorfuServer.getLayoutServer();
+            if (ls != null) {
+                System.out.println("corfu_layout top: reboot now");
+                ls.reboot();
+                return cmdlet.ok();
+            } else {
+                return cmdlet.err("No active layout server");
+            }
+        }
 
         // Parse the options given, using docopt.
         Map<String, Object> opts =
