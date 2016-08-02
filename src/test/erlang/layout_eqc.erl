@@ -59,7 +59,7 @@ command(S=#state{endpoint=Endpoint, reset_p=false}) ->
 command(S=#state{endpoint=Endpoint, reset_p=true}) ->
     frequency(
       [
-       {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
+       %% {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
        {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}}
@@ -109,14 +109,14 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Mbox, Endpoint) ->
-    io:format(user, "!R", []),
+    io:format(user, "R", []),
     java_rpc(Mbox, reset, Endpoint).
 
 resetAMNESIA(Mbox, Endpoint) ->
     reset(Mbox, Endpoint).
 
 reboot(Mbox, Endpoint) ->
-    io:format(user, "!r", []),
+    io:format(user, "r", []),
     java_rpc(Mbox, reboot, Endpoint).
 
 query(Mbox, Endpoint) ->
