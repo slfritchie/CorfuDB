@@ -506,27 +506,27 @@ public class LayoutServer extends AbstractServer {
 
     /**
      * Save the current layout to disk, if not in-memory mode.
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      */
     public synchronized void saveCurrentLayout(Layout layout) {
         if (layoutFile == null) {
             singleMemoryLayout = currentLayout = layout;
             return;
         }
-        synchronized (fileLock) {
-            try {
-                write(layout.asJSONString().getBytes(), layoutFile);
-                log.info("Layout epoch {} saved to disk.", layout.getEpoch());
-                currentLayout = layout;
-            } catch (Exception e) {
-                e.printStackTrace();
-                log.error("Error saving layout to disk!", e);
-            }
+        try {
+            write(layout.asJSONString().getBytes(), layoutFile);
+            log.info("Layout epoch {} saved to disk.", layout.getEpoch());
+            currentLayout = layout;
+        } catch (Exception e) {
+            e.printStackTrace();
+            log.error("Error saving layout to disk!", e);
         }
     }
 
     /**
      * Loads the latest committed layout
      * TODO need to figure out the right behaviour when their is error from the persistence layer.
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      *
      * @return
      */
@@ -553,6 +553,7 @@ public class LayoutServer extends AbstractServer {
      */
     /**
      * Persists phase1 Rank and also caches it in memory.
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      *
      * @param rank
      */
@@ -561,43 +562,41 @@ public class LayoutServer extends AbstractServer {
             this.phase1Rank = rank;
             return;
         }
-        synchronized (fileLock) {
-            try {
-                write(rank.asJSONString().getBytes(), phase1File);
-                log.info("Phase1Rank {} saved to disk.", rank);
-                this.phase1Rank = rank;
-            } catch (Exception e) {
-                log.error("Error saving phase1Rank to disk!", e);
-            }
+        try {
+            write(rank.asJSONString().getBytes(), phase1File);
+            log.info("Phase1Rank {} saved to disk.", rank);
+            this.phase1Rank = rank;
+        } catch (Exception e) {
+            log.error("Error saving phase1Rank to disk!", e);
         }
     }
 
     /**
      * Loads the last persisted phase1 data into memory.
      * TODO need to figure out the right behaviour when their is error from the persistence layer.
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      *
      * @return
      */
     private void loadPhase1Data() {
-        synchronized (fileLock) {
-            try {
-                if (phase1File == null) {
-                    log.info("No phase1 data persisted so far. ");
-                } else if (!phase1File.exists()) {
-                    log.warn("Phase1 data file found but no phase1 data found!");
-                } else {
-                    String r = Files.toString(phase1File, Charset.defaultCharset());
-                    phase1Rank = Rank.fromJSONString(r);
-                    log.info("Loaded phase1Rank {}", phase1Rank);
-                }
-            } catch (Exception e) {
-                log.error("Error reading phase1 rank from data file for phase1.", e);
+        try {
+            if (phase1File == null) {
+                log.info("No phase1 data persisted so far. ");
+            } else if (!phase1File.exists()) {
+                log.warn("Phase1 data file found but no phase1 data found!");
+            } else {
+                String r = Files.toString(phase1File, Charset.defaultCharset());
+                phase1Rank = Rank.fromJSONString(r);
+                log.info("Loaded phase1Rank {}", phase1Rank);
             }
+        } catch (Exception e) {
+            log.error("Error reading phase1 rank from data file for phase1.", e);
         }
     }
 
     /**
      * Persists  phase2 Data [rank, layout] and caches it in memory
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      * TODO need to figure out what to do when the phase1Rank cannot be saved to disk.
      */
     private synchronized void savePhase2Data(Rank rank, Layout layout) {
@@ -606,41 +605,38 @@ public class LayoutServer extends AbstractServer {
             this.proposedLayout = layout;
             return;
         }
-        synchronized (fileLock) {
-            Phase2Data phase2Data = new Phase2Data(rank, layout);
-            try {
-                write(phase2Data.asJSONString().getBytes(), phase2File);
-                log.info("Phase2Rank {} saved to disk.", phase2Rank);
-                this.phase2Rank = rank;
-                this.proposedLayout = layout;
-            } catch (Exception e) {
-                log.error("Error saving phase2Rank to disk!", e);
-            }
+        Phase2Data phase2Data = new Phase2Data(rank, layout);
+        try {
+            write(phase2Data.asJSONString().getBytes(), phase2File);
+            log.info("Phase2Rank {} saved to disk.", phase2Rank);
+            this.phase2Rank = rank;
+            this.proposedLayout = layout;
+        } catch (Exception e) {
+            log.error("Error saving phase2Rank to disk!", e);
         }
     }
 
     /**
      * Returns the last persisted phase2 rank and proposed layout.
      * TODO need to figure out the right behaviour when their is error from the persistence layer.
+     * NOTE: Caller must use 'synchronized (fileLock)' before calling us.
      *
      * @return
      */
     private void loadPhase2Data() {
-        synchronized (fileLock) {
-            try {
-                if (phase2File == null) {
-                    log.info("No phase2 data witnessed so far. ");
-                } else if (!phase2File.exists()) {
-                    log.warn("Phase2 data file found but no data found!");
-                } else {
-                    String r = Files.toString(phase2File, Charset.defaultCharset());
-                    Phase2Data phase2Data = Phase2Data.fromJSONString(r);
-                    phase2Rank = phase2Data.getRank();
-                    proposedLayout = phase2Data.getLayout();
-                }
-            } catch (Exception e) {
-                log.error("Error reading phase2 rank from data file for phase2.", e);
+        try {
+            if (phase2File == null) {
+                log.info("No phase2 data witnessed so far. ");
+            } else if (!phase2File.exists()) {
+                log.warn("Phase2 data file found but no data found!");
+            } else {
+                String r = Files.toString(phase2File, Charset.defaultCharset());
+                Phase2Data phase2Data = Phase2Data.fromJSONString(r);
+                phase2Rank = phase2Data.getRank();
+                proposedLayout = phase2Data.getLayout();
             }
+        } catch (Exception e) {
+            log.error("Error reading phase2 rank from data file for phase2.", e);
         }
     }
 
@@ -650,6 +646,7 @@ public class LayoutServer extends AbstractServer {
     public void handleMessage(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (isShutdown()) return;
         // This server has not been bootstrapped yet, ignore ALL requests except for LAYOUT_BOOTSTRAP
+        synchronized (fileLock) {
         if (currentLayout == null) {
             if (msg.getMsgType().equals(CorfuMsg.CorfuMsgType.LAYOUT_BOOTSTRAP)) {
                 log.info("Bootstrap with new layout={}", ((LayoutMsg) msg).getLayout());
@@ -721,6 +718,7 @@ public class LayoutServer extends AbstractServer {
                 log.warn("Unknown message type {} passed to handler!", msg.getMsgType());
                 throw new RuntimeException("Unsupported message passed to handler!");
         }
+        }
     }
 
     private synchronized void commitLayout(Layout layout) {
@@ -770,6 +768,7 @@ public class LayoutServer extends AbstractServer {
      */
     @Override
     public void reboot() {
+      synchronized (fileLock) {
         log.trace("Layout server reboot");
         currentLayout = null;
         phase1Rank = null;
@@ -813,6 +812,7 @@ public class LayoutServer extends AbstractServer {
         phase2Rank = null;
         loadPhase1Data();
         loadPhase2Data();
+      }
     }
 
     private void set_file_paths() {
