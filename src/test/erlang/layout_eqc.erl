@@ -167,56 +167,62 @@ prop(MoreCmds, Mboxes, Endpoint) ->
                         Res == ok)))
             end).
 
-%% prop_parallel() ->
-%%     prop_parallel(1).
+prop_parallel() ->
+    prop_parallel(1).
 
-%% prop_parallel(MoreCmds) ->
-%%     prop_parallel(MoreCmds, local_servers()).
+prop_parallel(MoreCmds) ->
+    prop_parallel(MoreCmds, local_mboxes(), local_endpoint()).
 
-%% % % EQC has an exponential worst case for checking {SIGH}
-%% -define(PAR_CMDS_LIMIT, 6). % worst case so far @ 7 = 52 seconds!
+% % EQC has an exponential worst case for checking {SIGH}
+-define(PAR_CMDS_LIMIT, 6). % worst case so far @ 7 = 52 seconds!
 
-%% prop_parallel(MoreCmds, ServerList) ->
-%%     random:seed(now()),
-%%     %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
-%%     %% commands lists aren't resized.  So, we're going to do it
-%%     %% ourself, bleh.
-%%     ?FORALL(NumPars,
-%%             choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
-%%     ?FORALL(NewCs,
-%%             [more_commands(MoreCmds,
-%%                            non_empty(
-%%                              commands(?MODULE,
-%%                                       initial_state(ServerList)))) ||
-%%                 _ <- lists:seq(1, NumPars)],
-%%             begin
-%%                 [SeqList|_] = hd(NewCs),
-%%                 Cmds = {SeqList,
-%%                         lists:map(fun(L) -> lists:sublist(seq_to_par_cmds(L),
-%%                                                           ?PAR_CMDS_LIMIT) end,
-%%                                   tl(NewCs))},
-%%                 {Seq, Pars} = Cmds,
-%%                 Len = length(Seq) +
-%%                     lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
-%%                 {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
-%%                 if Elapsed > 2*1000*1000 ->
-%%                         io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
-%%                         io:format(user, "=~w sec,", [Elapsed / 1000000]);
-%%                    true ->
-%%                         ok
-%%                 end,
-%%                 ?WHENFAIL(
-%%                 io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
-%%                 aggregate(command_names(Cmds),
-%%                 collect(if Len == 0 -> 0;
-%%                            true     -> (Len div 10) + 1
-%%                         end,
-%%                         Res == ok)))
-%%             end)).
+prop_parallel(MoreCmds, Mboxes, Endpoint) ->
+    random:seed(now()),
+    %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
+    %% commands lists aren't resized.  So, we're going to do it
+    %% ourself, bleh.
+    ?FORALL(NumPars,
+            choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
+    ?FORALL(NewCs,
+            %% [more_commands(MoreCmds,
+            %%                non_empty(
+            %%                  commands(?MODULE,
+            %%                           initial_state(Mboxes, Endpoint)))) ||
+            %%     _ <- lists:seq(1, NumPars)],
+            more_commands(MoreCmds,
+                           non_empty(
+                             parallel_commands(?MODULE,
+                                      initial_state(Mboxes, Endpoint)))),
+            begin
+                %% [SeqList|_] = hd(NewCs),
+                %% Cmds = {SeqList,
+                %%         lists:map(fun(L) -> lists:sublist(seq_to_par_cmds(L),
+                %%                                           ?PAR_CMDS_LIMIT) end,
+                %%                   tl(NewCs))},
+                Cmds = NewCs,
+                {Seq, Pars} = Cmds,
+                Len = length(Seq) +
+                    lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
+                {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
+                if Elapsed > 2*1000*1000 ->
+                        io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
+                        io:format(user, "=~w sec,", [Elapsed / 1000000]);
+                   true ->
+                        ok
+                end,
+                %% ?WHENFAIL(
+                %% io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
+                pretty_commands(?MODULE, Cmds, {H,Hs,Res},
+                aggregate(command_names(Cmds),
+                collect(if Len == 0 -> 0;
+                           true     -> (Len div 10) + 1
+                        end,
+                        Res == ok)))
+            end)).
 
-%% seq_to_par_cmds(L) ->
-%%     [Cmd || Cmd <- L,
-%%             element(1, Cmd) /= init].
+seq_to_par_cmds(L) ->
+    [Cmd || Cmd <- L,
+            element(1, Cmd) /= init].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
