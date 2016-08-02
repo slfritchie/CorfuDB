@@ -14,6 +14,12 @@
 %% > c(layout_eqc, [{d, 'PROPER'}]).
 %% > proper:quickcheck(layout_eqc:prop()).
 
+%% To run the corfu_server:
+%% ./bin/corfu_server -Q -l /tmp/corfu-test-dir -s 8000 --cm-poll-interval=9999
+%%
+%% The --cm-poll-interval flag is optional: it can avoid spammy noise
+%% when also using "-d TRACE" that is caused by config manager polling.
+
 -ifdef(PROPER).
 -include_lib("proper/include/proper.hrl").
 -endif.
@@ -246,4 +252,3 @@ java_rpc_call(Mbox, AllArgs) ->
     after 2*1000 ->
             timeout
     end.
-
