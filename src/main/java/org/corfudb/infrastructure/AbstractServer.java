@@ -28,7 +28,12 @@ public abstract class AbstractServer {
     public abstract void handleMessage(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r);
 
     /**
-     * Reset the server.
+     * Reboot the server, using persistent state on disk to restart.
+     */
+    public abstract void reboot();
+
+    /**
+     * Reset the server, deleting persistent state on disk prior to rebooting.
      */
     public abstract void reset();
 

@@ -82,9 +82,9 @@ public class LayoutServer extends AbstractServer {
 
     /**
      * The initial layout for a single node + memory configuration.
-     * If reset() is used, and if we're configured "-ms", memory
+     * If reboot() is used, and if we're configured "-ms", memory
      * plus single node, then without this mechanism (or equivalent),
-     * a reset() would fall back to unbootstrapped state, which is
+     * a reboot() would fall back to unbootstrapped state, which is
      * not what the server starts at.
      */
     private Layout singleMemoryLayout = null;
@@ -124,6 +124,11 @@ public class LayoutServer extends AbstractServer {
      * Persistent storage for phase2 data in paxos
      */
     File phase2File;
+
+    /**
+     * Common lock for all three files
+     */
+    Object fileLock = new Object();
 
     /**
      * Configuration manager: disable polling loop
@@ -196,37 +201,9 @@ public class LayoutServer extends AbstractServer {
         this.serverRouter = serverRouter;
 
         if (opts.get("--log-path") != null) {
-            layoutFile = new File(opts.get("--log-path") + File.separator + "layout");
-            phase1File = new File(opts.get("--log-path") + File.separator + "phase1Data");
-            phase2File = new File(opts.get("--log-path") + File.separator + "phase2Data");
+            set_file_paths();
         }
-
-        if ((Boolean) opts.get("--single")) {
-            if (currentLayout == null) {
-                String localAddress = opts.get("--address") + ":" + opts.get("<port>");
-                log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
-                        localAddress);
-                saveCurrentLayout(new Layout(
-                        Collections.singletonList(localAddress),
-                        Collections.singletonList(localAddress),
-                        Collections.singletonList(new LayoutSegment(
-                                Layout.ReplicationMode.CHAIN_REPLICATION,
-                                0L,
-                                -1L,
-                                Collections.singletonList(
-                                        new Layout.LayoutStripe(
-                                                Collections.singletonList(localAddress)
-                                        )
-                                )
-                        )),
-                        0L
-                ));
-                phase1Rank = phase2Rank = null;
-            } else {
-                log.info("Single-node mode requested, but layout & phase rank state are available: {} rank1 {} rank2 {}", currentLayout, phase1Rank, phase2Rank);
-            }
-        }
-        reset();
+        reboot();
 
         // schedule config manager polling.
         if (! disableConfigMgrPolling) {
@@ -535,13 +512,15 @@ public class LayoutServer extends AbstractServer {
             singleMemoryLayout = currentLayout = layout;
             return;
         }
-        try {
-            write(layout.asJSONString().getBytes(), layoutFile);
-            log.info("Layout epoch {} saved to disk.", layout.getEpoch());
-            currentLayout = layout;
-        } catch (Exception e) {
-            e.printStackTrace();
-            log.error("Error saving layout to disk!", e);
+        synchronized (fileLock) {
+            try {
+                write(layout.asJSONString().getBytes(), layoutFile);
+                log.info("Layout epoch {} saved to disk.", layout.getEpoch());
+                currentLayout = layout;
+            } catch (Exception e) {
+                e.printStackTrace();
+                log.error("Error saving layout to disk!", e);
+            }
         }
     }
 
@@ -582,12 +561,14 @@ public class LayoutServer extends AbstractServer {
             this.phase1Rank = rank;
             return;
         }
-        try {
-            write(rank.asJSONString().getBytes(), phase1File);
-            log.info("Phase1Rank {} saved to disk.", rank);
-            this.phase1Rank = rank;
-        } catch (Exception e) {
-            log.error("Error saving phase1Rank to disk!", e);
+        synchronized (fileLock) {
+            try {
+                write(rank.asJSONString().getBytes(), phase1File);
+                log.info("Phase1Rank {} saved to disk.", rank);
+                this.phase1Rank = rank;
+            } catch (Exception e) {
+                log.error("Error saving phase1Rank to disk!", e);
+            }
         }
     }
 
@@ -598,20 +579,21 @@ public class LayoutServer extends AbstractServer {
      * @return
      */
     private void loadPhase1Data() {
-        try {
-            if (phase1File == null) {
-                log.info("No phase1 data persisted so far. ");
-            } else if (!phase1File.exists()) {
-                log.warn("Phase1 data file found but no phase1 data found!");
-            } else {
-                String r = Files.toString(phase1File, Charset.defaultCharset());
-                phase1Rank = Rank.fromJSONString(r);
-                log.info("Loaded phase1Rank {}", phase1Rank);
+        synchronized (fileLock) {
+            try {
+                if (phase1File == null) {
+                    log.info("No phase1 data persisted so far. ");
+                } else if (!phase1File.exists()) {
+                    log.warn("Phase1 data file found but no phase1 data found!");
+                } else {
+                    String r = Files.toString(phase1File, Charset.defaultCharset());
+                    phase1Rank = Rank.fromJSONString(r);
+                    log.info("Loaded phase1Rank {}", phase1Rank);
+                }
+            } catch (Exception e) {
+                log.error("Error reading phase1 rank from data file for phase1.", e);
             }
-        } catch (Exception e) {
-            log.error("Error reading phase1 rank from data file for phase1.", e);
         }
-
     }
 
     /**
@@ -624,14 +606,16 @@ public class LayoutServer extends AbstractServer {
             this.proposedLayout = layout;
             return;
         }
-        Phase2Data phase2Data = new Phase2Data(rank, layout);
-        try {
-            write(phase2Data.asJSONString().getBytes(), phase2File);
-            log.info("Phase2Rank {} saved to disk.", phase2Rank);
-            this.phase2Rank = rank;
-            this.proposedLayout = layout;
-        } catch (Exception e) {
-            log.error("Error saving phase2Rank to disk!", e);
+        synchronized (fileLock) {
+            Phase2Data phase2Data = new Phase2Data(rank, layout);
+            try {
+                write(phase2Data.asJSONString().getBytes(), phase2File);
+                log.info("Phase2Rank {} saved to disk.", phase2Rank);
+                this.phase2Rank = rank;
+                this.proposedLayout = layout;
+            } catch (Exception e) {
+                log.error("Error saving phase2Rank to disk!", e);
+            }
         }
     }
 
@@ -642,19 +626,21 @@ public class LayoutServer extends AbstractServer {
      * @return
      */
     private void loadPhase2Data() {
-        try {
-            if (phase2File == null) {
-                log.info("No phase2 data witnessed so far. ");
-            } else if (!phase2File.exists()) {
-                log.warn("Phase2 data file found but no data found!");
-            } else {
-                String r = Files.toString(phase2File, Charset.defaultCharset());
-                Phase2Data phase2Data = Phase2Data.fromJSONString(r);
-                phase2Rank = phase2Data.getRank();
-                proposedLayout = phase2Data.getLayout();
+        synchronized (fileLock) {
+            try {
+                if (phase2File == null) {
+                    log.info("No phase2 data witnessed so far. ");
+                } else if (!phase2File.exists()) {
+                    log.warn("Phase2 data file found but no data found!");
+                } else {
+                    String r = Files.toString(phase2File, Charset.defaultCharset());
+                    Phase2Data phase2Data = Phase2Data.fromJSONString(r);
+                    phase2Rank = phase2Data.getRank();
+                    proposedLayout = phase2Data.getLayout();
+                }
+            } catch (Exception e) {
+                log.error("Error reading phase2 rank from data file for phase2.", e);
             }
-        } catch (Exception e) {
-            log.error("Error reading phase2 rank from data file for phase2.", e);
         }
     }
 
@@ -763,14 +749,55 @@ public class LayoutServer extends AbstractServer {
     }
 
     /**
-     * Reset internal state with data on disk.
+     * Reset the server, deleting persistent state on disk prior to rebooting.
      */
+
     @Override
     public void reset() {
-        log.trace("Layout server reset");
+        synchronized (fileLock) {
+            if (layoutFile != null) layoutFile.delete();
+            if (phase1File != null) phase1File.delete();
+            if (phase2File != null) phase2File.delete();
+            if (opts.get("--log-path") != null) {
+                set_file_paths();
+            }
+        }
+        reboot();
+    }
+
+    /**
+     * Reboot the server, using persistent state on disk to restart.
+     */
+    @Override
+    public void reboot() {
+        log.trace("Layout server reboot");
         currentLayout = null;
         phase1Rank = null;
         phase2Rank = null;
+
+        if ((Boolean) opts.get("--single")) {
+            if (currentLayout == null) {
+                String localAddress = opts.get("--address") + ":" + opts.get("<port>");
+                log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
+                        localAddress);
+                saveCurrentLayout(new Layout(
+                        Collections.singletonList(localAddress),
+                        Collections.singletonList(localAddress),
+                        Collections.singletonList(new LayoutSegment(
+                                Layout.ReplicationMode.CHAIN_REPLICATION,
+                                0L,
+                                -1L,
+                                Collections.singletonList(
+                                        new Layout.LayoutStripe(
+                                                Collections.singletonList(localAddress)
+                                        )
+                                )
+                        )),
+                        0L
+                ));
+                phase1Rank = phase2Rank = null;
+            }
+        }
 
         if (singleMemoryLayout == null) {
             loadCurrentLayout();
@@ -786,6 +813,12 @@ public class LayoutServer extends AbstractServer {
         phase2Rank = null;
         loadPhase1Data();
         loadPhase2Data();
+    }
+
+    private void set_file_paths() {
+        layoutFile = new File(opts.get("--log-path") + File.separator + "layout");
+        phase1File = new File(opts.get("--log-path") + File.separator + "phase1Data");
+        phase2File = new File(opts.get("--log-path") + File.separator + "phase2Data");
     }
 
     /**

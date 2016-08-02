@@ -178,8 +178,9 @@ public class LayoutServerTest extends AbstractServerTest {
                 .build(), getRouter());
         this.router.reset();
         this.router.addServer(s2);
+
         assertThat(s2)
-                .isInEpoch(100);
+                    .isInEpoch(100);
         assertThat(s2)
                 .isPhase1Rank(new Rank(100L, AbstractServerTest.testClientId));
         assertThat(s2)
@@ -451,7 +452,7 @@ public class LayoutServerTest extends AbstractServerTest {
     }
 
     @Test
-    public void testReset() throws Exception {
+    public void testReboot() throws Exception {
         String serviceDir = getTempDir();
 
         LayoutServer s1 = new LayoutServer(new ImmutableMap.Builder<String, Object>()
@@ -465,8 +466,8 @@ public class LayoutServerTest extends AbstractServerTest {
         l100.setEpoch(100);
         bootstrapServer(l100);
 
-        // Reset, then check that our epoch 100 layout is still there.
-        s1.reset();
+        // Reboot, then check that our epoch 100 layout is still there.
+        s1.reboot();
 
         sendMessage(new CorfuMsg(CorfuMsg.CorfuMsgType.LAYOUT_REQUEST));
         assertThat(getLastMessage().getMsgType())
@@ -489,26 +490,26 @@ public class LayoutServerTest extends AbstractServerTest {
         }
     }
 
-    // Same as commitReturnsAck() test, but we perhaps make a .reset() call
+    // Same as commitReturnsAck() test, but we perhaps make a .reboot() call
     // between each step.
 
-    private void commitReturnsAck(LayoutServer s1, Integer reset) {
-        if ((reset & 1) > 0) { s1.reset(); }
+    private void commitReturnsAck(LayoutServer s1, Integer reboot) {
+        if ((reboot & 1) > 0) { s1.reboot(); }
 
         sendMessage(new LayoutRankMsg(null, 100, CorfuMsg.CorfuMsgType.LAYOUT_PREPARE));
         assertThat(getLastMessage().getMsgType())
                 .isEqualTo(CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_ACK);
-        if ((reset & 2) > 0) { s1.reset(); }
+        if ((reboot & 2) > 0) { s1.reboot(); }
 
         sendMessage(new LayoutRankMsg(TestLayoutBuilder.single(9000), 100, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE));
         assertThat(getLastMessage().getMsgType())
                 .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
-        if ((reset & 4) > 0) { s1.reset(); }
+        if ((reboot & 4) > 0) { s1.reboot(); }
 
         sendMessage(new LayoutRankMsg(null, 1000, CorfuMsg.CorfuMsgType.LAYOUT_COMMITTED));
         assertThat(getLastMessage().getMsgType())
                 .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
-        if ((reset & 8) > 0) {s1.reset(); }
+        if ((reboot & 8) > 0) {s1.reboot(); }
         sendMessage(new LayoutRankMsg(null, 1000, CorfuMsg.CorfuMsgType.LAYOUT_COMMITTED));
         assertThat(getLastMessage().getMsgType())
                 .isEqualTo(CorfuMsg.CorfuMsgType.ACK);
