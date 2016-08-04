@@ -69,36 +69,88 @@ public class LayoutServer extends AbstractServer {
 
     private DataStore dataStore;
 
+    /**
+     * Configuration manager: disable polling loop
+     */
+    public static boolean disableConfigMgrPolling = false; // QQQ debugging only, put me back to false!!!!
+
+    /**
+     * Configuration manager: client runtime
+     */
+    CorfuRuntime rt = null;
+
+    /**
+     * Configuration manager: layout view
+     */
+    LayoutView lv = null;
+
+    /**
+     * Configuration manager: my endpoint name
+     */
+    String my_endpoint;
+
+    /**
+     * Configuration manager: list of layout servers that we monitor for ping'ability.
+     */
+    String[] history_servers = null;
+    NettyClientRouter[] history_routers = null;
+
+    /**
+     * Configuration manager: polling history
+     */
+    int[] history_poll_failures = null;
+    int   history_poll_count = 0;
+    HashMap<String,Boolean> history_status = null;
+
+    /**
+     * Configuration manager: future handle thingie to cancel periodic polling
+     */
+    public static ScheduledFuture<?> pollFuture = null;
+    private static Object pollFutureLock = new Object();
+
+    /**
+     * TODO DELETE ME.
+     */
+    Layout todo_layout_source_kludge = null;
+
+    /**
+     * TODO refactor/move to another class
+     */
+    private Thread erlNodeThread;
+
+    /**
+     * TODO refactor/move to another class
+     */
+    private static OtpNode otpNode = null;
+    private static Object otpNodeLock = new Object();
+
+    /**
+     * A scheduler, which is used to schedule checkpoints and lease renewal
+     */
+    private final ScheduledExecutorService scheduler =
+            Executors.newScheduledThreadPool(
+                    1,
+                    new ThreadFactoryBuilder()
+                            .setDaemon(true)
+                            .setNameFormat("Config-Mgr-%d")
+                            .build());
+
     public LayoutServer(Map<String, Object> opts, IServerRouter serverRouter) {
         this.opts = opts;
         this.serverRouter = serverRouter;
         this.dataStore = new DataStore(opts);
 
-        if ((Boolean) opts.get("--single")) {
-            String localAddress = opts.get("--address") + ":" + opts.get("<port>");
-            log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
-                    localAddress);
-            setCurrentLayout(new Layout(
-                    Collections.singletonList(localAddress),
-                    Collections.singletonList(localAddress),
-                    Collections.singletonList(new LayoutSegment(
-                            Layout.ReplicationMode.CHAIN_REPLICATION,
-                            0L,
-                            -1L,
-                            Collections.singletonList(
-                                    new Layout.LayoutStripe(
-                                            Collections.singletonList(localAddress)
-                                    )
-                            )
-                    )),
-                    0L
-            ));
-        } else {
-            Layout currentLayout = getCurrentLayout();
-            if (currentLayout != null) {
-                getServerRouter().setServerEpoch(currentLayout.getEpoch());
-            }
-            log.info("Layout server started with layout from disk: {}.", currentLayout);
+        reboot();
+
+        // schedule config manager polling.
+        if (! disableConfigMgrPolling) {
+            start_config_manager_polling();
+        }
+
+        // QuickCheck: Create the distributed Erlang message handling threads
+        Object test_mode = opts.get("--quickcheck-test-mode");
+        if (test_mode != null && (Boolean) test_mode) {
+            start_quickcheck_test_mode();
         }
     }
 
@@ -135,8 +187,47 @@ public class LayoutServer extends AbstractServer {
         }
     }
 
+    /**
+     * Reset the server, deleting persistent state on disk prior to rebooting.
+     */
+
     @Override
     public void reset() {
+        // SLF: TODO: return & fix
+        reboot();
+    }
+
+    /**
+     * Reboot the server, using persistent state on disk to restart.
+     */
+    @Override
+    public void reboot() {
+        if ((Boolean) opts.get("--single")) {
+            String localAddress = opts.get("--address") + ":" + opts.get("<port>");
+            log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
+                    localAddress);
+            setCurrentLayout(new Layout(
+                    Collections.singletonList(localAddress),
+                    Collections.singletonList(localAddress),
+                    Collections.singletonList(new LayoutSegment(
+                            Layout.ReplicationMode.CHAIN_REPLICATION,
+                            0L,
+                            -1L,
+                            Collections.singletonList(
+                                    new Layout.LayoutStripe(
+                                            Collections.singletonList(localAddress)
+                                    )
+                            )
+                    )),
+                    0L
+            ));
+        } else {
+            Layout currentLayout = getCurrentLayout();
+            if (currentLayout != null) {
+                getServerRouter().setServerEpoch(currentLayout.getEpoch());
+            }
+            log.info("Layout server started with layout from disk: {}.", currentLayout);
+        }
     }
 
     // Helper Methods
@@ -298,5 +389,300 @@ public class LayoutServer extends AbstractServer {
 
     private Rank getRank(LayoutRankMsg msg) {
         return new Rank(msg.getRank(), msg.getClientID());
+    }
+
+    protected void finalize() {
+        //
+    }
+
+    private void configMgrPoll() {
+        List<String> layout_servers;
+
+        System.out.printf("Poll top, "); System.out.flush();
+        try {
+            String l = Files.toString(new File("/tmp/shutdown-layout-server"), Charset.defaultCharset());
+            System.out.println("SHUTDOWN FOUND");
+            shutdown();
+        } catch (IOException e) {
+        }
+        try {
+            String l = Files.toString(new File("/tmp/abort-poll"), Charset.defaultCharset());
+            System.out.println("disableConfigMgrPolling = true");
+            disableConfigMgrPolling = true;
+        } catch (IOException e) {
+            disableConfigMgrPolling = false;
+        }
+
+        // NOTE: This polling action is associated with a particular LayoutServer
+        //       object.  If that object is shutdown, then polling will stop,
+        //       no matter how many other LayoutServer objects have been created
+        //       and are not shut down.
+        if (isShutdown() || disableConfigMgrPolling) {
+            log.warn("I am shutdown, skipping configMgrPoll");
+            return;
+        }
+        try {
+            if (lv == null) {    // Not bootstrapped yet?
+                if (currentLayout == null) {
+                    // The local layout server is not bootstrapped, so we have
+                    // no hope of participating in Paxos decisions about layout.
+                    // We may receive a layout bootstrap sometime in the future,
+                    // so do not change the scheduling of this polling task.
+                    log.trace("No currentLayout, so skip ConfigMgr poll");
+                    return;
+                }
+                layout_servers = currentLayout.getLayoutServers();
+                rt = new CorfuRuntime();
+                layout_servers.stream().forEach(ls -> {
+                    rt.addLayoutServer(ls);
+                });
+                // TODO: Warning, rt.connect() will deadlock when run inside a JUnit test.
+                // Until I understand this deadlock, we avoid the problem by avoiding any
+                // polling at all during JUnit tests (see disableConfigMgrPolling var).
+                // SLF reminder: tag tmptag/config-manager-draft1-cf-deadlock, wireExistingRuntimeToTest()?
+                rt.connect();
+                lv = rt.getLayoutView();  // Can block for arbitrary time
+                log.info("Initial client layout for poller = {}", lv.getLayout());
+
+                // TODO: figure out what endpoint *I* am.
+                // Workaround: see my_endpoint.
+                //
+                // So, this is a cool problem.  How the hell do I figure out which
+                // endpoint in the layout is *my* server?
+                //
+                // * So, I know a TCP port number.  That doesn't help if we're
+                // deployed on multiple machines and some/all use the same TCP
+                // port.
+                // * I know the --address key in the 'opts' map.  But that
+                // defaults to 'localhost'.  And netty is binding to the "*"
+                // address, so other nodes in the cluster can use any IP address
+                // they wish on this machine.
+                //
+                // In the current implementation, I see only one choice:
+                // each 'corfu_server' invocation must include an --address=ADDR
+                // flag where ADDR is the canonical hostname (or IP address) for
+                // for this machine.  That means that the default for --address
+                // is only usable in toy localhost-only deployments.  Furthermore,
+                // when we get around to having init(8)/init.d(8)/systemd(8)
+                // daemon process management, the value of --address must be
+                // threaded through those daemon proc managers.
+                //
+                // HRM, there are uglier hacks available, I suppose.  The client
+                // could create a magic cookie and send it in a PING call.  The
+                // server side could stash away a history of cookies.  Then we
+                // could peek inside the local server, find the cookie history,
+                // and see if our cookie is in there.  Bwahahaha, that's icky.
+            }
+            // Get the current layout using the regular CorfuDB client.
+            // The client (in theory) will take care of discovering layout
+            // changes that may have taken place while we were stopped/crashed/
+            // sleeping/whatever ... AH!  Oops, bad assumption.  The client
+            // does *not* perform a discovery/update process.  It appears to
+            // accept the layout from the first layout server in the list that
+            // is available.  For example, if the list is:
+            //   [localhost:8010 @ epoch 0, localhost:8011 @ epoch 1],
+            // ... then if the 8010 server is up, the local client does
+            // not attempt to fetch 8011's copy and lv.getCurrentLayout()
+            // yields epoch 0.
+            // TODO: Cobble together a discovery/update function?  Or avoid
+            //       the problem by having the Paxos implementation always
+            //       fix any non-unanimous servers?
+
+            lv = rt.getLayoutView();  // Can block for arbitrary time
+            Layout l;
+
+            if (todo_layout_source_kludge == null) {
+                l = lv.getCurrentLayout();
+            } else {
+                l = todo_layout_source_kludge;
+            }
+            // log.warn("Hello, world! Client layout = {}", l);
+            // For now, assume that lv contains the latest & greatest layout
+            layout_servers = l.getLayoutServers();
+            if (! layout_servers.contains(my_endpoint)) {
+                log.trace("I am not a layout server in epoch " + l.getEpoch() + ", layout server list = " + layout_servers);
+                return;
+            }
+            // If we're here, then it's poll time.
+            configMgrPollOnce(l);
+        } catch (Exception e) {
+            log.warn("TODO Oops, " + e);
+            e.printStackTrace();
+        }
+    }
+
+    // TODO: Yank this into a separate class, refactor, de-C-ify, ...
+
+    void configMgrPollOnce(Layout l) {
+        // Are we polling the same servers as last time?  If not, then reset polling state.
+        String[] all_servers = l.getAllServers().stream().toArray(String[]::new);
+        Arrays.sort(all_servers);
+
+        // log.warn("TODO FIXME: Poll all servers, not just the layout servers, and when the epoch changes!");
+        if (history_servers == null || ! Arrays.equals(history_servers, all_servers)) {
+            if (history_status == null) {
+                history_status = new HashMap<>();
+            }
+            log.trace("history_servers change, length = " + all_servers.length);
+            history_servers = all_servers;
+            history_routers = new NettyClientRouter[all_servers.length];
+            history_poll_failures = new int[all_servers.length];
+            for (int i = 0; i < all_servers.length; i++) {
+                if (! history_status.containsKey(all_servers[i])) {
+                    history_status.put(all_servers[i], true);  // Assume it's up until we think it isn't.
+                }
+                history_routers[i] = new NettyClientRouter(all_servers[i]);
+                history_routers[i].setTimeoutConnect(50);
+                history_routers[i].setTimeoutRetry(200);
+                history_routers[i].setTimeoutResponse(1000);
+                history_routers[i].start();
+                history_poll_failures[i] = 0;
+            }
+            history_poll_count = 0;
+        } else {
+            log.trace("No server list change since last poll.");
+        }
+
+        // Poll servers for health.  All ping activity will happen in the background.
+        // We probably won't notice changes in this iteration; a future iteration will
+        // eventually notice changes to history_poll_failures.
+        for (int i = 0; i < history_routers.length; i++) {
+            int ii = i;  // Intermediate var just for the sake of having a final for use inside the lambda below
+            CompletableFuture.runAsync(() -> {
+                // Any changes that we make to history_poll_failures here can possibly
+                // race with other async CFs that were launched in earlier/later CFs.
+                // We don't care if an increment gets clobbered by another increment:
+                //     being off by one isn't a big problem.
+                // We don't care if a reset to zero gets clobbered by an increment:
+                //     if the endpoint is really pingable, then a later reset to zero
+                //     will succeed, probably.
+                try {
+                    CompletableFuture<Boolean> cf = history_routers[ii].getClient(BaseClient.class).ping();
+                    cf.exceptionally(e -> {
+                        log.trace(history_servers[ii] + " exception " + e);
+                        history_poll_failures[ii]++;
+                        return false;
+                    });
+                    cf.thenAccept((x) -> {
+                        if (x == true) {
+                            history_poll_failures[ii] = 0;
+                        } else {
+                            history_poll_failures[ii]++;
+                        }
+                        return;
+                    });
+
+                } catch (Exception e) {
+                    log.trace("Ping failed for " + history_servers[ii] + " with " + e);
+                    history_poll_failures[ii]++;
+                }
+            });
+        }
+        history_poll_count++;
+
+        if (history_poll_count > 3) {
+            HashMap<String,Boolean> status_change = new HashMap<>();
+            Boolean is_up;
+
+            // Simple failure detector: Is there a change in health?
+            for (int i = 0; i < history_servers.length; i++) {
+                // TODO: Be a bit smarter than 'more than 2 failures in a row'
+                is_up = ! (history_poll_failures[i] > 2);
+                if (is_up != history_status.get(history_servers[i])) {
+                    log.trace("Change of status: " + history_servers[i] + " " +
+                            history_status.get(history_servers[i]) + " -> " + is_up);
+                    status_change.put(history_servers[i], is_up);
+                }
+            }
+
+            // TODO step: If change of health, then change layout.
+            if (status_change.size() > 0) {
+                log.warn("Status change: " + status_change);
+
+                HashMap<String,Boolean> tmph = new HashMap<String,Boolean>();
+                for (String s : history_status.keySet()) {
+                    tmph.put(s, history_status.get(s));
+                }
+                for (String s: status_change.keySet()) {
+                    tmph.put(s, status_change.get(s));
+                }
+                Layout nl = l; // l.newLayout_UpdateDownLists(tmph);
+                log.warn("New layout = " + nl);
+                // TODO: Replace the layout cluster-wide.
+                todo_layout_source_kludge = nl;
+
+                history_status = tmph;
+            } else {
+                log.trace("No status change");
+            }
+        }
+    }
+
+    public void runErlMbox0() { runErlMbox(0); }
+    public void runErlMbox1() { runErlMbox(1); }
+    public void runErlMbox2() { runErlMbox(2); }
+    public void runErlMbox3() { runErlMbox(3); }
+    public void runErlMbox4() { runErlMbox(4); }
+    public void runErlMbox5() { runErlMbox(5); }
+    public void runErlMbox6() { runErlMbox(6); }
+    public void runErlMbox7() { runErlMbox(7); }
+    public void runErlMbox8() { runErlMbox(8); }
+    public void runErlMbox9() { runErlMbox(9); }
+    public void runErlMbox10() { runErlMbox(10); }
+    public void runErlMbox11() { runErlMbox(11); }
+    public void runErlMbox12() { runErlMbox(12); }
+    public void runErlMbox13() { runErlMbox(13); }
+    public void runErlMbox14() { runErlMbox(14); }
+    public void runErlMbox15() { runErlMbox(15); }
+
+    public void runErlMbox(int num) {
+        Thread.currentThread().setName("DistErl-" + num);
+        try {
+            OtpMbox mbox = otpNode.createMbox("cmdlet" + num);
+
+            OtpErlangObject o;
+            OtpErlangTuple msg;
+            OtpErlangPid from;
+            CmdletRouter cr = new CmdletRouter();
+
+            while (true) {
+                try {
+                    o = mbox.receive();
+                    // System.err.print("{"); System.err.flush(); // Thread.sleep(100);
+                    if (o instanceof OtpErlangTuple) {
+                        msg = (OtpErlangTuple) o;
+                        from = (OtpErlangPid) msg.elementAt(0);
+                        OtpErlangObject id = msg.elementAt(1);
+                        OtpErlangList cmd = (OtpErlangList) msg.elementAt(2);
+                        String[] sopts = new String[cmd.elements().length];
+                        for (int i = 0; i < sopts.length; i++) {
+                            if (cmd.elementAt(i).getClass() == OtpErlangList.class) {
+                                // We're expecting a string always, but
+                                // the Erlang side will send an empty list
+                                // for a zero length string.
+                                sopts[i] = "";
+                            } else {
+                                sopts[i] = ((OtpErlangString) cmd.elementAt(i))
+                                    .stringValue();
+                            }
+                        }
+                        String[] res = cr.main2(sopts);
+                        OtpErlangObject[] reslist = new OtpErlangObject[res.length];
+                        for (int i = 0; i < res.length; i++) {
+                            reslist[i] = new OtpErlangString(res[i]);
+                        }
+                        OtpErlangList reply_reslist = new OtpErlangList(reslist);
+                        OtpErlangTuple reply = new OtpErlangTuple(new OtpErlangObject[] { id, reply_reslist });
+                        mbox.send(from, reply);
+                        // System.err.print("}"); System.err.flush();
+                    }
+                } catch (Exception e) {
+                    System.out.println("Qxx " + e);
+                    e.printStackTrace();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Yo, bummer: " + e);
+        }
     }
 }
