@@ -1,17 +1,28 @@
 package org.corfudb.infrastructure;
 
+import com.ericsson.otp.erlang.*;
+import com.google.common.io.Files;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.cmdlets.CmdletRouter;
 import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.LayoutMsg;
 import org.corfudb.protocols.wireprotocol.LayoutRankMsg;
+import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.clients.BaseClient;
+import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.runtime.view.Layout.LayoutSegment;
+import org.corfudb.runtime.view.LayoutView;
+import org.corfudb.util.Utils;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * The layout server serves layouts, which are used by clients to find the
@@ -395,6 +406,18 @@ public class LayoutServer extends AbstractServer {
         //
     }
 
+    private void start_config_manager_polling() {
+        synchronized (pollFutureLock) {
+            if (pollFuture == null) {
+                my_endpoint = opts.get("--address") + ":" + opts.get("<port>");
+                String cmpi = "--cm-poll-interval";
+                long poll_interval = (opts.get(cmpi) == null) ? 1 : Utils.parseLong(opts.get(cmpi));
+                pollFuture = scheduler.scheduleAtFixedRate(this::configMgrPoll,
+                        0, poll_interval, TimeUnit.SECONDS);
+            }
+        }
+    }
+
     private void configMgrPoll() {
         List<String> layout_servers;
 
@@ -423,6 +446,7 @@ public class LayoutServer extends AbstractServer {
         }
         try {
             if (lv == null) {    // Not bootstrapped yet?
+                Layout currentLayout = getCurrentLayout();
                 if (currentLayout == null) {
                     // The local layout server is not bootstrapped, so we have
                     // no hope of participating in Paxos decisions about layout.
@@ -614,6 +638,54 @@ public class LayoutServer extends AbstractServer {
                 history_status = tmph;
             } else {
                 log.trace("No status change");
+            }
+        }
+    }
+
+    private void start_quickcheck_test_mode() {
+        synchronized (otpNodeLock) {
+            if (otpNode == null) {
+                int port = Integer.parseInt((String) opts.get("<port>"));
+                String nodename = "corfu-" + port;
+                try {
+                    otpNode = new OtpNode(nodename);
+
+                    System.out.println("\n\n***************** Creating lots of OtpNode Threads ************\n\n");
+                    Thread erlNodeThread0 = new Thread(this::runErlMbox0);
+                    erlNodeThread0.start();
+                    Thread erlNodeThread1 = new Thread(this::runErlMbox1);
+                    erlNodeThread1.start();
+                    Thread erlNodeThread2 = new Thread(this::runErlMbox2);
+                    erlNodeThread2.start();
+                    Thread erlNodeThread3 = new Thread(this::runErlMbox3);
+                    erlNodeThread3.start();
+                    Thread erlNodeThread4 = new Thread(this::runErlMbox4);
+                    erlNodeThread4.start();
+                    Thread erlNodeThread5 = new Thread(this::runErlMbox5);
+                    erlNodeThread5.start();
+                    Thread erlNodeThread6 = new Thread(this::runErlMbox6);
+                    erlNodeThread6.start();
+                    Thread erlNodeThread7 = new Thread(this::runErlMbox7);
+                    erlNodeThread7.start();
+                    Thread erlNodeThread8 = new Thread(this::runErlMbox8);
+                    erlNodeThread8.start();
+                    Thread erlNodeThread9 = new Thread(this::runErlMbox9);
+                    erlNodeThread9.start();
+                    Thread erlNodeThread10 = new Thread(this::runErlMbox10);
+                    erlNodeThread10.start();
+                    Thread erlNodeThread11 = new Thread(this::runErlMbox11);
+                    erlNodeThread11.start();
+                    Thread erlNodeThread12 = new Thread(this::runErlMbox12);
+                    erlNodeThread12.start();
+                    Thread erlNodeThread13 = new Thread(this::runErlMbox13);
+                    erlNodeThread13.start();
+                    Thread erlNodeThread14 = new Thread(this::runErlMbox14);
+                    erlNodeThread14.start();
+                    Thread erlNodeThread15 = new Thread(this::runErlMbox15);
+                    erlNodeThread15.start();
+                } catch (IOException e) {
+                    log.info("Error creating OtpNode {}: {}", nodename, e);
+                }
             }
         }
     }
