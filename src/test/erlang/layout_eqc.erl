@@ -36,7 +36,10 @@
           endpoint :: string(),
           reg_names :: list(),
           last_rank=0 :: non_neg_integer(),
-          proposed_ok_rank=0 :: non_neg_integer()
+          proposed_ok_rank=0 :: non_neg_integer(),
+          proposed_layout="" :: string(),
+          committed_rank=0 :: non_neg_integer(),
+          committed_layout=""
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -72,14 +75,16 @@ precondition(S, _Call) ->
 
 command(S=#state{endpoint=Endpoint, reset_p=false}) ->
     {call, ?MODULE, reset, [gen_mbox(S), Endpoint]};
-command(S=#state{endpoint=Endpoint, reset_p=true}) ->
+command(S=#state{endpoint=Endpoint, reset_p=true,
+                 proposed_layout=ProposedLayout}) ->
     frequency(
       [
        %% {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
        {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}},
-       {20, {call, ?MODULE, propose, [gen_mbox(S), Endpoint, gen_rank(S), gen_layout()]}}
+       {20, {call, ?MODULE, propose, [gen_mbox(S), Endpoint, gen_rank(S), gen_layout()]}},
+       {20, {call, ?MODULE, commit, [gen_mbox(S), Endpoint, gen_rank(S), ProposedLayout]}}
       ]).
 
 postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
@@ -110,8 +115,6 @@ postcondition(#state{last_rank=LastRank},
     end;
 postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    %% %% TODO: FIX ME!!!
-    %% true.
     case termify(RetStr) of
         ok ->
             Rank == LastRank andalso Rank > ProposedOkRank;
@@ -121,6 +124,17 @@ postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
             Rank /= LastRank;
         Else ->
             {propose, Rank, last_rank, LastRank, Else}
+    end;
+postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
+              {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+    case termify(RetStr) of
+        ok ->
+            Rank == LastRank andalso Rank == ProposedOkRank;
+        {error, outrankedException} ->
+            not (Rank == LastRank andalso Rank == ProposedOkRank);
+        Else ->
+            {commit, Rank, last_rank, LastRank,
+             proposed_ok_rank, ProposedOkRank, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
@@ -135,9 +149,16 @@ next_state(S=#state{last_rank=LastRank}, _V,
             S
     end;
 next_state(S=#state{last_rank=LastRank}, _V,
-           {call,_,propose,[_Mbox, _EP, Rank, _Layout]}) ->
+           {call,_,propose,[_Mbox, _EP, Rank, Layout]}) ->
     if Rank == LastRank ->
-            S#state{proposed_ok_rank=Rank};
+            S#state{proposed_ok_rank=Rank, proposed_layout=Layout};
+       true ->
+            S
+    end;
+next_state(S=#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank}, _V,
+           {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
+    if Rank == LastRank andalso Rank == ProposedOkRank ->
+            S#state{committed_rank=Rank, committed_layout=Layout};
        true ->
             S
     end;
@@ -168,6 +189,14 @@ propose(Mbox, Endpoint, Rank, Layout) ->
     ok = file:write_file(TmpPath, Layout),
     Res = java_rpc(Mbox, "propose", Endpoint, ["-r", integer_to_list(Rank),
                                                "-l", TmpPath]),
+    file:delete(TmpPath),
+    Res.
+
+commit(Mbox, Endpoint, Rank, Layout) ->
+    TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
+    ok = file:write_file(TmpPath, Layout),
+    Res = java_rpc(Mbox, "committed", Endpoint, ["-r", integer_to_list(Rank),
+                                                 "-l", TmpPath]),
     file:delete(TmpPath),
     Res.
 
