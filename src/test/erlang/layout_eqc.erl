@@ -108,14 +108,16 @@ postcondition(#state{last_rank=LastRank},
         Else ->
             {prepare, Rank, last_rank, LastRank, Else}
     end;
-postcondition(#state{last_rank=LastRank},
+postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
     %% %% TODO: FIX ME!!!
     %% true.
     case termify(RetStr) of
         ok ->
-            Rank == LastRank;
+            Rank == LastRank andalso Rank > ProposedOkRank;
         {error, outrankedException} ->
+            Rank == ProposedOkRank   %% 2nd propose at same rank is error
+            orelse
             Rank /= LastRank;
         Else ->
             {propose, Rank, last_rank, LastRank, Else}
@@ -172,6 +174,11 @@ propose(Mbox, Endpoint, Rank, Layout) ->
 termify(["OK"]) ->
     ok;
 termify(["ERROR", "Exception during prepare" ++ _E1, E2]) ->
+    case string:str(E2, "OutrankedException") of
+        I when I >= 0 ->
+            {error, outrankedException}
+    end;
+termify(["ERROR", "Exception during propose" ++ _E1, E2]) ->
     case string:str(E2, "OutrankedException") of
         I when I >= 0 ->
             {error, outrankedException}
