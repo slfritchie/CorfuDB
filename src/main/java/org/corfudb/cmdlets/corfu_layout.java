@@ -40,7 +40,7 @@ public class corfu_layout implements ICmdlet {
                     + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>]\n"
                     + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>]\n"
                     + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>]\n"
-                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-d <level>]\n"
+                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>]\n"
                     + "\n"
                     + "Options:\n"
                     + " -l <layout>, --layout-file=<layout>  Path to a JSON file describing the \n"
