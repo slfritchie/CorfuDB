@@ -316,11 +316,16 @@ public class LayoutServer extends AbstractServer {
         Layout proposeLayout = msg.getLayout();
         Rank phase1Rank = getPhase1Rank();
         Rank phase2Rank = getPhase2Rank();
+        // This is a propose. If no prepare, reject.
+        if (phase1Rank == null) {
+            log.debug("Rejected phase 2 propose of rank={}, phase1Rank=none", proposeRank);
+            r.sendResponse(ctx, msg, new LayoutRankMsg(null, -1, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
+            return;
+        }
         // This is a propose. If the rank is less than or equal to the phase 1 rank, reject.
-        if ((phase1Rank == null ) || (phase1Rank != null && proposeRank.compareTo(phase1Rank) != 0)) {
+        if (proposeRank.compareTo(phase1Rank) != 0) {
             log.debug("Rejected phase 2 propose of rank={}, phase1Rank={}", proposeRank, phase1Rank);
-            Long rnk = phase1Rank == null ? -66L : phase1Rank.getRank();
-            r.sendResponse(ctx, msg, new LayoutRankMsg(null, rnk, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
+            r.sendResponse(ctx, msg, new LayoutRankMsg(null, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
             return;
         }
         // In addition, if the rank is equal to the current phase 2 rank (already accepted message), reject.
