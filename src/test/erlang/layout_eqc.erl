@@ -110,16 +110,16 @@ postcondition(#state{last_rank=LastRank},
     end;
 postcondition(#state{last_rank=LastRank},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    %% TODO: FIX ME!!!
-    true.
-    %% case termify(RetStr) of
-    %%     ok ->
-    %%         Rank == LastRank;
-    %%     {error, outrankedException} ->
-    %%         Rank /= LastRank;
-    %%     Else ->
-    %%         {propose, Rank, last_rank, LastRank, Else}
-    %% end.
+    %% %% TODO: FIX ME!!!
+    %% true.
+    case termify(RetStr) of
+        ok ->
+            Rank == LastRank;
+        {error, outrankedException} ->
+            Rank /= LastRank;
+        Else ->
+            {propose, Rank, last_rank, LastRank, Else}
+    end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
     S#state{reset_p=true};

@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.CacheWriter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.RemovalCause;
+import lombok.Getter;
 import org.corfudb.util.JSONUtils;
 
 import javax.annotation.Nonnull;
@@ -29,7 +30,8 @@ import java.util.Map;
  */
 
 public class DataStore implements IDataStore {
-    private String logDir;
+    @Getter
+    public String logDir;
 
     private LoadingCache<String, String> cache;
 
@@ -119,4 +121,5 @@ public class DataStore implements IDataStore {
     private boolean isNotNull(String value) {
         return value != null && !value.trim().isEmpty();
     }
+
 }

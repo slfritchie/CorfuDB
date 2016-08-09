@@ -151,9 +151,9 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
+                return cmdlet.err("Exception during propose {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                return cmdlet.err("Exception during prepare {}\n", e.toString());
+                return cmdlet.err("Exception during propose {}\n", e.toString());
             }
         } else if ((Boolean) opts.get("committed")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
@@ -166,9 +166,9 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
+                return cmdlet.err("Exception during commit {}\n", ex.getCause().toString());
             } catch (Exception e) {
-                return cmdlet.err("Exception during prepare {}\n", e.toString());
+                return cmdlet.err("Exception during commit {}\n", e.toString());
             }
         }
         return cmdlet.err("FIXME 10");

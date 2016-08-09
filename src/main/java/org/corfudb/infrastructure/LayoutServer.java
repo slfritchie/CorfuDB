@@ -1,7 +1,6 @@
 package org.corfudb.infrastructure;
 
 import com.ericsson.otp.erlang.*;
-import com.google.common.io.Files;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
@@ -21,6 +20,10 @@ import org.corfudb.util.Utils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -149,7 +152,6 @@ public class LayoutServer extends AbstractServer {
     public LayoutServer(Map<String, Object> opts, IServerRouter serverRouter) {
         this.opts = opts;
         this.serverRouter = serverRouter;
-        this.dataStore = new DataStore(opts);
 
         reboot();
 
@@ -204,7 +206,22 @@ public class LayoutServer extends AbstractServer {
 
     @Override
     public void reset() {
-        // SLF: TODO: return & fix
+        String d = dataStore.getLogDir();
+        if (d != null) {
+            Path dir = FileSystems.getDefault().getPath(d);
+            String prefixes[] = new String[] {PREFIX_LAYOUT, KEY_LAYOUT, PREFIX_PHASE_1, PREFIX_PHASE_2, PREFIX_LAYOUTS};
+
+            for (String pfx : prefixes) {
+                try (DirectoryStream<Path> stream =
+                             Files.newDirectoryStream(dir, pfx + "*")) {
+                    for (Path entry : stream) {
+                        Files.delete(entry);
+                    }
+                } catch (IOException e) {
+                    log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
+                }
+            }
+        }
         reboot();
     }
 
@@ -213,6 +230,7 @@ public class LayoutServer extends AbstractServer {
      */
     @Override
     public void reboot() {
+        this.dataStore = new DataStore(opts);
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
             log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
@@ -301,7 +319,8 @@ public class LayoutServer extends AbstractServer {
         // This is a propose. If the rank is less than or equal to the phase 1 rank, reject.
         if ((phase1Rank == null ) || (phase1Rank != null && proposeRank.compareTo(phase1Rank) != 0)) {
             log.debug("Rejected phase 2 propose of rank={}, phase1Rank={}", proposeRank, phase1Rank);
-            r.sendResponse(ctx, msg, new LayoutRankMsg(null, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
+            Long rnk = phase1Rank == null ? -66L : phase1Rank.getRank();
+            r.sendResponse(ctx, msg, new LayoutRankMsg(null, rnk, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
             return;
         }
         // In addition, if the rank is equal to the current phase 2 rank (already accepted message), reject.
@@ -419,20 +438,20 @@ public class LayoutServer extends AbstractServer {
     }
 
     private void configMgrPoll() {
+        File f;
         List<String> layout_servers;
 
         System.out.printf("Poll top, "); System.out.flush();
-        try {
-            String l = Files.toString(new File("/tmp/shutdown-layout-server"), Charset.defaultCharset());
+        f = new File("/tmp/shutdown-layout-server");
+        if (f.canRead()) {
             System.out.println("SHUTDOWN FOUND");
             shutdown();
-        } catch (IOException e) {
         }
-        try {
-            String l = Files.toString(new File("/tmp/abort-poll"), Charset.defaultCharset());
+        f = new File("/tmp/abort-poll");
+        if (f.canRead()) {
             System.out.println("disableConfigMgrPolling = true");
             disableConfigMgrPolling = true;
-        } catch (IOException e) {
+        } else {
             disableConfigMgrPolling = false;
         }
 
