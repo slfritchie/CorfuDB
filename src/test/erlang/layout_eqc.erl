@@ -42,6 +42,13 @@
           committed_layout=""
          }).
 
+-record(layout, {
+          epoch=-1,
+          ls=[],
+          ss=[],
+          segs=[]
+         }).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
@@ -57,11 +64,15 @@ gen_rank(#state{last_rank=LR}) ->
     frequency([{10, LR},
                { 2, gen_rank()}]).
 
+gen_epoch() ->
+    choose(1, 100).
+
 gen_layout() ->
-    gen_layout(1).
+    ?LET(Epoch, oneof([gen_epoch(), 1]),
+         gen_layout(Epoch)).
 
 gen_layout(Epoch) ->
-    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": " ++ integer_to_list(Epoch) ++ "\n}".
+    #layout{epoch=Epoch}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -132,7 +143,8 @@ postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
     end;
 postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
               {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    io:format(user, "QQQ Rank ~p LastRank ~p ProposedOkRank ~p\n", [Rank, LastRank, ProposedOkRank]),
+    %% io:format(user, "QQQ Rank ~p LastRank ~p ProposedOkRank ~p\n",
+    %%           [Rank, LastRank, ProposedOkRank]),
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -200,16 +212,18 @@ prepare(Mbox, Endpoint, Rank) ->
     java_rpc(Mbox, "prepare", Endpoint, ["-r", integer_to_list(Rank)]).
 
 propose(Mbox, Endpoint, Rank, Layout) ->
+    JSON = layout_to_json(Layout),
     TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
-    ok = file:write_file(TmpPath, Layout),
+    ok = file:write_file(TmpPath, JSON),
     Res = java_rpc(Mbox, "propose", Endpoint, ["-r", integer_to_list(Rank),
                                                "-l", TmpPath]),
     file:delete(TmpPath),
     Res.
 
 commit(Mbox, Endpoint, Rank, Layout) ->
+    JSON = layout_to_json(Layout),
     TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
-    ok = file:write_file(TmpPath, Layout),
+    ok = file:write_file(TmpPath, JSON),
     Res = java_rpc(Mbox, "committed", Endpoint, ["-r", integer_to_list(Rank),
                                                  "-l", TmpPath]),
     file:delete(TmpPath),
@@ -231,6 +245,20 @@ termify(["ERROR", "Exception " ++ _E1, E2|_]) ->
     end;
 termify(timeout) ->
     timeout.
+
+layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
+    "{\n  \"layoutServers\": " ++
+        string_ify_list(Ls) ++
+        ",\n  \"sequencers\": " ++
+        string_ify_list(Seqs) ++
+        ",\n  \"segments\": " ++
+        string_ify_list(Segs) ++
+        ",\n  \"epoch\": " ++
+        integer_to_list(Epoch) ++
+        "\n}".
+
+string_ify_list(L) ->
+    "[" ++ string:join([[$\"] ++ X ++ [$\"] || X <- L], ",") ++ "]".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
