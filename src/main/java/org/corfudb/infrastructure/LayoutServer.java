@@ -219,11 +219,20 @@ public class LayoutServer extends AbstractServer {
                 try (DirectoryStream<Path> stream =
                              Files.newDirectoryStream(dir, pfx + "_*")) {
                     for (Path entry : stream) {
+                        System.out.println("Deleting " + entry);
                         Files.delete(entry);
                     }
                 } catch (IOException e) {
                     log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
                 }
+            }
+            try (DirectoryStream<Path> stream =
+                         Files.newDirectoryStream(dir, "*")) {
+                for (Path entry : stream) {
+                    System.out.println("Remaining file " + entry);
+                }
+            } catch (IOException e) {
+                log.error("reset: error deleting prefix: " + e.toString());
             }
         }
         reboot();

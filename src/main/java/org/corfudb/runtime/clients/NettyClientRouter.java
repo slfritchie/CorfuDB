@@ -429,6 +429,12 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
             CorfuMsg m = new CorfuMsg();
             log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}",
                     msg.getEpoch(), epoch, msg);
+            // SLF TODO: Damn, by this logic then any time that we successfully commit a new
+            // SLF TODO: layout with a new epoch, the server's reply will use that new epoch,
+            // SLF TODO: which will never be what the client is expecting here.  Yay.
+            System.out.printf("Incoming message with wrong epoch, got %d, expected %d, message was: %s\n",
+                    msg.getEpoch(), epoch, msg.toString());
+
 
             /* If this message was pending a completion, complete it with an error. */
             completeExceptionally(msg.getRequestID(), new WrongEpochException(msg.getEpoch()));
