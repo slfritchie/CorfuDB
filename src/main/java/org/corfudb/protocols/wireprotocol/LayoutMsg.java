@@ -29,9 +29,6 @@ public class LayoutMsg extends CorfuMsg {
     public LayoutMsg(Layout layout, CorfuMsgType type) {
         this.msgType = type;
         this.layout = layout;
-        if (layout != null) { // SLF TODO: necessary?
-            this.epoch = layout.getEpoch();
-        }
     }
 
     /**
