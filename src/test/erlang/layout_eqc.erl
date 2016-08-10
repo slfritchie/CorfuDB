@@ -58,7 +58,10 @@ gen_rank(#state{last_rank=LR}) ->
                { 2, gen_rank()}]).
 
 gen_layout() ->
-    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": 1\n}".
+    gen_layout(1).
+
+gen_layout(Epoch) ->
+    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": " ++ integer_to_list(Epoch) ++ "\n}".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -129,11 +132,21 @@ postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
     end;
 postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
               {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+    io:format(user, "QQQ Rank ~p LastRank ~p ProposedOkRank ~p\n", [Rank, LastRank, ProposedOkRank]),
     case termify(RetStr) of
         ok ->
-            Rank == LastRank andalso Rank == ProposedOkRank;
+            %% According to the model, prepare & propose are optional.
+            %% We could be in a quorum minority, didn't participate in
+            %% prepare & propose, the decision was made without us, and
+            %% committed is telling us the result.  OK.
+            %% So, the model's only sanity check is to make certain that
+            %% the rank doesn't go backward and that the epoch doesn't
+            %% go backward.
+            Rank >= LastRank andalso Rank >= ProposedOkRank;
+        {error, nack} ->
+            not (Rank >= LastRank andalso Rank >= ProposedOkRank);
         {error, outrankedException} ->
-            not (Rank == LastRank andalso Rank == ProposedOkRank);
+            not (Rank >= LastRank andalso Rank >= ProposedOkRank);
         Else ->
             {commit, Rank, last_rank, LastRank,
              proposed_ok_rank, ProposedOkRank, Else}
@@ -204,20 +217,17 @@ commit(Mbox, Endpoint, Rank, Layout) ->
 
 termify(["OK"]) ->
     ok;
-termify(["ERROR", "Exception during prepare" ++ _E1, E2|_]) ->
+termify(["ERROR", "NACK"]) ->
+    {error, nack};
+termify(["ERROR", "Exception " ++ _E1, E2|_]) ->
     case string:str(E2, "OutrankedException") of
         I when I >= 0 ->
-            {error, outrankedException}
-    end;
-termify(["ERROR", "Exception during propose" ++ _E1, E2|_]) ->
-    case string:str(E2, "OutrankedException") of
-        I when I >= 0 ->
-            {error, outrankedException}
-    end;
-termify(["ERROR", "Exception during commit" ++ _E1, E2|_]) ->
-    case string:str(E2, "OutrankedException") of
-        I when I >= 0 ->
-            {error, outrankedException}
+            {error, outrankedException};
+        _ ->
+            case string:str(E2, "WrongEpochException") of
+                I2 when I2 >= 0 ->
+                    {error, wrongEpochException}
+            end
     end;
 termify(timeout) ->
     timeout.

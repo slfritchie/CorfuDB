@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.ExceptionUtils;
 import org.corfudb.infrastructure.CorfuServer;
 import org.corfudb.infrastructure.LayoutServer;
+import org.corfudb.protocols.wireprotocol.CorfuSetEpochMsg;
 import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
@@ -163,9 +164,9 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during propose {}\n", ex.getCause().toString());
+                return cmdlet.err("Exception during propose {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
             } catch (Exception e) {
-                return cmdlet.err("Exception during propose {}\n", e.toString());
+                return cmdlet.err("Exception during propose {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
             }
         } else if ((Boolean) opts.get("committed")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
@@ -178,9 +179,9 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during commit {}\n", ex.getCause().toString());
+                return cmdlet.err("Exception during commit {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
             } catch (Exception e) {
-                return cmdlet.err("Exception during commit {}\n", e.toString());
+                return cmdlet.err("Exception during commit {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
             }
         }
         return cmdlet.err("FIXME 10");
