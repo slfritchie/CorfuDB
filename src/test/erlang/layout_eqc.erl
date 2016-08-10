@@ -259,8 +259,9 @@ prop(MoreCmds, Mboxes, Endpoint) ->
                                          initial_state(Mboxes, Endpoint))),
             begin
                 {H,S,Res} = run_commands(?MODULE, Cmds),
-                ?WHENFAIL(
-                io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
+                %% ?WHENFAIL(
+                %% io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
+                pretty_commands(?MODULE, Cmds, {H,S,Res},
                 aggregate(command_names(Cmds),
                 collect(length(Cmds) div 10,
                         Res == ok)))
@@ -309,9 +310,9 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                    true ->
                         ok
                 end,
-                ?WHENFAIL(
-                io:format("H: ~p~nHs: ~p~nR: ~p~n", [H,Hs,Res]),
-                %% pretty_commands(?MODULE, Cmds, {H,Hs,Res},
+                %% ?WHENFAIL(
+                %% io:format("H: ~p~nHs: ~p~nR: ~p~n", [H,Hs,Res]),
+                pretty_commands(?MODULE, Cmds, {H,Hs,Res},
                 aggregate(command_names(Cmds),
                 collect(if Len == 0 -> 0;
                            true     -> (Len div 10) + 1
