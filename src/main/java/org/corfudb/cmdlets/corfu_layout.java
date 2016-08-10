@@ -102,6 +102,17 @@ public class corfu_layout implements ICmdlet {
                 .start();
             routers.put(addressport, router);
         }
+        try {
+            Layout l = router.getClient(LayoutClient.class).getLayout().get();
+            if (l != null) {
+                log.trace("Set router's epoch to " + l.getEpoch());
+                router.setEpoch(l.getEpoch());
+            } else {
+                log.trace("Cannot set router's epoch");
+            }
+        } catch (Exception e) {
+            return cmdlet.err("ERROR Exception getting initial epoch " + e.getCause());
+        }
 
         if ((Boolean) opts.get("query")) {
             try {
