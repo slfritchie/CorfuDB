@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import lombok.extern.slf4j.Slf4j;
+import org.codehaus.plexus.util.ExceptionUtils;
 import org.corfudb.infrastructure.CorfuServer;
 import org.corfudb.infrastructure.LayoutServer;
 import org.corfudb.runtime.clients.BaseClient;
@@ -136,9 +137,9 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("ACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString());
+                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
             } catch (Exception e) {
-                return cmdlet.err("Exception during prepare {}\n", e.toString());
+                return cmdlet.err("Exception during prepare {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
             }
         } else if ((Boolean) opts.get("propose")) {
             long rank = Long.parseLong((String) opts.get("--rank"));

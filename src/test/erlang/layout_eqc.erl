@@ -58,7 +58,7 @@ gen_rank(#state{last_rank=LR}) ->
                { 2, gen_rank()}]).
 
 gen_layout() ->
-    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": 0\n}".
+    "{\n  \"layoutServers\": [\n    \"localhost:8000\"\n  ],\n  \"sequencers\": [\n    \"localhost:8000\"\n  ],\n  \"segments\": [\n    {\n      \"replicationMode\": \"CHAIN_REPLICATION\",\n      \"start\": 0,\n      \"end\": -1,\n      \"stripes\": [\n        {\n          \"logServers\": [\n            \"localhost:8000\"\n          ]\n        }\n      ]\n    }\n  ],\n  \"epoch\": 1\n}".
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -70,6 +70,8 @@ initial_state(Mboxes, Endpoint) ->
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
+precondition(S, {call,_,commit,[_,_,_,Layout]}) ->
+    S#state.reset_p andalso Layout /= "";
 precondition(S, _Call) ->
     S#state.reset_p.
 
@@ -202,12 +204,17 @@ commit(Mbox, Endpoint, Rank, Layout) ->
 
 termify(["OK"]) ->
     ok;
-termify(["ERROR", "Exception during prepare" ++ _E1, E2]) ->
+termify(["ERROR", "Exception during prepare" ++ _E1, E2|_]) ->
     case string:str(E2, "OutrankedException") of
         I when I >= 0 ->
             {error, outrankedException}
     end;
-termify(["ERROR", "Exception during propose" ++ _E1, E2]) ->
+termify(["ERROR", "Exception during propose" ++ _E1, E2|_]) ->
+    case string:str(E2, "OutrankedException") of
+        I when I >= 0 ->
+            {error, outrankedException}
+    end;
+termify(["ERROR", "Exception during commit" ++ _E1, E2|_]) ->
     case string:str(E2, "OutrankedException") of
         I when I >= 0 ->
             {error, outrankedException}

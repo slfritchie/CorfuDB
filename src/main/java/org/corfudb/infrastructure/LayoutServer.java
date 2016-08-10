@@ -207,13 +207,17 @@ public class LayoutServer extends AbstractServer {
     @Override
     public void reset() {
         String d = dataStore.getLogDir();
+        if (d == null) {
+            System.out.println("WTF WTFWTFWTF");
+        }
         if (d != null) {
             Path dir = FileSystems.getDefault().getPath(d);
-            String prefixes[] = new String[] {PREFIX_LAYOUT, KEY_LAYOUT, PREFIX_PHASE_1, PREFIX_PHASE_2, PREFIX_LAYOUTS};
+            String prefixes[] = new String[] {PREFIX_LAYOUT, KEY_LAYOUT, PREFIX_PHASE_1, PREFIX_PHASE_2,
+                    PREFIX_LAYOUTS, "SERVER_EPOCH"};
 
             for (String pfx : prefixes) {
                 try (DirectoryStream<Path> stream =
-                             Files.newDirectoryStream(dir, pfx + "*")) {
+                             Files.newDirectoryStream(dir, pfx + "_*")) {
                     for (Path entry : stream) {
                         Files.delete(entry);
                     }
@@ -353,9 +357,24 @@ public class LayoutServer extends AbstractServer {
     // TODO How do we handle holes in history if let in layout commit message. Maybe we have a hole filling process
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
-        if(msg.getEpoch() < serverRouter.getServerEpoch()) {
+        if (msg.getEpoch() < 1 || msg.getEpoch() < serverRouter.getServerEpoch()) {
+            System.out.printf("Rejected commit epoch=%d, my epoch=%d\n", msg.getEpoch(), serverRouter.getServerEpoch());
+            // doesn't work: r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.NACK));
+            r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.LAYOUT_NOBOOTSTRAP)); // TODO: new response code?
             return;
         }
+/*
+        // SLF TODO: Make the Layout class implement Comparable?
+        if (getPhase2Data() == null || ! msg.getLayout().toString().equals(getPhase2Data().getLayout().toString())) {
+            log.debug("Rejected committed rank={}, phase2Rank={}", msg.getRank(), getPhase2Rank());
+            System.out.printf("Rejected committed rank=%d\n", msg.getRank());
+            System.out.printf("Rejected committed rank=%d, phase2Rank=%s\n", msg.getRank(), getPhase2Rank() == null ? "nuLL" : getPhase2Rank().toString());
+            System.out.printf("Rejected committed msg %s\n", msg.getLayout().toString());
+            System.out.printf("Rejected committed myy %s\n", getPhase2Data() == null ? "nuLl" : getPhase2Data().getLayout().toString());
+            r.sendResponse(ctx, msg, new LayoutRankMsg(null, -77, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
+            return;
+        }
+*/
         Layout commitLayout = msg.getLayout();
         setCurrentLayout(commitLayout);
         serverRouter.setServerEpoch(commitLayout.getEpoch());
