@@ -131,12 +131,10 @@ postcondition(#state{prepared_rank=PreparedRank},
     end;
 postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    io:format(user, "QQQ Rank ~p PreparedRank ~p\n", [Rank, PreparedRank]),
     case termify(RetStr) of
         ok ->
             Rank == PreparedRank;
         {error, outrankedException, ExceptionRank} ->
-            io:format(user, "QQQ ExceptionRank ~p\n", [ExceptionRank]),
             %% -1 = no prepare
             (ExceptionRank == -1 andalso PreparedRank == -1)
             orelse
@@ -149,7 +147,6 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout}
     end;
 postcondition(#state{committed_epoch=CommittedEpoch},
               {call,_,commit,[_Mbox, _EP, Rank, Layout]}, RetStr) ->
-    %% io:format(user, "QQQ Rank ~p PreparedRank ~p\n", [Rank, PreparedRank]),
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.

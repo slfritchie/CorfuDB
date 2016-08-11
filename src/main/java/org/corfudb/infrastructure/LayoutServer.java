@@ -84,6 +84,8 @@ public class LayoutServer extends AbstractServer {
 
     private DataStore dataStore;
 
+    private int reboots = 0;
+
     /**
      * Configuration manager: disable polling loop
      */
@@ -237,8 +239,13 @@ public class LayoutServer extends AbstractServer {
         }
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
-            log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
-                    localAddress);
+            String boot_msg = "Single-node mode requested, initializing layout with single log unit and sequencer at {}.";
+            if (reboots++ == 0 ) {
+                log.info(boot_msg, localAddress);
+            } else {
+                log.debug(boot_msg, localAddress);
+
+            }
             setCurrentLayout(new Layout(
                     Collections.singletonList(localAddress),
                     Collections.singletonList(localAddress),
@@ -266,9 +273,9 @@ public class LayoutServer extends AbstractServer {
         this.dataStore = new DataStore(opts);
         if (getCurrentLayout() != null) {
             getServerRouter().setServerEpoch(getCurrentLayout().getEpoch());
-            log.trace("reboot: get server epoch {}\n", getServerRouter().getServerEpoch());
+            log.debug("reboot: get server epoch {}\n", getServerRouter().getServerEpoch());
         } else {
-            log.trace("reboot: no layout.\n");
+            log.debug("reboot: no layout.\n");
         }
     }
 
@@ -309,8 +316,6 @@ public class LayoutServer extends AbstractServer {
         // This is a prepare. If the rank is less than or equal to the phase 1 rank, reject.
 
         if (phase1Rank != null && prepareRank.compareTo(phase1Rank) <= 0) {
-            System.out.printf("Rejected phase 1 prepare of rank=%s, phase1Rank=%s\n", prepareRank.toString(), phase1Rank.toString());
-            System.out.printf("Rejected, my phase2 proposedLayout=%s\n", proposedLayout == null ? "null" : proposedLayout.toString());
             log.debug("Rejected phase 1 prepare of rank={}, phase1Rank={}", prepareRank, phase1Rank);
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_REJECT));
         } else {
@@ -370,7 +375,7 @@ public class LayoutServer extends AbstractServer {
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (msg.getLayout().getEpoch() < 1 || msg.getLayout().getEpoch() <= serverRouter.getServerEpoch()) {
-            // System.out.printf("Rejected commit: msg epoch=%d, layout epoch=%d, my epoch=%d\n", msg.getEpoch(), msg.getLayout().getEpoch(), serverRouter.getServerEpoch());
+            log.debug("Rejected commit: msg epoch=%d, layout epoch=%d, my epoch=%d\n", msg.getEpoch(), msg.getLayout().getEpoch(), serverRouter.getServerEpoch());
             r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.NACK));
             return;
         }
@@ -504,7 +509,7 @@ public class LayoutServer extends AbstractServer {
                     // no hope of participating in Paxos decisions about layout.
                     // We may receive a layout bootstrap sometime in the future,
                     // so do not change the scheduling of this polling task.
-                    log.trace("No currentLayout, so skip ConfigMgr poll");
+                    log.debug("No currentLayout, so skip ConfigMgr poll");
                     return;
                 }
                 layout_servers = currentLayout.getLayoutServers();
@@ -576,7 +581,7 @@ public class LayoutServer extends AbstractServer {
             // For now, assume that lv contains the latest & greatest layout
             layout_servers = l.getLayoutServers();
             if (! layout_servers.contains(my_endpoint)) {
-                log.trace("I am not a layout server in epoch " + l.getEpoch() + ", layout server list = " + layout_servers);
+                log.debug("I am not a layout server in epoch " + l.getEpoch() + ", layout server list = " + layout_servers);
                 return;
             }
             // If we're here, then it's poll time.
@@ -599,7 +604,7 @@ public class LayoutServer extends AbstractServer {
             if (history_status == null) {
                 history_status = new HashMap<>();
             }
-            log.trace("history_servers change, length = " + all_servers.length);
+            log.debug("history_servers change, length = " + all_servers.length);
             history_servers = all_servers;
             history_routers = new NettyClientRouter[all_servers.length];
             history_poll_failures = new int[all_servers.length];
@@ -616,7 +621,7 @@ public class LayoutServer extends AbstractServer {
             }
             history_poll_count = 0;
         } else {
-            log.trace("No server list change since last poll.");
+            log.debug("No server list change since last poll.");
         }
 
         // Poll servers for health.  All ping activity will happen in the background.
@@ -635,7 +640,7 @@ public class LayoutServer extends AbstractServer {
                 try {
                     CompletableFuture<Boolean> cf = history_routers[ii].getClient(BaseClient.class).ping();
                     cf.exceptionally(e -> {
-                        log.trace(history_servers[ii] + " exception " + e);
+                        log.debug(history_servers[ii] + " exception " + e);
                         history_poll_failures[ii]++;
                         return false;
                     });
@@ -649,7 +654,7 @@ public class LayoutServer extends AbstractServer {
                     });
 
                 } catch (Exception e) {
-                    log.trace("Ping failed for " + history_servers[ii] + " with " + e);
+                    log.debug("Ping failed for " + history_servers[ii] + " with " + e);
                     history_poll_failures[ii]++;
                 }
             });
@@ -665,7 +670,7 @@ public class LayoutServer extends AbstractServer {
                 // TODO: Be a bit smarter than 'more than 2 failures in a row'
                 is_up = ! (history_poll_failures[i] > 2);
                 if (is_up != history_status.get(history_servers[i])) {
-                    log.trace("Change of status: " + history_servers[i] + " " +
+                    log.debug("Change of status: " + history_servers[i] + " " +
                             history_status.get(history_servers[i]) + " -> " + is_up);
                     status_change.put(history_servers[i], is_up);
                 }
@@ -689,7 +694,7 @@ public class LayoutServer extends AbstractServer {
 
                 history_status = tmph;
             } else {
-                log.trace("No status change");
+                log.debug("No status change");
             }
         }
     }
