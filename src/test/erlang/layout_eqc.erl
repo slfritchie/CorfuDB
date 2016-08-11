@@ -109,12 +109,17 @@ postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition(#state{}, {call,_,query,[_Mbox, _EP]}, Ret) ->
+postcondition(#state{committed_layout=CommittedLayout},
+              {call,_,query,[_Mbox, _EP]}, Ret) ->
     case Ret of
         timeout ->
             false;
-        ["OK", _JSON] ->
+        ["OK", _JSON] when CommittedLayout == "" ->
+            %% We haven't committed anything.  Whatever default layout
+            %% that the server has (e.g. after reset()) is ok.
             true;
+        ["OK", JSON] ->
+            JSON == layout_to_json(CommittedLayout);
         Else ->
             io:format(user, "Q ~p\n", [Else]),
             false
@@ -206,14 +211,14 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Mbox, Endpoint) ->
-    io:format(user, "R", []),
+    %% io:format(user, "R", []),
     java_rpc(Mbox, reset, Endpoint).
 
 resetAMNESIA(Mbox, Endpoint) ->
     reset(Mbox, Endpoint).
 
 reboot(Mbox, Endpoint) ->
-    io:format(user, "r", []),
+    %% io:format(user, "r", []),
     java_rpc(Mbox, reboot, Endpoint).
 
 query(Mbox, Endpoint) ->
