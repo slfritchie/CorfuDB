@@ -299,7 +299,7 @@ endpoint2nodename(Endpoint) ->
 check_result(Cmds, H, S, Res) ->
     pretty_commands(?MODULE, Cmds, {H,S,Res},
     aggregate(command_names(Cmds),
-    collect(length(Cmds) div 10,
+    collect(try length(Cmds) div 10 catch _:_ -> 0 end,
             Res == ok))).
 -endif.
 -ifdef(PROPER).
@@ -307,7 +307,7 @@ check_result(Cmds, H, S, Res) ->
     ?WHENFAIL(
     io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
     aggregate(command_names(Cmds),
-    collect(length(Cmds) div 10,
+    collect(try length(Cmds) div 10 catch _:_ -> 0 end,
             Res == ok))).
 -endif.
 
@@ -339,40 +339,24 @@ prop_parallel(MoreCmds) ->
 
 prop_parallel(MoreCmds, Mboxes, Endpoint) ->
     random:seed(now()),
-    %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
-    %% commands lists aren't resized.  So, we're going to do it
-    %% ourself, bleh.
-    ?FORALL(_NumPars,
-            choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
-    ?FORALL(NewCs,
-            %% [more_commands(MoreCmds,
-            %%                non_empty(
-            %%                  commands(?MODULE,
-            %%                           initial_state(Mboxes, Endpoint)))) ||
-            %%     _ <- lists:seq(1, NumPars)],
+    ?FORALL(Cmds,
             more_commands(MoreCmds,
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
             begin
-                %% [SeqList|_] = hd(NewCs),
-                %% Cmds = {SeqList,
-                %%         lists:map(fun(L) -> lists:sublist(seq_to_par_cmds(L),
-                %%                                           ?PAR_CMDS_LIMIT) end,
-                %%                   tl(NewCs))},
-                Cmds = NewCs,
-                {Seq, Pars} = Cmds,
-                _Len = length(Seq) +
-                    lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
-                {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
-                if Elapsed > 2*1000*1000 ->
-                        io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
-                        io:format(user, "=~w sec,", [Elapsed / 1000000]);
-                   true ->
-                        ok
-                end,
+                {_Elapsed, {H,Hs,Res}} =
+                    timer:tc(fun() ->
+                                     run_parallel_commands(?MODULE, Cmds)
+                             end),
+                %% if Elapsed > 2*1000*1000 ->
+                %%         io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
+                %%         io:format(user, "=~w sec,", [Elapsed / 1000000]);
+                %%    true ->
+                %%         ok
+                %% end,
                 check_result(Cmds, H, Hs, Res)
-            end)).
+            end).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
