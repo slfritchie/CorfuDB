@@ -343,6 +343,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
+            ?ALWAYS(20,
             begin
                 {_Elapsed, {H,Hs,Res}} =
                     timer:tc(fun() ->
@@ -355,7 +356,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                 %%         ok
                 %% end,
                 check_result(Cmds, H, Hs, Res)
-            end).
+            end)).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
