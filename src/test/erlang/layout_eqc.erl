@@ -35,8 +35,8 @@
           reset_p = false :: boolean(),
           endpoint :: string(),
           reg_names :: list(),
+          highest_rank=0 :: non_neg_integer(),
           prepared_rank=-1 :: non_neg_integer(),
-          proposed_rank=0 :: non_neg_integer(),
           proposed_layout="" :: string(),
           committed_rank=0 :: non_neg_integer(),
           committed_layout=""
@@ -130,37 +130,30 @@ postcondition(#state{prepared_rank=PreparedRank},
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
+postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    io:format(user, "QQQ Rank ~p PreparedRank ~p ProposedRank ~p\n",
-              [Rank, PreparedRank, ProposedRank]),
+    io:format(user, "QQQ Rank ~p PreparedRank ~p\n", [Rank, PreparedRank]),
     case termify(RetStr) of
         ok ->
-            Rank == PreparedRank andalso Rank > ProposedRank;
+            Rank == PreparedRank;
         {error, outrankedException, ExceptionRank} ->
             io:format(user, "QQQ ExceptionRank ~p\n", [ExceptionRank]),
-            Rank == ProposedRank   % 2nd propose at same rank is error
-            orelse
             Rank /= PreparedRank
             orelse
-            %% -1 = no prepare/phase1
-            (ExceptionRank == -1 andalso PreparedRank == -1);
+            %% Already proposed?  2x isn't permitted.
+            ProposedLayout /= "";
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
+postcondition(#state{prepared_rank=PreparedRank},
               {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    %% io:format(user, "QQQ Rank ~p PreparedRank ~p ProposedRank ~p\n",
-    %%           [Rank, PreparedRank, ProposedRank]),
+    %% io:format(user, "QQQ Rank ~p PreparedRank ~p\n", [Rank, PreparedRank]),
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
             %% We could be in a quorum minority, didn't participate in
             %% prepare & propose, the decision was made without us, and
-            %% committed is telling us the result.  OK.
-            %% So, the model's only sanity check is to make certain that
-            %% the rank doesn't go backward and that the epoch doesn't
-            %% go backward.
+            %% committed is telling us the result.
             %%
             %% TODO: verify that the epoch went forward.
             %% 
@@ -171,15 +164,14 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
             %% current implementation does not reset the rank state;
             %% that may change, pending more changes in PR #210 and
             %% perhaps elsewhere.
-            Rank >= PreparedRank andalso Rank >= ProposedRank;
+            Rank >= PreparedRank;
         {error, nack} ->
             %% TODO: verify that the epoch went backward.
-            not (Rank >= PreparedRank andalso Rank >= ProposedRank);
+            not (Rank >= PreparedRank);
         %% {error, outrankedException, _ExceptionRank} ->
-        %%     not (Rank >= PreparedRank andalso Rank >= ProposedRank);
+        %%     not (Rank >= PreparedRank);
         Else ->
-            {commit, Rank, prepared_rank, PreparedRank,
-             proposed_rank, ProposedRank, Else}
+            {commit, Rank, prepared_rank, PreparedRank, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
@@ -189,21 +181,21 @@ next_state(S, _V, {call,_,resetAMNESIA,[_Svr, _Str]}) ->
 next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,prepare,[_Mbox, _EP, Rank]}) ->
     if Rank > PreparedRank ->
-            S#state{prepared_rank=Rank};
+            S#state{prepared_rank=Rank, proposed_layout=""};
        true ->
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,propose,[_Mbox, _EP, Rank, Layout]}) ->
     if Rank == PreparedRank ->
-            S#state{proposed_rank=Rank, proposed_layout=Layout};
+            S#state{proposed_layout=Layout};
        true ->
             S
     end;
-next_state(S=#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank}, _V,
+next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
-    if Rank == PreparedRank andalso Rank == ProposedRank ->
-            S#state{proposed_rank=0,
+    if Rank == PreparedRank ->
+            S#state{proposed_layout="",
                     committed_rank=Rank, committed_layout=Layout};
        true ->
             S
