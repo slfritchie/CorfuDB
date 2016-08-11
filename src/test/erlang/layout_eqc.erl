@@ -37,7 +37,8 @@
           reg_names :: list(),
           prepared_rank=-1 :: non_neg_integer(),
           proposed_layout="" :: string(),
-          committed_layout=""
+          committed_layout="",
+          committed_epoch=-1
          }).
 
 -record(layout, {
@@ -146,8 +147,8 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout}
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{prepared_rank=PreparedRank},
-              {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+postcondition(#state{committed_epoch=CommittedEpoch},
+              {call,_,commit,[_Mbox, _EP, Rank, Layout]}, RetStr) ->
     %% io:format(user, "QQQ Rank ~p PreparedRank ~p\n", [Rank, PreparedRank]),
     case termify(RetStr) of
         ok ->
@@ -155,24 +156,23 @@ postcondition(#state{prepared_rank=PreparedRank},
             %% We could be in a quorum minority, didn't participate in
             %% prepare & propose, the decision was made without us, and
             %% committed is telling us the result.
-            %%
-            %% TODO: verify that the epoch went forward.
             %% 
             %% After chatting with Dahlia, the model should separate
             %% rank checking from epoch checking.  In theory, the
             %% implementation could reset rank state after a new
-            %% layout with bigger epoch has been committed.  The
-            %% current implementation does not reset the rank state;
-            %% that may change, pending more changes in PR #210 and
-            %% perhaps elsewhere.
-            Rank >= PreparedRank;
+            %% layout with bigger epoch has been committed.  We assume
+            %% here that the implementation *does* reset rank upon
+            %% commit -- that may change, pending more changes in PR
+            %% #210 and perhaps elsewhere.
+            %%
+            %% Thus, no rank checking here, just epoch going forward.
+            Layout#layout.epoch > CommittedEpoch;
         {error, nack} ->
             %% TODO: verify that the epoch went backward.
-            not (Rank >= PreparedRank);
-        %% {error, outrankedException, _ExceptionRank} ->
-        %%     not (Rank >= PreparedRank);
+            Layout#layout.epoch =< CommittedEpoch;
         Else ->
-            {commit, Rank, prepared_rank, PreparedRank, Else}
+            {commit, rank, Rank, layout, Layout,
+             committed, CommittedEpoch, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
@@ -193,11 +193,13 @@ next_state(S=#state{prepared_rank=PreparedRank}, _V,
        true ->
             S
     end;
-next_state(S=#state{prepared_rank=PreparedRank}, _V,
-           {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
-    if Rank == PreparedRank ->
+next_state(S=#state{committed_epoch=CommittedEpoch}, _V,
+           {call,_,commit,[_Mbox, _EP, _Rank, Layout]}) ->
+    if Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=-1,
-                    proposed_layout="", committed_layout=Layout};
+                    proposed_layout="",
+                    committed_layout=Layout,
+                    committed_epoch=Layout#layout.epoch};
        true ->
             S
     end;
