@@ -193,8 +193,7 @@ next_state(S=#state{prepared_rank=PreparedRank}, _V,
 next_state(S=#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank}, _V,
            {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
     if Rank == PreparedRank andalso Rank == ProposedRank ->
-            S#state{prepared_rank=-1,
-                    proposed_rank=0,
+            S#state{proposed_rank=0,
                     committed_rank=Rank, committed_layout=Layout};
        true ->
             S
