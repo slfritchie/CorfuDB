@@ -133,7 +133,9 @@ postcondition(#state{prepared_rank=PreparedRank},
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout},
+postcondition(#state{prepared_rank=PreparedRank,
+                     proposed_layout=ProposedLayout,
+                     committed_epoch=CommittedEpoch},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
@@ -146,9 +148,9 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout}
             orelse
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
-        {error, wrongEpochException, _CorrectEpoch} = QQQ ->
+        {error, wrongEpochException, CorrectEpoch} = QQQ ->
             io:format(user, "QQQ = ~p\n", [QQQ]),
-            asdf;
+            CorrectEpoch == CommittedEpoch;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
@@ -352,7 +354,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            ?ALWAYS(1,
+            ?ALWAYS(10,
             begin
                 {_Elapsed, {H,Hs,Res}} =
                     timer:tc(fun() ->
