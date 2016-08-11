@@ -293,6 +293,22 @@ endpoint2nodename(Endpoint) ->
     [HostName, Port] = string:tokens(Endpoint, ":"),
     list_to_atom("corfu-" ++ Port ++ "@" ++ HostName).
 
+-ifdef(EQC).
+check_result(Cmds, H, S, Res) ->
+    pretty_commands(?MODULE, Cmds, {H,S,Res},
+    aggregate(command_names(Cmds),
+    collect(length(Cmds) div 10,
+            Res == ok))).
+-endif.
+-ifdef(PROPER).
+check_result(Cmds, H, S, Res) ->
+    ?WHENFAIL(
+    io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
+    aggregate(command_names(Cmds),
+    collect(length(Cmds) div 10,
+            Res == ok))).
+-endif.
+
 prop() ->
     prop(1).
 
@@ -307,12 +323,7 @@ prop(MoreCmds, Mboxes, Endpoint) ->
                                          initial_state(Mboxes, Endpoint))),
             begin
                 {H,S,Res} = run_commands(?MODULE, Cmds),
-                %% ?WHENFAIL(
-                %% io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
-                pretty_commands(?MODULE, Cmds, {H,S,Res},
-                aggregate(command_names(Cmds),
-                collect(length(Cmds) div 10,
-                        Res == ok)))
+                check_result(Cmds, H, S, Res)
             end).
 
 prop_parallel() ->
@@ -349,7 +360,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                 %%                   tl(NewCs))},
                 Cmds = NewCs,
                 {Seq, Pars} = Cmds,
-                Len = length(Seq) +
+                _Len = length(Seq) +
                     lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
                 {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
                 if Elapsed > 2*1000*1000 ->
@@ -358,14 +369,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                    true ->
                         ok
                 end,
-                %% ?WHENFAIL(
-                %% io:format("H: ~p~nHs: ~p~nR: ~p~n", [H,Hs,Res]),
-                pretty_commands(?MODULE, Cmds, {H,Hs,Res},
-                aggregate(command_names(Cmds),
-                collect(if Len == 0 -> 0;
-                           true     -> (Len div 10) + 1
-                        end,
-                        Res == ok)))
+                check_result(Cmds, H, Hs, Res)
             end)).
 
 seq_to_par_cmds(L) ->
