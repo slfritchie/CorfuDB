@@ -123,15 +123,20 @@ postcondition(#state{committed_layout=CommittedLayout},
             io:format(user, "Q ~p\n", [Else]),
             false
     end;
-postcondition(#state{prepared_rank=PreparedRank},
+postcondition(#state{prepared_rank=PreparedRank,
+                     committed_epoch=CommittedEpoch},
               {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
+try
     case termify(RetStr) of
         ok ->
             Rank > PreparedRank;
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
+        {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch == CommittedEpoch;
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
+end catch X:Y -> io:format("\n\nERR ~p ~p at ~p\n", [X, Y, erlang:get_stacktrace()])
     end;
 postcondition(#state{prepared_rank=PreparedRank,
                      proposed_layout=ProposedLayout,
@@ -355,7 +360,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            ?ALWAYS(10,
+            ?ALWAYS(25,
             begin
                 {_Elapsed, {H,Hs,Res}} =
                     timer:tc(fun() ->

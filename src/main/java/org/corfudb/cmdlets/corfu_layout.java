@@ -160,7 +160,12 @@ public class corfu_layout implements ICmdlet {
                                 ex.getCause().toString(),
                                 "newRank: " + Long.toString(oe.getNewRank()),
                                 "layout: " + (oe.getLayout() == null ? "" : oe.getLayout().asJSONString()));
-
+                } else if (ex.getCause().getClass() == WrongEpochException.class) {
+                    WrongEpochException we = (WrongEpochException) ex.getCause();
+                    return cmdlet.err("Exception during propose",
+                            ex.getCause().toString(),
+                            "correctEpoch: " + we.getCorrectEpoch(),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
                 } else {
                     return cmdlet.err("Exception during prepare",
                                 ex.getCause().toString(),
