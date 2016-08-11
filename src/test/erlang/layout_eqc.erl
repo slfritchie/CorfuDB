@@ -102,13 +102,21 @@ command(S=#state{endpoint=Endpoint, reset_p=true,
        {20, {call, ?MODULE, commit, [gen_mbox(S), Endpoint, gen_rank(S), ProposedLayout]}}
       ]).
 
-postcondition(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
+postcondition(S, Call, Ret) ->
+    try
+        postcondition2(S, Call, Ret)
+    catch X:Y ->
+            io:format(user,
+                      "Bad: ~p ~p @ ~p\n", [X, Y, erlang:get_stacktrace()])
+    end.
+
+postcondition2(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
   when RRR == reboot; RRR == reset; RRR == resetAMNESIA ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition(#state{committed_layout=CommittedLayout},
+postcondition2(#state{committed_layout=CommittedLayout},
               {call,_,query,[_Mbox, _EP]}, Ret) ->
     case Ret of
         timeout ->
@@ -123,7 +131,7 @@ postcondition(#state{committed_layout=CommittedLayout},
             io:format(user, "Q ~p\n", [Else]),
             false
     end;
-postcondition(#state{prepared_rank=PreparedRank,
+postcondition2(#state{prepared_rank=PreparedRank,
                      committed_epoch=CommittedEpoch},
               {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
 try
@@ -138,7 +146,7 @@ try
             {prepare, Rank, prepared_rank, PreparedRank, Else}
 end catch X:Y -> io:format("\n\nERR ~p ~p at ~p\n", [X, Y, erlang:get_stacktrace()])
     end;
-postcondition(#state{prepared_rank=PreparedRank,
+postcondition2(#state{prepared_rank=PreparedRank,
                      proposed_layout=ProposedLayout,
                      committed_epoch=CommittedEpoch},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
@@ -158,7 +166,7 @@ postcondition(#state{prepared_rank=PreparedRank,
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{committed_epoch=CommittedEpoch},
+postcondition2(#state{committed_epoch=CommittedEpoch},
               {call,_,commit,[_Mbox, _EP, Rank, Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
