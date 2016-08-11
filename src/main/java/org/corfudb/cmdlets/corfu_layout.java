@@ -11,6 +11,7 @@ import org.corfudb.protocols.wireprotocol.CorfuSetEpochMsg;
 import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
+import org.corfudb.runtime.exceptions.OutrankedException;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.util.GitRepositoryState;
 import org.corfudb.util.Utils;
@@ -152,9 +153,20 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("ACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during prepare {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
+                if (ex.getCause().getClass() == OutrankedException.class) {
+                    OutrankedException oe = (OutrankedException) ex.getCause();
+                    return cmdlet.err("Exception during prepare",
+                                ex.getCause().toString(),
+                                "newRank: " + Long.toString(oe.getNewRank()),
+                                "layout: " + (oe.getLayout() == null ? "" : oe.getLayout().asJSONString()));
+
+                } else {
+                    return cmdlet.err("Exception during prepare",
+                                ex.getCause().toString(),
+                                ExceptionUtils.getStackTrace(ex));
+                }
             } catch (Exception e) {
-                return cmdlet.err("Exception during prepare {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
+                return cmdlet.err("Exception during prepare", e.toString(), ExceptionUtils.getStackTrace(e));
             }
         } else if ((Boolean) opts.get("propose")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
