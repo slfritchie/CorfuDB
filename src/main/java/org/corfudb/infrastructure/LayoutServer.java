@@ -217,13 +217,14 @@ public class LayoutServer extends AbstractServer {
                 try (DirectoryStream<Path> stream =
                              Files.newDirectoryStream(dir, pfx + "_*")) {
                     for (Path entry : stream) {
-                        System.out.println("Deleting " + entry);
+                        // System.out.println("Deleting " + entry);
                         Files.delete(entry);
                     }
                 } catch (IOException e) {
                     log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
                 }
             }
+            /*
             try (DirectoryStream<Path> stream =
                          Files.newDirectoryStream(dir, "*")) {
                 for (Path entry : stream) {
@@ -232,16 +233,8 @@ public class LayoutServer extends AbstractServer {
             } catch (IOException e) {
                 log.error("reset: error deleting prefix: " + e.toString());
             }
+            */
         }
-        reboot();
-    }
-
-    /**
-     * Reboot the server, using persistent state on disk to restart.
-     */
-    @Override
-    public void reboot() {
-        this.dataStore = new DataStore(opts);
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
             log.info("Single-node mode requested, initializing layout with single log unit and sequencer at {}.",
@@ -261,11 +254,21 @@ public class LayoutServer extends AbstractServer {
                     )),
                     0L
             ));
-        } else {
-            log.info("Layout server started with layout from disk: {}.", getCurrentLayout());
         }
+        reboot();
+    }
+
+    /**
+     * Reboot the server, using persistent state on disk to restart.
+     */
+    @Override
+    public void reboot() {
+        this.dataStore = new DataStore(opts);
         if (getCurrentLayout() != null) {
             getServerRouter().setServerEpoch(getCurrentLayout().getEpoch());
+            log.trace("reboot: get server epoch {}\n", getServerRouter().getServerEpoch());
+        } else {
+            log.trace("reboot: no layout.\n");
         }
     }
 
