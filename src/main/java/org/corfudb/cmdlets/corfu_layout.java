@@ -103,6 +103,9 @@ public class corfu_layout implements ICmdlet {
                 .start();
             routers.put(addressport, router);
         }
+        // SLF TODO: add a first-class command to the EQC model to tell the
+        // client to update the client router's epoch?  Dahlia think that that'll
+        // be necessary sometime soon.  Hm.
         try {
             Layout l = router.getClient(LayoutClient.class).getLayout().get();
             if (l != null) {

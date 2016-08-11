@@ -161,6 +161,16 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
             %% So, the model's only sanity check is to make certain that
             %% the rank doesn't go backward and that the epoch doesn't
             %% go backward.
+            %%
+            %% TODO: verify that the epoch went forward.
+            %% 
+            %% After chatting with Dahlia, the model should separate
+            %% rank checking from epoch checking.  In theory, the
+            %% implementation could reset rank state after a new
+            %% layout with bigger epoch has been committed.  The
+            %% current implementation does not reset the rank state;
+            %% that may change, pending more changes in PR #210 and
+            %% perhaps elsewhere.
             Rank >= PreparedRank andalso Rank >= ProposedRank;
         {error, nack} ->
             %% TODO: verify that the epoch went backward.

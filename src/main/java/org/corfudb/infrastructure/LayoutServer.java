@@ -304,7 +304,9 @@ public class LayoutServer extends AbstractServer {
         Rank phase1Rank = getPhase1Rank();
         Layout proposedLayout = getProposedLayout();
         // This is a prepare. If the rank is less than or equal to the phase 1 rank, reject.
+
         if (phase1Rank != null && prepareRank.compareTo(phase1Rank) <= 0) {
+            System.out.printf("Rejected phase 1 prepare of rank=%s, phase1Rank=%s", prepareRank.toString(), phase1Rank.toString());
             log.debug("Rejected phase 1 prepare of rank={}, phase1Rank={}", prepareRank, phase1Rank);
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_REJECT));
         } else {
