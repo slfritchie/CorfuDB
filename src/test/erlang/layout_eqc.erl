@@ -35,8 +35,8 @@
           reset_p = false :: boolean(),
           endpoint :: string(),
           reg_names :: list(),
-          last_rank=0 :: non_neg_integer(),
-          proposed_ok_rank=0 :: non_neg_integer(),
+          prepared_rank=-1 :: non_neg_integer(),
+          proposed_rank=0 :: non_neg_integer(),
           proposed_layout="" :: string(),
           committed_rank=0 :: non_neg_integer(),
           committed_layout=""
@@ -58,17 +58,18 @@ gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
 gen_rank() ->
     choose(1, 100).
 
-gen_rank(#state{last_rank=0}) ->
+gen_rank(#state{prepared_rank=0}) ->
     gen_rank();
-gen_rank(#state{last_rank=LR}) ->
-    frequency([{10, LR},
+gen_rank(#state{prepared_rank=PR}) ->
+    frequency([{10, PR},
                { 2, gen_rank()}]).
 
 gen_epoch() ->
     choose(1, 100).
 
 gen_layout() ->
-    ?LET(Epoch, oneof([gen_epoch(), 1]),
+    %% ?LET(Epoch, oneof([gen_epoch(), 1]),
+    ?LET(Epoch, 1,
          gen_layout(Epoch)).
 
 gen_layout(Epoch) ->
@@ -119,32 +120,38 @@ postcondition(#state{}, {call,_,query,[_Mbox, _EP]}, Ret) ->
             io:format(user, "Q ~p\n", [Else]),
             false
     end;
-postcondition(#state{last_rank=LastRank},
+postcondition(#state{prepared_rank=PreparedRank},
               {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
     case termify(RetStr) of
         ok ->
-            Rank > LastRank;
-        {error, outrankedException} ->
-            Rank =< LastRank;
+            Rank > PreparedRank;
+        {error, outrankedException, _ExceptionRank} ->
+            Rank =< PreparedRank;
         Else ->
-            {prepare, Rank, last_rank, LastRank, Else}
+            {prepare, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
+postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
               {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+    io:format(user, "QQQ Rank ~p PreparedRank ~p ProposedRank ~p\n",
+              [Rank, PreparedRank, ProposedRank]),
     case termify(RetStr) of
         ok ->
-            Rank == LastRank andalso Rank > ProposedOkRank;
-        {error, outrankedException} ->
-            Rank == ProposedOkRank   %% 2nd propose at same rank is error
+            Rank == PreparedRank andalso Rank > ProposedRank;
+        {error, outrankedException, ExceptionRank} ->
+            io:format(user, "QQQ ExceptionRank ~p\n", [ExceptionRank]),
+            Rank == ProposedRank   % 2nd propose at same rank is error
             orelse
-            Rank /= LastRank;
+            Rank /= PreparedRank
+            orelse
+            %% -1 = no prepare/phase1
+            (ExceptionRank == -1 andalso PreparedRank == -1);
         Else ->
-            {propose, Rank, last_rank, LastRank, Else}
+            {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
+postcondition(#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank},
               {call,_,commit,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
-    %% io:format(user, "QQQ Rank ~p LastRank ~p ProposedOkRank ~p\n",
-    %%           [Rank, LastRank, ProposedOkRank]),
+    %% io:format(user, "QQQ Rank ~p PreparedRank ~p ProposedRank ~p\n",
+    %%           [Rank, PreparedRank, ProposedRank]),
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -154,38 +161,41 @@ postcondition(#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank},
             %% So, the model's only sanity check is to make certain that
             %% the rank doesn't go backward and that the epoch doesn't
             %% go backward.
-            Rank >= LastRank andalso Rank >= ProposedOkRank;
+            Rank >= PreparedRank andalso Rank >= ProposedRank;
         {error, nack} ->
-            not (Rank >= LastRank andalso Rank >= ProposedOkRank);
-        {error, outrankedException} ->
-            not (Rank >= LastRank andalso Rank >= ProposedOkRank);
+            %% TODO: verify that the epoch went backward.
+            not (Rank >= PreparedRank andalso Rank >= ProposedRank);
+        %% {error, outrankedException, _ExceptionRank} ->
+        %%     not (Rank >= PreparedRank andalso Rank >= ProposedRank);
         Else ->
-            {commit, Rank, last_rank, LastRank,
-             proposed_ok_rank, ProposedOkRank, Else}
+            {commit, Rank, prepared_rank, PreparedRank,
+             proposed_rank, ProposedRank, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
     S#state{reset_p=true};
 next_state(S, _V, {call,_,resetAMNESIA,[_Svr, _Str]}) ->
     S#state{reset_p=true};
-next_state(S=#state{last_rank=LastRank}, _V,
+next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,prepare,[_Mbox, _EP, Rank]}) ->
-    if Rank > LastRank ->
-            S#state{last_rank=Rank};
+    if Rank > PreparedRank ->
+            S#state{prepared_rank=Rank};
        true ->
             S
     end;
-next_state(S=#state{last_rank=LastRank}, _V,
+next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,propose,[_Mbox, _EP, Rank, Layout]}) ->
-    if Rank == LastRank ->
-            S#state{proposed_ok_rank=Rank, proposed_layout=Layout};
+    if Rank == PreparedRank ->
+            S#state{proposed_rank=Rank, proposed_layout=Layout};
        true ->
             S
     end;
-next_state(S=#state{last_rank=LastRank, proposed_ok_rank=ProposedOkRank}, _V,
+next_state(S=#state{prepared_rank=PreparedRank, proposed_rank=ProposedRank}, _V,
            {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
-    if Rank == LastRank andalso Rank == ProposedOkRank ->
-            S#state{committed_rank=Rank, committed_layout=Layout};
+    if Rank == PreparedRank andalso Rank == ProposedRank ->
+            S#state{prepared_rank=-1,
+                    proposed_rank=0,
+                    committed_rank=Rank, committed_layout=Layout};
        true ->
             S
     end;
@@ -234,9 +244,12 @@ termify(["OK"]) ->
 termify(["ERROR", "NACK"]) ->
     {error, nack};
 termify(["ERROR", "Exception " ++ _E1, E2|_]) ->
-    case string:str(E2, "OutrankedException") of
+    OutrankedStr = "OutrankedException: Higher rank ",
+    case string:str(E2, OutrankedStr) of
         I when I >= 0 ->
-            {error, outrankedException};
+            RankPos = I + length(OutrankedStr),
+            {Rank, _} = string:to_integer(string:substr(E2, RankPos)),
+            {error, outrankedException, Rank};
         _ ->
             case string:str(E2, "WrongEpochException") of
                 I2 when I2 >= 0 ->
