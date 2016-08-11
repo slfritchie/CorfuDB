@@ -163,7 +163,7 @@ public class corfu_layout implements ICmdlet {
                 } else {
                     return cmdlet.err("Exception during prepare",
                                 ex.getCause().toString(),
-                                ExceptionUtils.getStackTrace(ex));
+                                "stack: " + ExceptionUtils.getStackTrace(ex));
                 }
             } catch (Exception e) {
                 return cmdlet.err("Exception during prepare", e.toString(), ExceptionUtils.getStackTrace(e));
@@ -179,9 +179,21 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during propose {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
+                if (ex.getCause().getClass() == OutrankedException.class) {
+                    OutrankedException oe = (OutrankedException) ex.getCause();
+                    return cmdlet.err("Exception during propose",
+                                ex.getCause().toString(),
+                                "newRank: " + Long.toString(oe.getNewRank()),
+                                "stack: " + ExceptionUtils.getStackTrace(ex));
+                } else {
+                    return cmdlet.err("Exception during propose",
+                                ex.getCause().toString(),
+                                "stack: " + ExceptionUtils.getStackTrace(ex));
+                }
             } catch (Exception e) {
-                return cmdlet.err("Exception during propose {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
+                return cmdlet.err("Exception during propose",
+                            e.toString(),
+                            "stack: " + ExceptionUtils.getStackTrace(e));
             }
         } else if ((Boolean) opts.get("committed")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
@@ -194,9 +206,13 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during commit {}\n", ex.getCause().toString(), ExceptionUtils.getStackTrace(ex));
+                return cmdlet.err("Exception during commit {}\n",
+                            ex.getCause().toString(),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
             } catch (Exception e) {
-                return cmdlet.err("Exception during commit {}\n", e.toString(), ExceptionUtils.getStackTrace(e));
+                return cmdlet.err("Exception during commit {}\n",
+                            e.toString(),
+                            "stack: " + ExceptionUtils.getStackTrace(e));
             }
         }
         return cmdlet.err("FIXME 10");

@@ -35,10 +35,8 @@
           reset_p = false :: boolean(),
           endpoint :: string(),
           reg_names :: list(),
-          highest_rank=0 :: non_neg_integer(),
           prepared_rank=-1 :: non_neg_integer(),
           proposed_layout="" :: string(),
-          committed_rank=0 :: non_neg_integer(),
           committed_layout=""
          }).
 
@@ -138,6 +136,9 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout}
             Rank == PreparedRank;
         {error, outrankedException, ExceptionRank} ->
             io:format(user, "QQQ ExceptionRank ~p\n", [ExceptionRank]),
+            %% -1 = no prepare
+            (ExceptionRank == -1 andalso PreparedRank == -1)
+            orelse
             Rank /= PreparedRank
             orelse
             %% Already proposed?  2x isn't permitted.
@@ -195,8 +196,8 @@ next_state(S=#state{prepared_rank=PreparedRank}, _V,
 next_state(S=#state{prepared_rank=PreparedRank}, _V,
            {call,_,commit,[_Mbox, _EP, Rank, Layout]}) ->
     if Rank == PreparedRank ->
-            S#state{proposed_layout="",
-                    committed_rank=Rank, committed_layout=Layout};
+            S#state{prepared_rank=-1,
+                    proposed_layout="", committed_layout=Layout};
        true ->
             S
     end;
@@ -244,13 +245,11 @@ termify(["OK"]) ->
     ok;
 termify(["ERROR", "NACK"]) ->
     {error, nack};
-termify(["ERROR", "Exception " ++ _E1, E2|_]) ->
-    OutrankedStr = "OutrankedException: Higher rank ",
-    case string:str(E2, OutrankedStr) of
+termify(["ERROR", "Exception " ++ _E1, E2|Rest]) ->
+    case string:str(E2, "OutrankedException:") of
         I when I >= 0 ->
-            RankPos = I + length(OutrankedStr),
-            {Rank, _} = string:to_integer(string:substr(E2, RankPos)),
-            {error, outrankedException, Rank};
+            NewRank = parse_newrank(Rest),
+            {error, outrankedException, NewRank};
         _ ->
             case string:str(E2, "WrongEpochException") of
                 I2 when I2 >= 0 ->
@@ -259,6 +258,11 @@ termify(["ERROR", "Exception " ++ _E1, E2|_]) ->
     end;
 termify(timeout) ->
     timeout.
+
+parse_newrank(["newRank: " ++ NR|_]) ->
+    list_to_integer(NR);
+parse_newrank([_|T]) ->
+    parse_newrank(T).
 
 layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
     "{\n  \"layoutServers\": " ++
