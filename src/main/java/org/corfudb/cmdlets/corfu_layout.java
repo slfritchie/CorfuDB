@@ -12,6 +12,7 @@ import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
 import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.exceptions.OutrankedException;
+import org.corfudb.runtime.exceptions.WrongEpochException;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.util.GitRepositoryState;
 import org.corfudb.util.Utils;
@@ -182,8 +183,14 @@ public class corfu_layout implements ICmdlet {
                 if (ex.getCause().getClass() == OutrankedException.class) {
                     OutrankedException oe = (OutrankedException) ex.getCause();
                     return cmdlet.err("Exception during propose",
+                            ex.getCause().toString(),
+                            "newRank: " + Long.toString(oe.getNewRank()),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
+                } else if (ex.getCause().getClass() == WrongEpochException.class) {
+                        WrongEpochException we = (WrongEpochException) ex.getCause();
+                        return cmdlet.err("Exception during propose",
                                 ex.getCause().toString(),
-                                "newRank: " + Long.toString(oe.getNewRank()),
+                                "correctEpoch: " + we.getCorrectEpoch(),
                                 "stack: " + ExceptionUtils.getStackTrace(ex));
                 } else {
                     return cmdlet.err("Exception during propose",

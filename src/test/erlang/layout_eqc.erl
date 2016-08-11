@@ -146,6 +146,9 @@ postcondition(#state{prepared_rank=PreparedRank, proposed_layout=ProposedLayout}
             orelse
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
+        {error, wrongEpochException, _CorrectEpoch} = QQQ ->
+            io:format(user, "QQQ = ~p\n", [QQQ]),
+            asdf;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
@@ -248,15 +251,16 @@ termify(["OK"]) ->
     ok;
 termify(["ERROR", "NACK"]) ->
     {error, nack};
-termify(["ERROR", "Exception " ++ _E1, E2|Rest]) ->
+termify(["ERROR", "Exception " ++ _E1, E2|Rest] = _L) ->
     case string:str(E2, "OutrankedException:") of
-        I when I >= 0 ->
+        I when I > 0 ->
             NewRank = parse_newrank(Rest),
             {error, outrankedException, NewRank};
         _ ->
             case string:str(E2, "WrongEpochException") of
-                I2 when I2 >= 0 ->
-                    {error, wrongEpochException}
+                I2 when I2 > 0 ->
+                    CorrectEpoch = parse_correctepoch(Rest),
+                    {error, wrongEpochException, CorrectEpoch}
             end
     end;
 termify(timeout) ->
@@ -266,6 +270,11 @@ parse_newrank(["newRank: " ++ NR|_]) ->
     list_to_integer(NR);
 parse_newrank([_|T]) ->
     parse_newrank(T).
+
+parse_correctepoch(["correctEpoch: " ++ NR|_]) ->
+    list_to_integer(NR);
+parse_correctepoch([_|T]) ->
+    parse_correctepoch(T).
 
 layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
     "{\n  \"layoutServers\": " ++
@@ -343,7 +352,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            ?ALWAYS(20,
+            ?ALWAYS(1,
             begin
                 {_Elapsed, {H,Hs,Res}} =
                     timer:tc(fun() ->
