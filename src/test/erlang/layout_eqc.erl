@@ -148,8 +148,7 @@ postcondition(#state{prepared_rank=PreparedRank,
             orelse
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
-        {error, wrongEpochException, CorrectEpoch} = QQQ ->
-            io:format(user, "QQQ = ~p\n", [QQQ]),
+        {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == CommittedEpoch;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
@@ -176,6 +175,8 @@ postcondition(#state{committed_epoch=CommittedEpoch},
         {error, nack} ->
             %% TODO: verify that the epoch went backward.
             Layout#layout.epoch =< CommittedEpoch;
+        {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch == CommittedEpoch;
         Else ->
             {commit, rank, Rank, layout, Layout,
              committed, CommittedEpoch, Else}

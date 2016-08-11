@@ -213,13 +213,21 @@ public class corfu_layout implements ICmdlet {
                     return cmdlet.err("NACK");
                 }
             } catch (ExecutionException ex) {
-                return cmdlet.err("Exception during commit {}\n",
+                if (ex.getCause().getClass() == WrongEpochException.class) {
+                    WrongEpochException we = (WrongEpochException) ex.getCause();
+                    return cmdlet.err("Exception during commit",
+                            ex.getCause().toString(),
+                            "correctEpoch: " + we.getCorrectEpoch(),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
+                } else {
+                    return cmdlet.err("Exception during commit {}\n",
                             ex.getCause().toString(),
                             "stack: " + ExceptionUtils.getStackTrace(ex));
+                }
             } catch (Exception e) {
                 return cmdlet.err("Exception during commit {}\n",
-                            e.toString(),
-                            "stack: " + ExceptionUtils.getStackTrace(e));
+                        e.toString(),
+                        "stack: " + ExceptionUtils.getStackTrace(e));
             }
         }
         return cmdlet.err("FIXME 10");
