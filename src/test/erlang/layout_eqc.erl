@@ -67,8 +67,7 @@ gen_epoch() ->
     choose(1, 100).
 
 gen_layout() ->
-    %% ?LET(Epoch, oneof([gen_epoch(), 1]),
-    ?LET(Epoch, 1,
+    ?LET(Epoch, oneof([5, 22, gen_epoch()]),
          gen_layout(Epoch)).
 
 gen_layout(Epoch) ->
