@@ -60,10 +60,10 @@ public class corfu_layout implements ICmdlet {
     @Override
     public String[] main2(String[] args) {
         if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
-            System.out.println("corfu_layout top: reset");
+            log.trace("corfu_layout top: reset");
             LayoutServer ls = CorfuServer.getLayoutServer();
             if (ls != null) {
-                System.out.println("corfu_layout top: reset now");
+                log.trace("corfu_layout top: reset now");
                 ls.reset();
                 return cmdlet.ok();
             } else {
@@ -71,10 +71,10 @@ public class corfu_layout implements ICmdlet {
             }
         }
         if (args != null && args.length > 0 && args[0].contentEquals("reboot")) {
-            System.out.println("corfu_layout top: reboot");
+            log.trace("corfu_layout top: reboot");
             LayoutServer ls = CorfuServer.getLayoutServer();
             if (ls != null) {
-                System.out.println("corfu_layout top: reboot now");
+                log.trace("corfu_layout top: reboot now");
                 ls.reboot();
                 return cmdlet.ok();
             } else {
