@@ -372,6 +372,8 @@ public class LayoutServer extends AbstractServer {
             return;
         }
         Layout commitLayout = msg.getLayout();
+        deletePhase1Rank();
+        deletePhase2Data();
         setCurrentLayout(commitLayout);
         serverRouter.setServerEpoch(commitLayout.getEpoch());
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.ACK));
@@ -395,12 +397,20 @@ public class LayoutServer extends AbstractServer {
         dataStore.put(Rank.class, PREFIX_PHASE_1, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_1, rank);
     }
 
+    public void deletePhase1Rank() {
+        dataStore.delete(Rank.class, PREFIX_PHASE_1, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_1);
+    }
+
     public Phase2Data getPhase2Data() {
         return dataStore.get(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2);
     }
 
     public void setPhase2Data(Phase2Data phase2Data) {
         dataStore.put(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2, phase2Data);
+    }
+
+    public void deletePhase2Data() {
+        dataStore.delete(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2);
     }
 
     public void setLayoutInHistory(Layout layout) {
