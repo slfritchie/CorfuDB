@@ -374,7 +374,7 @@ public class LayoutServer extends AbstractServer {
     // TODO How do we handle holes in history if let in layout commit message. Maybe we have a hole filling process
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     private synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
-        if (msg.getLayout().getEpoch() < 1 || msg.getLayout().getEpoch() <= serverRouter.getServerEpoch()) {
+        if (msg.getLayout().getEpoch() < 0 || msg.getLayout().getEpoch() <= serverRouter.getServerEpoch()) {
             log.debug("Rejected commit: msg epoch=%d, layout epoch=%d, my epoch=%d\n", msg.getEpoch(), msg.getLayout().getEpoch(), serverRouter.getServerEpoch());
             r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.NACK));
             return;
