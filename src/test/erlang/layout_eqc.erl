@@ -38,7 +38,7 @@
           prepared_rank=-1 :: non_neg_integer(),
           proposed_layout="" :: string(),
           committed_layout="",
-          committed_epoch=-1
+          committed_epoch=0    % Must match server's epoch after reset()!
          }).
 
 -record(layout, {
@@ -63,6 +63,9 @@ gen_rank(#state{prepared_rank=PR}) ->
     frequency([{10, PR},
                { 2, gen_rank()}]).
 
+gen_c_epoch(#state{committed_epoch=CommittedEpoch}) ->
+    CommittedEpoch.
+
 gen_epoch() ->
     choose(1, 100).
 
@@ -83,8 +86,12 @@ initial_state(Mboxes, Endpoint) ->
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
-precondition(S, {call,_,commit,[_,_,_,Layout]}) ->
-    S#state.reset_p andalso Layout /= "";
+precondition(S, {call,_,prepare,[_,_,_,Rank]}) ->
+    S#state.reset_p andalso Rank > 0;
+precondition(S, {call,_,propose,[_,_,_,Rank,Layout]}) ->
+    S#state.reset_p andalso Rank > 0 andalso Layout /= "";
+precondition(S, {call,_,commit,[_,_,_,Rank,Layout]}) ->
+    S#state.reset_p andalso Rank > 0 andalso Layout /= "";
 precondition(S, _Call) ->
     S#state.reset_p.
 
@@ -94,12 +101,16 @@ command(S=#state{endpoint=Endpoint, reset_p=true,
                  proposed_layout=ProposedLayout}) ->
     frequency(
       [
-       %% {5,  {call, ?MODULE, resetAMNESIA, [gen_mbox(S), Endpoint]}},
-       {5,  {call, ?MODULE, reboot, [gen_mbox(S), Endpoint]}},
-       {20, {call, ?MODULE, query, [gen_mbox(S), Endpoint]}},
-       {20, {call, ?MODULE, prepare, [gen_mbox(S), Endpoint, gen_rank()]}},
-       {20, {call, ?MODULE, propose, [gen_mbox(S), Endpoint, gen_rank(S), gen_layout()]}},
-       {20, {call, ?MODULE, commit, [gen_mbox(S), Endpoint, gen_rank(S), ProposedLayout]}}
+       {5,  {call, ?MODULE, reboot,
+             [gen_mbox(S), Endpoint]}},
+       {20, {call, ?MODULE, query,
+             [gen_mbox(S), Endpoint, gen_c_epoch(S)]}},
+       {20, {call, ?MODULE, prepare,
+             [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank()]}},
+       {20, {call, ?MODULE, propose,
+             [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank(S), gen_layout()]}},
+       {20, {call, ?MODULE, commit,
+             [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank(S), ProposedLayout]}}
       ]).
 
 postcondition(S, Call, Ret) ->
@@ -111,13 +122,13 @@ postcondition(S, Call, Ret) ->
     end.
 
 postcondition2(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
-  when RRR == reboot; RRR == reset; RRR == resetAMNESIA ->
+  when RRR == reboot; RRR == reset ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
 postcondition2(#state{committed_layout=CommittedLayout},
-              {call,_,query,[_Mbox, _EP]}, Ret) ->
+               {call,_,query,[_Mbox, _EP, _C_Epoch]}, Ret) ->
     case Ret of
         timeout ->
             false;
@@ -132,8 +143,8 @@ postcondition2(#state{committed_layout=CommittedLayout},
             false
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
-                     committed_epoch=CommittedEpoch},
-              {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
+                      committed_epoch=CommittedEpoch},
+              {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             Rank > PreparedRank;
@@ -145,9 +156,9 @@ postcondition2(#state{prepared_rank=PreparedRank,
             {prepare, Rank, prepared_rank, PreparedRank, Else}
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
-                     proposed_layout=ProposedLayout,
-                     committed_epoch=CommittedEpoch},
-              {call,_,propose,[_Mbox, _EP, Rank, _Layout]}, RetStr) ->
+                      proposed_layout=ProposedLayout,
+                      committed_epoch=CommittedEpoch},
+              {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             Rank == PreparedRank;
@@ -165,7 +176,7 @@ postcondition2(#state{prepared_rank=PreparedRank,
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
 postcondition2(#state{committed_epoch=CommittedEpoch},
-              {call,_,commit,[_Mbox, _EP, Rank, Layout]}, RetStr) ->
+               {call,_,commit,[_Mbox, _EP, _C_Epoch, Rank, Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -193,37 +204,24 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
              committed, CommittedEpoch, Else}
     end.
 
-next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
+next_state(S, _V, {call,_,reset,[_Mbox, _EP]}) ->
     S#state{reset_p=true};
-next_state(S, _V, {call,_,resetAMNESIA,[_Svr, _Str]}) ->
-    S#state{reset_p=true};
-next_state(S=#state{prepared_rank=PreparedRank}, V,
-           {call,_,prepare,[_Mbox, _EP, Rank]}) ->
-    %% Hmmmm, my memory of QuickCheck nags at me, saying that inspecting
-    %% V's structure in next_state() is courting trouble because V may
-    %% be symbolic.  Hrrrrmmmm, if we see a symbolic-seeming tuple, then
-    %% we'll be evil be very verbose and also exit.
-    if is_tuple(V) ->
-            io:format(user, "bad inspection of V: ~p\n", [V]),
-            exit(bad_inspection_of_V);
-       true ->
-            ok
-    end,
-    BadEpochTest_p = case (catch termify(V)) of {error, wrongEpochException, _} -> true; _ -> false end,
-    if Rank > PreparedRank andalso not BadEpochTest_p ->
+next_state(S=#state{prepared_rank=PreparedRank}, _V,
+           {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}) ->
+    if Rank > PreparedRank ->
             S#state{prepared_rank=Rank, proposed_layout=""};
        true ->
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank}, _V,
-           {call,_,propose,[_Mbox, _EP, Rank, Layout]}) ->
+           {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
     if Rank == PreparedRank ->
             S#state{proposed_layout=Layout};
        true ->
             S
     end;
 next_state(S=#state{committed_epoch=CommittedEpoch}, _V,
-           {call,_,commit,[_Mbox, _EP, _Rank, Layout]}) ->
+           {call,_,commit,[_Mbox, _EP, _C_Epoch, _Rank, Layout]}) ->
     if Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=-1,
                     proposed_layout="",
@@ -241,34 +239,32 @@ reset(Mbox, Endpoint) ->
     %% io:format(user, "R", []),
     java_rpc(Mbox, reset, Endpoint).
 
-resetAMNESIA(Mbox, Endpoint) ->
-    reset(Mbox, Endpoint).
-
 reboot(Mbox, Endpoint) ->
     %% io:format(user, "r", []),
     java_rpc(Mbox, reboot, Endpoint).
 
-query(Mbox, Endpoint) ->
-    java_rpc(Mbox, "query", Endpoint, []).
+query(Mbox, Endpoint, C_Epoch) ->
+    java_rpc(Mbox, "query", Endpoint, C_Epoch, []).
 
-prepare(Mbox, Endpoint, Rank) ->
-    java_rpc(Mbox, "prepare", Endpoint, ["-r", integer_to_list(Rank)]).
+prepare(Mbox, Endpoint, C_Epoch, Rank) ->
+    java_rpc(Mbox, "prepare", Endpoint, C_Epoch,
+             ["-r", integer_to_list(Rank)]).
 
-propose(Mbox, Endpoint, Rank, Layout) ->
+propose(Mbox, Endpoint, C_Epoch, Rank, Layout) ->
     JSON = layout_to_json(Layout),
     TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
     ok = file:write_file(TmpPath, JSON),
-    Res = java_rpc(Mbox, "propose", Endpoint, ["-r", integer_to_list(Rank),
-                                               "-l", TmpPath]),
+    Res = java_rpc(Mbox, "propose", Endpoint, C_Epoch,
+                   ["-r", integer_to_list(Rank), "-l", TmpPath]),
     file:delete(TmpPath),
     Res.
 
-commit(Mbox, Endpoint, Rank, Layout) ->
+commit(Mbox, Endpoint, C_Epoch, Rank, Layout) ->
     JSON = layout_to_json(Layout),
     TmpPath = lists:flatten(io_lib:format("/tmp/layout.~w", [now()])),
     ok = file:write_file(TmpPath, JSON),
-    Res = java_rpc(Mbox, "committed", Endpoint, ["-r", integer_to_list(Rank),
-                                                 "-l", TmpPath]),
+    Res = java_rpc(Mbox, "committed", Endpoint, C_Epoch,
+                   ["-r", integer_to_list(Rank), "-l", TmpPath]),
     file:delete(TmpPath),
     Res.
 
@@ -405,8 +401,9 @@ java_rpc(Node, reboot, Endpoint) ->
     AllArgs = ["corfu_layout", "reboot", Endpoint],
     java_rpc_call(Node, AllArgs).
 
-java_rpc({_RegName, _NodeName} = Mbox, CmdName, Endpoint, Args) ->
-    AllArgs = ["corfu_layout", CmdName, Endpoint] ++ Args,
+java_rpc({_RegName, _NodeName} = Mbox, CmdName, Endpoint, C_Epoch, Args) ->
+    AllArgs = ["corfu_layout", CmdName, Endpoint] ++
+        ["-e", integer_to_list(C_Epoch)] ++ Args,
     java_rpc_call(Mbox, AllArgs).
 
 java_rpc_call(Mbox, AllArgs) ->

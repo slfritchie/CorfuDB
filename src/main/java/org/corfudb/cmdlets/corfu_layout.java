@@ -40,11 +40,11 @@ public class corfu_layout implements ICmdlet {
             "corfu_layout, directly interact with a layout server.\n"
                     + "\n"
                     + "Usage:\n"
-                    + "\tcorfu_layout query <address>:<port> [-d <level>]\n"
-                    + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>]\n"
-                    + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>]\n"
-                    + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>]\n"
-                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>]\n"
+                    + "\tcorfu_layout query <address>:<port> [-d <level>] [-e epoch]\n"
+                    + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>] [-e epoch]\n"
+                    + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>] [-e epoch]\n"
+                    + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>] [-e epoch]\n"
+                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>] [-e epoch]\n"
                     + "\n"
                     + "Options:\n"
                     + " -l <layout>, --layout-file=<layout>  Path to a JSON file describing the \n"
@@ -55,6 +55,7 @@ public class corfu_layout implements ICmdlet {
                     + " -r <rank>, --rank=<rank>             The rank to use for a Paxos operation. \n"
                     + " -d <level>, --log-level=<level>      Set the logging level, valid levels are: \n"
                     + "                                      ERROR,WARN,INFO,DEBUG,TRACE [default: INFO].\n"
+                    + " -e <epoch>, --epoch=<epoch>          Set the epoch for the client request PDU."
                     + " -h, --help  Show this screen\n"
                     + " --version  Show version\n";
 
@@ -105,19 +106,23 @@ public class corfu_layout implements ICmdlet {
                 .start();
             routers.put(addressport, router);
         }
-        // SLF TODO: add a first-class command to the EQC model to tell the
-        // client to update the client router's epoch?  Dahlia think that that'll
-        // be necessary sometime soon.  Hm.
-        try {
-            Layout l = router.getClient(LayoutClient.class).getLayout().get();
-            if (l != null) {
-                log.trace("Set router's epoch to " + l.getEpoch());
-                router.setEpoch(l.getEpoch());
-            } else {
-                log.trace("Cannot set router's epoch");
+
+        if (opts.get("--epoch") != null) {
+            Long epoch = Long.parseLong((String) opts.get("--epoch"));
+            log.trace("Specify router's epoch as " + epoch);
+            router.setEpoch(epoch);
+        } else {
+            try {
+                Layout l = router.getClient(LayoutClient.class).getLayout().get();
+                if (l != null) {
+                    log.trace("Set router's epoch to " + l.getEpoch());
+                    router.setEpoch(l.getEpoch());
+                } else {
+                    log.trace("Cannot set router's epoch");
+                }
+            } catch (Exception e) {
+                return cmdlet.err("ERROR Exception getting initial epoch " + e.getCause());
             }
-        } catch (Exception e) {
-            return cmdlet.err("ERROR Exception getting initial epoch " + e.getCause());
         }
 
         if ((Boolean) opts.get("query")) {
