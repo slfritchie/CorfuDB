@@ -167,7 +167,7 @@ public class corfu_layout implements ICmdlet {
                                 "layout: " + (oe.getLayout() == null ? "" : oe.getLayout().asJSONString()));
                 } else if (ex.getCause().getClass() == WrongEpochException.class) {
                     WrongEpochException we = (WrongEpochException) ex.getCause();
-                    return cmdlet.err("Exception during propose",
+                    return cmdlet.err("Exception during prepare",
                             ex.getCause().toString(),
                             "correctEpoch: " + we.getCorrectEpoch(),
                             "stack: " + ExceptionUtils.getStackTrace(ex));
