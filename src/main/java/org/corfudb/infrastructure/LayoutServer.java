@@ -63,18 +63,18 @@ import java.util.concurrent.*;
 @Slf4j
 public class LayoutServer extends AbstractServer {
 
-    public static final String PREFIX_LAYOUT = "LAYOUT";
-    public static final String KEY_LAYOUT = "CURRENT";
-    public static final String PREFIX_PHASE_1 = "PHASE_1";
-    public static final String KEY_SUFFIX_PHASE_1 = "RANK";
-    public static final String PREFIX_PHASE_2 = "PHASE_2";
-    public static final String KEY_SUFFIX_PHASE_2 = "DATA";
-    public static final String PREFIX_LAYOUTS = "LAYOUTS";
+    private static final String PREFIX_LAYOUT = "LAYOUT";
+    private static final String KEY_LAYOUT = "CURRENT";
+    private static final String PREFIX_PHASE_1 = "PHASE_1";
+    private static final String KEY_SUFFIX_PHASE_1 = "RANK";
+    private static final String PREFIX_PHASE_2 = "PHASE_2";
+    private static final String KEY_SUFFIX_PHASE_2 = "DATA";
+    private static final String PREFIX_LAYOUTS = "LAYOUTS";
 
     /**
      * The options map.
      */
-    Map<String, Object> opts;
+    private Map<String, Object> opts;
 
     /**
      * The server router.
@@ -94,30 +94,30 @@ public class LayoutServer extends AbstractServer {
     /**
      * Configuration manager: client runtime
      */
-    CorfuRuntime rt = null;
+    private CorfuRuntime rt = null;
 
     /**
      * Configuration manager: layout view
      */
-    LayoutView lv = null;
+    private LayoutView lv = null;
 
     /**
      * Configuration manager: my endpoint name
      */
-    String my_endpoint;
+    private String my_endpoint;
 
     /**
      * Configuration manager: list of layout servers that we monitor for ping'ability.
      */
-    String[] history_servers = null;
-    NettyClientRouter[] history_routers = null;
+    private String[] history_servers = null;
+    private NettyClientRouter[] history_routers = null;
 
     /**
      * Configuration manager: polling history
      */
-    int[] history_poll_failures = null;
-    int   history_poll_count = 0;
-    HashMap<String,Boolean> history_status = null;
+    private int[] history_poll_failures = null;
+    private int   history_poll_count = 0;
+    private HashMap<String,Boolean> history_status = null;
 
     /**
      * Configuration manager: future handle thingie to cancel periodic polling
@@ -172,7 +172,7 @@ public class LayoutServer extends AbstractServer {
 
     //TODO need to figure out if we need to send the complete Rank object in the responses
     @Override
-    public void handleMessage(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+    public synchronized void handleMessage(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (isShutdown()) return;
         // This server has not been bootstrapped yet, ignore ALL requests except for LAYOUT_BOOTSTRAP
         if (getCurrentLayout() == null && !msg.getMsgType().equals(CorfuMsg.CorfuMsgType.LAYOUT_BOOTSTRAP)) {
@@ -208,7 +208,7 @@ public class LayoutServer extends AbstractServer {
      */
 
     @Override
-    public void reset() {
+    public synchronized void reset() {
         String d = dataStore.getLogDir();
         if (d != null) {
             Path dir = FileSystems.getDefault().getPath(d);
@@ -269,7 +269,7 @@ public class LayoutServer extends AbstractServer {
      * Reboot the server, using persistent state on disk to restart.
      */
     @Override
-    public void reboot() {
+    public synchronized void reboot() {
         this.dataStore = new DataStore(opts);
         if (getCurrentLayout() != null) {
             getServerRouter().setServerEpoch(getCurrentLayout().getEpoch());
@@ -288,7 +288,7 @@ public class LayoutServer extends AbstractServer {
      * @param ctx
      * @param r
      */
-    public synchronized void handleMessageLayoutBootStrap(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+    private synchronized void handleMessageLayoutBootStrap(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (getCurrentLayout() == null) {
             log.info("Bootstrap with new layout={}", ((LayoutMsg) msg).getLayout());
             setCurrentLayout(((LayoutMsg) msg).getLayout());
@@ -309,7 +309,7 @@ public class LayoutServer extends AbstractServer {
      * @param r
      */
     // TODO this can work under a separate lock for this step as it does not change the global components
-    public synchronized void handleMessageLayoutPrepare(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+    private synchronized void handleMessageLayoutPrepare(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         Rank prepareRank = getRank(msg);
         Rank phase1Rank = getPhase1Rank();
         Layout proposedLayout = getProposedLayout();
@@ -332,7 +332,7 @@ public class LayoutServer extends AbstractServer {
      * @param ctx
      * @param r
      */
-    public synchronized void handleMessageLayoutPropose(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+    private synchronized void handleMessageLayoutPropose(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         Rank proposeRank = getRank(msg);
         Layout proposeLayout = msg.getLayout();
         Rank phase1Rank = getPhase1Rank();
@@ -373,7 +373,7 @@ public class LayoutServer extends AbstractServer {
     // TODO as this message is not set to ignore EPOCH.
     // TODO How do we handle holes in history if let in layout commit message. Maybe we have a hole filling process
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
-    public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+    private synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (msg.getLayout().getEpoch() < 1 || msg.getLayout().getEpoch() <= serverRouter.getServerEpoch()) {
             log.debug("Rejected commit: msg epoch=%d, layout epoch=%d, my epoch=%d\n", msg.getEpoch(), msg.getLayout().getEpoch(), serverRouter.getServerEpoch());
             r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.NACK));
@@ -387,41 +387,41 @@ public class LayoutServer extends AbstractServer {
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.ACK));
     }
 
-    public Layout getCurrentLayout() {
+    private Layout getCurrentLayout() {
         return dataStore.get(Layout.class, PREFIX_LAYOUT, KEY_LAYOUT);
     }
 
-    public void setCurrentLayout(Layout layout) {
+    private void setCurrentLayout(Layout layout) {
         dataStore.put(Layout.class, PREFIX_LAYOUT, KEY_LAYOUT, layout);
         // set the layout in history as well
         setLayoutInHistory(layout);
     }
 
-    public Rank getPhase1Rank() {
+    private Rank getPhase1Rank() {
         return dataStore.get(Rank.class, PREFIX_PHASE_1, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_1);
     }
 
-    public void setPhase1Rank(Rank rank) {
+    private void setPhase1Rank(Rank rank) {
         dataStore.put(Rank.class, PREFIX_PHASE_1, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_1, rank);
     }
 
-    public void deletePhase1Rank() {
+    private void deletePhase1Rank() {
         dataStore.delete(Rank.class, PREFIX_PHASE_1, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_1);
     }
 
-    public Phase2Data getPhase2Data() {
+    private Phase2Data getPhase2Data() {
         return dataStore.get(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2);
     }
 
-    public void setPhase2Data(Phase2Data phase2Data) {
+    private void setPhase2Data(Phase2Data phase2Data) {
         dataStore.put(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2, phase2Data);
     }
 
-    public void deletePhase2Data() {
+    private void deletePhase2Data() {
         dataStore.delete(Phase2Data.class, PREFIX_PHASE_2, serverRouter.getServerEpoch() + KEY_SUFFIX_PHASE_2);
     }
 
-    public void setLayoutInHistory(Layout layout) {
+    private void setLayoutInHistory(Layout layout) {
         dataStore.put(Layout.class, PREFIX_LAYOUTS, String.valueOf(layout.getEpoch()), layout);
     }
 
@@ -439,7 +439,7 @@ public class LayoutServer extends AbstractServer {
         return layouts;
     }
 
-    public Rank getPhase2Rank() {
+    private Rank getPhase2Rank() {
         Phase2Data phase2Data = getPhase2Data();
         if (phase2Data != null) {
             return phase2Data.getRank();
@@ -447,7 +447,7 @@ public class LayoutServer extends AbstractServer {
         return null;
     }
 
-    public Layout getProposedLayout() {
+    private Layout getProposedLayout() {
         Phase2Data phase2Data = getPhase2Data();
         if (phase2Data != null) {
             return phase2Data.getLayout();
@@ -594,7 +594,7 @@ public class LayoutServer extends AbstractServer {
 
     // TODO: Yank this into a separate class, refactor, de-C-ify, ...
 
-    void configMgrPollOnce(Layout l) {
+    private void configMgrPollOnce(Layout l) {
         // Are we polling the same servers as last time?  If not, then reset polling state.
         String[] all_servers = l.getAllServers().stream().toArray(String[]::new);
         Arrays.sort(all_servers);
@@ -747,24 +747,24 @@ public class LayoutServer extends AbstractServer {
         }
     }
 
-    public void runErlMbox0() { runErlMbox(0); }
-    public void runErlMbox1() { runErlMbox(1); }
-    public void runErlMbox2() { runErlMbox(2); }
-    public void runErlMbox3() { runErlMbox(3); }
-    public void runErlMbox4() { runErlMbox(4); }
-    public void runErlMbox5() { runErlMbox(5); }
-    public void runErlMbox6() { runErlMbox(6); }
-    public void runErlMbox7() { runErlMbox(7); }
-    public void runErlMbox8() { runErlMbox(8); }
-    public void runErlMbox9() { runErlMbox(9); }
-    public void runErlMbox10() { runErlMbox(10); }
-    public void runErlMbox11() { runErlMbox(11); }
-    public void runErlMbox12() { runErlMbox(12); }
-    public void runErlMbox13() { runErlMbox(13); }
-    public void runErlMbox14() { runErlMbox(14); }
-    public void runErlMbox15() { runErlMbox(15); }
+    private void runErlMbox0() { runErlMbox(0); }
+    private void runErlMbox1() { runErlMbox(1); }
+    private void runErlMbox2() { runErlMbox(2); }
+    private void runErlMbox3() { runErlMbox(3); }
+    private void runErlMbox4() { runErlMbox(4); }
+    private void runErlMbox5() { runErlMbox(5); }
+    private void runErlMbox6() { runErlMbox(6); }
+    private void runErlMbox7() { runErlMbox(7); }
+    private void runErlMbox8() { runErlMbox(8); }
+    private void runErlMbox9() { runErlMbox(9); }
+    private void runErlMbox10() { runErlMbox(10); }
+    private void runErlMbox11() { runErlMbox(11); }
+    private void runErlMbox12() { runErlMbox(12); }
+    private void runErlMbox13() { runErlMbox(13); }
+    private void runErlMbox14() { runErlMbox(14); }
+    private void runErlMbox15() { runErlMbox(15); }
 
-    public void runErlMbox(int num) {
+    private void runErlMbox(int num) {
         Thread.currentThread().setName("DistErl-" + num);
         try {
             OtpMbox mbox = otpNode.createMbox("cmdlet" + num);
