@@ -134,7 +134,6 @@ postcondition2(#state{committed_layout=CommittedLayout},
 postcondition2(#state{prepared_rank=PreparedRank,
                      committed_epoch=CommittedEpoch},
               {call,_,prepare,[_Mbox, _EP, Rank]}, RetStr) ->
-try
     case termify(RetStr) of
         ok ->
             Rank > PreparedRank;
@@ -144,7 +143,6 @@ try
             CorrectEpoch == CommittedEpoch;
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
-end catch X:Y -> io:format("\n\nERR ~p ~p at ~p\n", [X, Y, erlang:get_stacktrace()])
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
                      proposed_layout=ProposedLayout,
@@ -199,9 +197,20 @@ next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
     S#state{reset_p=true};
 next_state(S, _V, {call,_,resetAMNESIA,[_Svr, _Str]}) ->
     S#state{reset_p=true};
-next_state(S=#state{prepared_rank=PreparedRank}, _V,
+next_state(S=#state{prepared_rank=PreparedRank}, V,
            {call,_,prepare,[_Mbox, _EP, Rank]}) ->
-    if Rank > PreparedRank ->
+    %% Hmmmm, my memory of QuickCheck nags at me, saying that inspecting
+    %% V's structure in next_state() is courting trouble because V may
+    %% be symbolic.  Hrrrrmmmm, if we see a symbolic-seeming tuple, then
+    %% we'll be evil be very verbose and also exit.
+    if is_tuple(V) ->
+            io:format(user, "bad inspection of V: ~p\n", [V]),
+            exit(bad_inspection_of_V);
+       true ->
+            ok
+    end,
+    BadEpochTest_p = case (catch termify(V)) of {error, wrongEpochException, _} -> true; _ -> false end,
+    if Rank > PreparedRank andalso not BadEpochTest_p ->
             S#state{prepared_rank=Rank, proposed_layout=""};
        true ->
             S
