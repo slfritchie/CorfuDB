@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.fusesource.jansi.Ansi.Color.*;
@@ -34,17 +35,17 @@ import static org.fusesource.jansi.Ansi.ansi;
 @Slf4j
 public class corfu_layout implements ICmdlet {
 
-    private static Map<String, NettyClientRouter> routers = new HashMap<>();
+    private static Map<String, NettyClientRouter> routers = new ConcurrentHashMap<>();
 
     private static final String USAGE =
             "corfu_layout, directly interact with a layout server.\n"
                     + "\n"
                     + "Usage:\n"
-                    + "\tcorfu_layout query <address>:<port> [-d <level>] [-e epoch]\n"
-                    + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>] [-e epoch]\n"
-                    + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>] [-e epoch]\n"
-                    + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>] [-e epoch]\n"
-                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>] [-e epoch]\n"
+                    + "\tcorfu_layout query <address>:<port> [-d <level>] [-e epoch] [-p <qapp>]\n"
+                    + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>] [-e epoch] [-p <qapp>]\n"
+                    + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>] [-e epoch] [-p <qapp>]\n"
+                    + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>] [-e epoch] [-p <qapp>]\n"
+                    + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>] [-e epoch] [-p <qapp>]\n"
                     + "\n"
                     + "Options:\n"
                     + " -l <layout>, --layout-file=<layout>  Path to a JSON file describing the \n"
@@ -56,6 +57,7 @@ public class corfu_layout implements ICmdlet {
                     + " -d <level>, --log-level=<level>      Set the logging level, valid levels are: \n"
                     + "                                      ERROR,WARN,INFO,DEBUG,TRACE [default: INFO].\n"
                     + " -e <epoch>, --epoch=<epoch>          Set the epoch for the client request PDU."
+                    + " -p <qapp>, --quickcheck-ap-prefix=<qapp> Set QuickCheck addressportPrefix."
                     + " -h, --help  Show this screen\n"
                     + " --version  Show version\n";
 
@@ -95,17 +97,23 @@ public class corfu_layout implements ICmdlet {
         String addressport = (String) opts.get("<address>:<port>");
         String host = addressport.split(":")[0];
         Integer port = Integer.parseInt(addressport.split(":")[1]);
+        String qapp = (String) opts.get("<qapp>");
+        String addressportPrefix = "";
+        if (qapp != null) {
+            addressportPrefix = qapp;
+        }
 
         NettyClientRouter router;
-        if ((router = routers.get(addressport)) == null) {
+        if ((router = routers.get(addressportPrefix + addressport)) == null) {
             // Create a client router and get layout.
-            log.trace("Creating router for {}:{}", host, port);
+            log.trace("Creating router for {} ++ {}:{}", addressportPrefix, port);
             router = new NettyClientRouter(host, port);
             router.addClient(new BaseClient())
                 .addClient(new LayoutClient())
                 .start();
-            routers.put(addressport, router);
+            routers.putIfAbsent(addressportPrefix + addressport, router);
         }
+        router = routers.get(addressportPrefix + addressport);
 
         if (opts.get("--epoch") != null) {
             Long epoch = Long.parseLong((String) opts.get("--epoch"));

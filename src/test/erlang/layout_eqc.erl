@@ -408,6 +408,7 @@ java_rpc(Node, reboot, Endpoint) ->
 
 java_rpc({_RegName, _NodeName} = Mbox, CmdName, Endpoint, C_Epoch, Args) ->
     AllArgs = ["corfu_layout", CmdName, Endpoint] ++
+        ["-p", lists:flatten(io_lib:format("~w", [Mbox])) ] ++ %% --quickcheck-ap-prefix
         ["-e", integer_to_list(C_Epoch)] ++ Args,
     java_rpc_call(Mbox, AllArgs).
 
