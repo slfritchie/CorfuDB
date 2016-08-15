@@ -317,10 +317,12 @@ public class LayoutServer extends AbstractServer {
 
         if (phase1Rank != null && prepareRank.compareTo(phase1Rank) <= 0) {
             log.debug("Rejected phase 1 prepare of rank={}, phase1Rank={}", prepareRank, phase1Rank);
+            System.out.printf("Rejected phase 1 prepare of rank=%s, phase1Rank=%s\n", prepareRank.toString(), phase1Rank.toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_REJECT));
         } else {
             setPhase1Rank(prepareRank);
             log.debug("New phase 1 rank={}", getPhase1Rank());
+            System.out.printf("New phase 1 rank=%s\n", getPhase1Rank().toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, prepareRank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_ACK));
         }
     }
@@ -340,12 +342,14 @@ public class LayoutServer extends AbstractServer {
         // This is a propose. If no prepare, reject.
         if (phase1Rank == null) {
             log.debug("Rejected phase 2 propose of rank={}, phase1Rank=none", proposeRank);
+            System.out.printf("Rejected phase 2 A propose of rank=%s, phase1Rank=none\n", proposeRank.toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(null, -1, CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
             return;
         }
         // This is a propose. If the rank is less than or equal to the phase 1 rank, reject.
         if (proposeRank.compareTo(phase1Rank) != 0) {
             log.debug("Rejected phase 2 propose of rank={}, phase1Rank={}", proposeRank, phase1Rank);
+            System.out.printf("Rejected phase 2 B propose of rank=%s, phase1Rank=%s\n", proposeRank.toString(), phase1Rank.toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(null, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
             return;
         }
@@ -353,11 +357,13 @@ public class LayoutServer extends AbstractServer {
         // This can happen in case of duplicate messages.
         if (phase2Rank != null && proposeRank.compareTo(phase2Rank) == 0) {
             log.debug("Rejected phase 2 propose of rank={}, phase2Rank={}", proposeRank, phase2Rank);
+            System.out.printf("Rejected phase 2 C propose of rank=%s, phase2Rank=%s\n", proposeRank.toString(), phase2Rank.toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(null, phase2Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PROPOSE_REJECT));
             return;
         }
 
         log.debug("New phase 2 rank={},  layout={}", proposeRank, proposeLayout);
+        System.out.printf("New phase 2 rank=%s,  layout=%s\n", proposeRank.toString(), proposeLayout.toString());
         setPhase2Data(new Phase2Data(proposeRank, proposeLayout));
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.ACK));
     }
