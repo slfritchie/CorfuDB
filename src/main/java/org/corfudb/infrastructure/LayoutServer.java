@@ -389,6 +389,7 @@ public class LayoutServer extends AbstractServer {
         deletePhase1Rank();
         deletePhase2Data();
         setCurrentLayout(commitLayout);
+        System.out.println("Setting epoch to " +commitLayout.getEpoch());
         serverRouter.setServerEpoch(commitLayout.getEpoch());
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.ACK));
     }

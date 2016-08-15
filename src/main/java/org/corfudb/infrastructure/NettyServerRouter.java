@@ -80,6 +80,8 @@ public class NettyServerRouter extends ChannelInboundHandlerAdapter
      */
     public void sendResponse(ChannelHandlerContext ctx, CorfuMsg inMsg, CorfuMsg outMsg) {
         outMsg.copyBaseFields(inMsg);
+        long inMsgEpoch = inMsg.getEpoch(); long serverEpoch = getServerEpoch();
+        if (inMsgEpoch != serverEpoch) System.out.printf("*** WHOA, sendResponse inMsgEpoch %d serverEpoch %d\n", inMsgEpoch, serverEpoch);
         outMsg.setEpoch(getServerEpoch());
         ctx.writeAndFlush(outMsg);
         log.trace("Sent response: {}", outMsg);

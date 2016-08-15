@@ -429,6 +429,7 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
         if (!msg.getMsgType().ignoreEpoch && msg.getEpoch() != epoch) {
             log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}",
                     msg.getEpoch(), epoch, msg);
+            System.out.printf("*** WHOA, Incoming message with wrong epoch, got %d, expected %d, message was: %s\n", msg.getEpoch(), epoch, msg.toString());
             /* If this message was pending a completion, complete it with an error. */
             completeExceptionally(msg.getRequestID(), new WrongEpochException(msg.getEpoch()));
             return false;
