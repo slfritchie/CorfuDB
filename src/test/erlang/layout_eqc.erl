@@ -127,8 +127,7 @@ postcondition2(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition2(#state{committed_layout=CommittedLayout,
-                      committed_epoch=CommittedEpoch},
+postcondition2(#state{committed_layout=CommittedLayout},
                {call,_,query,[_Mbox, _EP, C_Epoch]}, Ret) ->
     case Ret of
         timeout ->
@@ -137,7 +136,7 @@ postcondition2(#state{committed_layout=CommittedLayout,
             %% We haven't committed anything.  Whatever default layout
             %% that the server has (e.g. after reset()) is ok.
             true;
-        ["OK", JSON] when C_Epoch == CommittedEpoch ->
+        ["OK", JSON] ->
             JSON == layout_to_json(CommittedLayout);
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch /= C_Epoch;
