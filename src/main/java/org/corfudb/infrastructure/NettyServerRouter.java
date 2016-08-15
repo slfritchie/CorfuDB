@@ -100,6 +100,8 @@ public class NettyServerRouter extends ChannelInboundHandlerAdapter
                     getServerEpoch()));
             log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}",
                     msg.getEpoch(), getServerEpoch(), msg);
+            System.out.printf("Incoming message with wrong epoch, got %d, expected %d, message was: %s\n",
+                    msg.getEpoch(), getServerEpoch(), msg.toString());
             return false;
         }
         return true;

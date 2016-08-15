@@ -41,27 +41,31 @@ public class DataStore implements IDataStore {
         this.cache = Caffeine.newBuilder().writer(new CacheWriter<String, String>(
         ) {
             @Override
-            public void write(@Nonnull String key, @Nonnull String value) {
+            public synchronized void write(@Nonnull String key, @Nonnull String value) {
                 if (logDir == null) {
                     return;
                 }
                 try {
                     Path path = Paths.get(logDir + File.separator + key);
                     Files.write(path, value.getBytes());
+                    System.out.println("DS: write " + path);
                 } catch (IOException e) {
+                    Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL write " + path);
                     throw new RuntimeException(e);
                 }
             }
 
             @Override
-            public void delete(@Nonnull String key, @Nullable String value, @Nonnull RemovalCause cause) {
+            public synchronized void delete(@Nonnull String key, @Nullable String value, @Nonnull RemovalCause cause) {
                 if (logDir == null) {
                     return;
                 }
                 try {
                     Path path = Paths.get(logDir + File.separator + key);
                     Files.deleteIfExists(path);
+                    System.out.println("DS: delete " + path);
                 } catch (IOException e) {
+                    Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL delete " + path);
                     throw new RuntimeException(e);
                 }
             }
@@ -70,10 +74,14 @@ public class DataStore implements IDataStore {
                     if (logDir != null) {
                         try {
                             Path path = Paths.get(logDir + File.separator + key);
-                            if (Files.notExists(path))
+                            if (Files.notExists(path)) {
+                                System.out.println("DS: notExists read " + path);
                                 return null;
+                            }
+                            System.out.println("DS: read " + path);
                             return new String(Files.readAllBytes(path));
                         } catch (IOException e) {
+                            Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL read " + path);
                             throw new RuntimeException(e);
                         }
                     }
@@ -82,18 +90,20 @@ public class DataStore implements IDataStore {
     }
 
     @Override
-    public <T> void put(Class<T> tClass, String prefix, String key, T value) {
+    public synchronized  <T> void put(Class<T> tClass, String prefix, String key, T value) {
         cache.put(getKey(prefix, key), JSONUtils.parser.toJson(value, tClass));
+        System.out.println("DS: cache put " + getKey(prefix, key));
     }
 
     @Override
-    public <T> T get(Class<T> tClass, String prefix, String key) {
+    public synchronized  <T> T get(Class<T> tClass, String prefix, String key) {
         String json = cache.get(getKey(prefix, key));
+        System.out.println("DS: cache get " + getKey(prefix, key));
         return getObject(json, tClass);
     }
 
     @Override
-    public <T> List<T> getAll(Class<T> tClass, String prefix) {
+    public synchronized  <T> List<T> getAll(Class<T> tClass, String prefix) {
         List<T> list = new ArrayList<T>();
         for (Map.Entry<String, String> entry : cache.asMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
@@ -104,8 +114,9 @@ public class DataStore implements IDataStore {
     }
 
     @Override
-    public <T> void delete(Class<T> tClass, String prefix, String key) {
+    public synchronized <T> void delete(Class<T> tClass, String prefix, String key) {
         cache.invalidate(getKey(prefix, key));
+        System.out.println("DS: cache delete " + getKey(prefix, key));
     }
 
     // Helper methods

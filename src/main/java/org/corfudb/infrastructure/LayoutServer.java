@@ -209,6 +209,7 @@ public class LayoutServer extends AbstractServer {
 
     @Override
     public synchronized void reset() {
+        System.out.println("Layout server reset\n");
         String d = dataStore.getLogDir();
         if (d != null) {
             Path dir = FileSystems.getDefault().getPath(d);
@@ -317,10 +318,13 @@ public class LayoutServer extends AbstractServer {
 
         if (phase1Rank != null && prepareRank.compareTo(phase1Rank) <= 0) {
             log.debug("Rejected phase 1 prepare of rank={}, phase1Rank={}", prepareRank, phase1Rank);
+            System.out.printf("Rejected phase 1 prepare of rank=%s, phase1Rank=%s\n", prepareRank.toString(), phase1Rank.toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, phase1Rank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_REJECT));
         } else {
+            System.out.printf("New phase 1 rank=%s A\n", prepareRank.toString());
             setPhase1Rank(prepareRank);
             log.debug("New phase 1 rank={}", getPhase1Rank());
+            System.out.printf("New phase 1 rank=%s B\n", getPhase1Rank().toString());
             r.sendResponse(ctx, msg, new LayoutRankMsg(proposedLayout, prepareRank.getRank(), CorfuMsg.CorfuMsgType.LAYOUT_PREPARE_ACK));
         }
     }
