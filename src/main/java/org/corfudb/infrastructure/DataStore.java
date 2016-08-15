@@ -48,9 +48,7 @@ public class DataStore implements IDataStore {
                 try {
                     Path path = Paths.get(logDir + File.separator + key);
                     Files.write(path, value.getBytes());
-                    System.out.println("DS: write " + path);
                 } catch (IOException e) {
-                    Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL write " + path);
                     throw new RuntimeException(e);
                 }
             }
@@ -63,9 +61,7 @@ public class DataStore implements IDataStore {
                 try {
                     Path path = Paths.get(logDir + File.separator + key);
                     Files.deleteIfExists(path);
-                    System.out.println("DS: delete " + path);
                 } catch (IOException e) {
-                    Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL delete " + path);
                     throw new RuntimeException(e);
                 }
             }
@@ -75,13 +71,10 @@ public class DataStore implements IDataStore {
                         try {
                             Path path = Paths.get(logDir + File.separator + key);
                             if (Files.notExists(path)) {
-                                System.out.println("DS: notExists read " + path);
                                 return null;
                             }
-                            System.out.println("DS: read " + path);
                             return new String(Files.readAllBytes(path));
                         } catch (IOException e) {
-                            Path path = Paths.get(logDir + File.separator + key); System.out.println("DS: FAIL read " + path);
                             throw new RuntimeException(e);
                         }
                     }
@@ -92,13 +85,11 @@ public class DataStore implements IDataStore {
     @Override
     public synchronized  <T> void put(Class<T> tClass, String prefix, String key, T value) {
         cache.put(getKey(prefix, key), JSONUtils.parser.toJson(value, tClass));
-        System.out.println("DS: cache put " + getKey(prefix, key));
     }
 
     @Override
     public synchronized  <T> T get(Class<T> tClass, String prefix, String key) {
         String json = cache.get(getKey(prefix, key));
-        System.out.println("DS: cache get " + getKey(prefix, key));
         return getObject(json, tClass);
     }
 
@@ -116,7 +107,6 @@ public class DataStore implements IDataStore {
     @Override
     public synchronized <T> void delete(Class<T> tClass, String prefix, String key) {
         cache.invalidate(getKey(prefix, key));
-        System.out.println("DS: cache delete " + getKey(prefix, key));
     }
 
     // Helper methods

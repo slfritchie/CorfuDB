@@ -119,7 +119,6 @@ public class corfu_layout implements ICmdlet {
             Long epoch = Long.parseLong((String) opts.get("--epoch"));
             log.trace("Specify router's epoch as " + epoch);
             router.setEpoch(epoch);
-            System.out.printf("corfu_layout: --epoch %d opts %s\n", epoch, opts.toString());
         } else {
             try {
                 Layout l = router.getClient(LayoutClient.class).getLayout().get();
