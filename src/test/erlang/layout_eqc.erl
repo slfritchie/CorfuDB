@@ -246,7 +246,7 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Mbox, Endpoint) ->
-    %% io:format(user, "R", []),
+    io:format(user, "R", []),
     java_rpc(Mbox, reset, Endpoint).
 
 reboot(Mbox, Endpoint) ->
@@ -335,13 +335,25 @@ endpoint2nodename(Endpoint) ->
     list_to_atom("corfu-" ++ Port ++ "@" ++ HostName).
 
 -ifdef(EQC).
+my_always(AlwaysNum, Fun) ->
+    ?ALWAYS(AlwaysNum, Fun()).
+
 check_result(Cmds, H, S, Res) ->
     pretty_commands(?MODULE, Cmds, {H,S,Res},
     aggregate(command_names(Cmds),
-    collect(try length(Cmds) div 10 catch _:_ -> 0 end,
+    collect(
+            try length(Cmds) div 10 catch _:_ -> 0 end,
             Res == ok))).
 -endif.
 -ifdef(PROPER).
+my_always(AlwaysNum, Fun) ->
+    lists:foldl(fun(_, true) ->
+                        catch Fun();
+                   (_, Else) ->
+                        io:format(user, "Else = ~w, ", [Else]),
+                        Else
+                end, true, lists:seq(1, AlwaysNum)).
+
 check_result(Cmds, H, S, Res) ->
     ?WHENFAIL(
     io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
@@ -383,20 +395,14 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            ?ALWAYS(100,
-            begin
-                {_Elapsed, {H,Hs,Res}} =
-                    timer:tc(fun() ->
-                                     run_parallel_commands(?MODULE, Cmds)
-                             end),
-                %% if Elapsed > 2*1000*1000 ->
-                %%         io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
-                %%         io:format(user, "=~w sec,", [Elapsed / 1000000]);
-                %%    true ->
-                %%         ok
-                %% end,
-                check_result(Cmds, H, Hs, Res)
-            end)).
+            my_always(100, fun() -> 
+                                   {_Elapsed, {H,Hs,Res}} =
+                                       timer:tc(fun() ->
+                                                        run_parallel_commands(
+                                                          ?MODULE, Cmds)
+                                                end),
+                                   check_result(Cmds, H, Hs, Res)
+                           end)).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
