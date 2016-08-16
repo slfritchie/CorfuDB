@@ -153,6 +153,8 @@ postcondition2(#state{prepared_rank=PreparedRank,
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
         {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch /= C_Epoch
+            andalso
             CorrectEpoch == CommittedEpoch;
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
@@ -160,7 +162,7 @@ postcondition2(#state{prepared_rank=PreparedRank,
 postcondition2(#state{prepared_rank=PreparedRank,
                       proposed_layout=ProposedLayout,
                       committed_epoch=CommittedEpoch},
-              {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
+              {call,_,propose,[_Mbox, _EP, C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             Rank == PreparedRank;
@@ -173,12 +175,14 @@ postcondition2(#state{prepared_rank=PreparedRank,
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
         {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch /= C_Epoch
+            andalso
             CorrectEpoch == CommittedEpoch;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
 postcondition2(#state{committed_epoch=CommittedEpoch},
-               {call,_,commit,[_Mbox, _EP, _C_Epoch, Rank, Layout]}, RetStr) ->
+               {call,_,commit,[_Mbox, _EP, C_Epoch, Rank, Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -200,6 +204,8 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
             %% TODO: verify that the epoch went backward.
             Layout#layout.epoch =< CommittedEpoch;
         {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch /= C_Epoch
+            andalso
             CorrectEpoch == CommittedEpoch;
         Else ->
             {commit, rank, Rank, layout, Layout,
