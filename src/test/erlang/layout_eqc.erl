@@ -346,6 +346,8 @@ my_run_always(AlwaysNum, Mod, Cmds, RunFun, CheckFun) ->
                   try length(Cmds) catch _:_ -> 0 end,
                 pretty_commands(
                   ?MODULE, Cmds, {H,S_or_Hs,Res},
+                %% ?WHENFAIL(
+                %%   io:format("H: ~p~nS: ~p~nR: ~p~n", [H,S_or_Hs,Res]),
                   CheckFun(Cmds, H, S_or_Hs, Res)
                 )))
             end).
