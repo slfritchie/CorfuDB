@@ -137,7 +137,8 @@ postcondition2(#state{committed_layout=CommittedLayout},
             %% that the server has (e.g. after reset()) is ok.
             true;
         ["OK", JSON] ->
-            JSON == layout_to_json(CommittedLayout);
+            %% JSON == layout_to_json(CommittedLayout);
+            JSON == layout_to_json(CommittedLayout#layout{ss=["foo"]});
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch /= C_Epoch;
         Else ->
@@ -335,26 +336,48 @@ endpoint2nodename(Endpoint) ->
     list_to_atom("corfu-" ++ Port ++ "@" ++ HostName).
 
 -ifdef(EQC).
-my_always(AlwaysNum, Fun) ->
-    ?ALWAYS(AlwaysNum, Fun()).
-
-check_result(Cmds, H, S, Res) ->
-    pretty_commands(?MODULE, Cmds, {H,S,Res},
-    aggregate(command_names(Cmds),
-    collect(
-            try length(Cmds) div 10 catch _:_ -> 0 end,
-            Res == ok))).
+my_run_always(AlwaysNum, Mod, Cmds, RunFun, CheckFun) ->
+    ?ALWAYS(AlwaysNum,
+            begin
+                {H, S_or_Hs, Res} = RunFun(Mod, Cmds),
+                aggregate(command_names(Cmds),
+                measure(
+                  cmds_length,
+                  try length(Cmds) catch _:_ -> 0 end,
+                pretty_commands(
+                  ?MODULE, Cmds, {H,S_or_Hs,Res},
+                  CheckFun(Cmds, H, S_or_Hs, Res)
+                )))
+            end).
 -endif.
 -ifdef(PROPER).
-my_always(AlwaysNum, Fun) ->
-    Fun().
+my_run_always(AlwaysNum, Mod, Cmds, RunFun, CheckFun) ->
+    begin
+        BigResList = [RunFun(Mod, Cmds) || _ <- lists:seq(1, AlwaysNum)],
+        aggregate(command_names(Cmds),
+        measure(
+          cmds_length,
+          try length(Cmds) catch _:_ -> 0 end,
+          begin
+              Chk_HSHsRes =
+                  lists:zip([CheckFun(Cmds, H, S_or_Hs, Res) ||
+                                {H, S_or_Hs, Res} <- BigResList],
+                            BigResList),
+              HSHsRes_failed = [X || X={Chk, _HSHsRes} <- Chk_HSHsRes,
+                                     Chk /= true],
+              case HSHsRes_failed of
+                  [] ->
+                      true;
+                  [{Chk, {H, S_or_Hs, Res}}|_] ->
+                  ?WHENFAIL(
+                     io:format("H: ~p~nS: ~p~nR: ~p~n", [H,S_or_Hs,Res]),
+                     Chk
+                    )
+              end
+          end
+         ))
+    end.
 
-check_result(Cmds, H, S, Res) ->
-    ?WHENFAIL(
-    io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
-    aggregate(command_names(Cmds),
-    collect(try length(Cmds) div 10 catch _:_ -> 0 end,
-            Res == ok))).
 -endif.
 
 prop() ->
@@ -369,10 +392,14 @@ prop(MoreCmds, Mboxes, Endpoint) ->
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 commands(?MODULE,
                                          initial_state(Mboxes, Endpoint))),
-            begin
-                {H,S,Res} = run_commands(?MODULE, Cmds),
-                check_result(Cmds, H, S, Res)
-            end).
+            my_run_always(1, ?MODULE, Cmds,
+                          fun(Mod, TheCmds) ->
+                                  run_commands(Mod, TheCmds)
+                          end,
+                          fun(_TheCmds, _H, _S_or_Hs, Res) ->
+                                  Res == ok
+                          end)
+            ).
 
 prop_parallel() ->
     prop_parallel(1).
@@ -390,11 +417,14 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            my_always(100, fun() -> 
-                                   {H,Hs,Res} = run_parallel_commands(
-                                                  ?MODULE, Cmds),
-                                   check_result(Cmds, H, Hs, Res)
-                           end)).
+            my_run_always(100, ?MODULE, Cmds,
+                          fun(Mod, TheCmds) ->
+                                  run_parallel_commands(Mod, TheCmds)
+                          end,
+                          fun(_TheCmds, _H, _S_or_Hs, Res) ->
+                                  Res == ok
+                          end)
+            ).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
