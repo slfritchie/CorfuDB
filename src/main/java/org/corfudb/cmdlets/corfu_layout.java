@@ -65,7 +65,6 @@ public class corfu_layout implements ICmdlet {
     public String[] main2(String[] args) {
         if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
             log.trace("corfu_layout top: reset");
-            System.out.println("corfu_layout top: reset");
             LayoutServer ls = CorfuServer.getLayoutServer();
             if (ls != null) {
                 log.trace("corfu_layout top: reset now");
