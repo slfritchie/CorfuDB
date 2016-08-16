@@ -347,12 +347,7 @@ check_result(Cmds, H, S, Res) ->
 -endif.
 -ifdef(PROPER).
 my_always(AlwaysNum, Fun) ->
-    lists:foldl(fun(_, true) ->
-                        catch Fun();
-                   (_, Else) ->
-                        io:format(user, "Else = ~w, ", [Else]),
-                        Else
-                end, true, lists:seq(1, AlwaysNum)).
+    Fun().
 
 check_result(Cmds, H, S, Res) ->
     ?WHENFAIL(
@@ -396,11 +391,8 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
             my_always(100, fun() -> 
-                                   {_Elapsed, {H,Hs,Res}} =
-                                       timer:tc(fun() ->
-                                                        run_parallel_commands(
-                                                          ?MODULE, Cmds)
-                                                end),
+                                   {H,Hs,Res} = run_parallel_commands(
+                                                  ?MODULE, Cmds),
                                    check_result(Cmds, H, Hs, Res)
                            end)).
 
