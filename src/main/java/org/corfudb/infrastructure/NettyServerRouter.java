@@ -99,11 +99,13 @@ public class NettyServerRouter extends ChannelInboundHandlerAdapter
      * @return True, if the epoch is correct, but false otherwise.
      */
     public boolean validateEpoch(CorfuMsg msg, ChannelHandlerContext ctx) {
-        if (!msg.getMsgType().ignoreEpoch && msg.getEpoch() != getServerEpoch()) {
+        long serverEpoch = getServerEpoch();
+
+        if (!msg.getMsgType().ignoreEpoch && msg.getEpoch() != serverEpoch) {
             sendResponse(ctx, msg, new CorfuSetEpochMsg(CorfuMsg.CorfuMsgType.WRONG_EPOCH,
-                    getServerEpoch()));
+                    serverEpoch));
             log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}",
-                    msg.getEpoch(), getServerEpoch(), msg);
+                    msg.getEpoch(), serverEpoch, msg);
             return false;
         }
         return true;
