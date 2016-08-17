@@ -137,8 +137,7 @@ postcondition2(#state{committed_layout=CommittedLayout},
             %% that the server has (e.g. after reset()) is ok.
             true;
         ["OK", JSON] ->
-            %% JSON == layout_to_json(CommittedLayout);
-            JSON == layout_to_json(CommittedLayout#layout{ss=["foo"]});
+            JSON == layout_to_json(CommittedLayout);
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch /= C_Epoch;
         Else ->
