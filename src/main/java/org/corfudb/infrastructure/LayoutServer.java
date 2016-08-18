@@ -234,6 +234,7 @@ public class LayoutServer extends AbstractServer {
                     log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
                 }
             }
+            /*
             try (DirectoryStream<Path> stream =
                          Files.newDirectoryStream(dir, "*")) {
                 for (Path entry : stream) {
@@ -242,6 +243,7 @@ public class LayoutServer extends AbstractServer {
             } catch (IOException e) {
                 log.error("reset: error deleting prefix: " + e.toString());
             }
+            */
         }
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
@@ -422,15 +424,11 @@ public class LayoutServer extends AbstractServer {
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         long serverEpoch = getServerEpoch();
-        if(msg.getEpoch() < serverEpoch) {
+        if(msg.getEpoch() <= serverEpoch) {
             r.sendResponse(ctx, msg, new CorfuSetEpochMsg(CorfuMsg.CorfuMsgType.WRONG_EPOCH, serverEpoch));
             return;
         }
         Layout commitLayout = msg.getLayout();
-        /*
-        deletePhase1Rank();
-        deletePhase2Data();
-        */
         setCurrentLayout(commitLayout);
         setServerEpoch(commitLayout.getEpoch());
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsg.CorfuMsgType.ACK));
