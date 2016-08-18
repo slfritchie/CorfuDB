@@ -245,6 +245,11 @@ public class LayoutServer extends AbstractServer {
             }
             */
         }
+        reset_part_2();
+        reboot();
+    }
+
+    private void reset_part_2() {
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
             String boot_msg = "Single-node mode requested, initializing layout with single log unit and sequencer at {}.";
@@ -270,7 +275,6 @@ public class LayoutServer extends AbstractServer {
                     0L
             ));
         }
-        reboot();
     }
 
     /**
@@ -279,6 +283,10 @@ public class LayoutServer extends AbstractServer {
     @Override
     public synchronized void reboot() {
         serverContext.resetDataStore();
+        if (serverContext.getServerRouter().getClass().toString().equals("class org.corfudb.infrastructure.TestServerRouter") &&
+                (Boolean) opts.get("--single") && (Boolean) opts.get("--memory")) {
+            reset_part_2();
+        }
     }
 
     // Helper Methods

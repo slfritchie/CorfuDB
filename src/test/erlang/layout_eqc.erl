@@ -248,7 +248,7 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Mbox, Endpoint) ->
-    io:format(user, "R", []),
+    %% io:format(user, "R", []),
     java_rpc(Mbox, reset, Endpoint).
 
 reboot(Mbox, Endpoint) ->
