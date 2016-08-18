@@ -279,7 +279,6 @@ public class LayoutServer extends AbstractServer {
     @Override
     public synchronized void reboot() {
         serverContext.resetDataStore();
-        System.out.printf("YO, reboot, my epoch = %d\n", serverContext.getServerEpoch());
     }
 
     // Helper Methods
@@ -290,7 +289,6 @@ public class LayoutServer extends AbstractServer {
         }
         // else the client is somehow ahead of the server.
         //TODO figure out a strategy to deal with this situation
-        log.warn("Message Epoch {} ahead of Server epoch {}", msg.getEpoch(), serverContext.getServerEpoch());
         // Very odd ... if we don't send any response here, we hang the OTP mailbox thread.
         long serverEpoch = serverContext.getServerEpoch();
         r.sendResponse(ctx, msg, new CorfuSetEpochMsg(CorfuMsg.CorfuMsgType.WRONG_EPOCH, serverEpoch));
