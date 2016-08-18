@@ -139,7 +139,17 @@ public class corfu_layout implements ICmdlet {
                 Gson gs = new GsonBuilder().setPrettyPrinting().create();
                 return cmdlet.ok(gs.toJson(l));
             } catch (ExecutionException ex) {
-                return cmdlet.err("ERROR Exception getting layout" + ex.getCause());
+                if (ex.getCause().getClass() == WrongEpochException.class) {
+                    WrongEpochException we = (WrongEpochException) ex.getCause();
+                    return cmdlet.err("Exception during query",
+                            ex.getCause().toString(),
+                            "correctEpoch: " + we.getCorrectEpoch(),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
+                } else {
+                    return cmdlet.err("Exception during query",
+                            ex.getCause().toString(),
+                            "stack: " + ExceptionUtils.getStackTrace(ex));
+                }
             } catch (Exception e) {
                 return cmdlet.err("ERROR Exception getting layout" + e);
             }

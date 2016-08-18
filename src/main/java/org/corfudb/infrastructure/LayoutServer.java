@@ -169,7 +169,6 @@ public class LayoutServer extends AbstractServer {
     public synchronized void handleMessage(CorfuMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         if (isShutdown()) return;
         if (r.getClass() == NettyServerRouter.class) {
-            System.out.printf("LayoutServer WHOA handleMessage: r's class = %s\n", r.getClass().toString());
             NettyServerRouter nsr = (NettyServerRouter) r;
             if (!nsr.validateEpoch(msg, ctx)) {
                 // RACE!  The epoch changed in between the epoch validation that
@@ -179,8 +178,6 @@ public class LayoutServer extends AbstractServer {
                 //        too late.  The appropriate reply has been sent to the client.
                 return;
             }
-        } else {
-            System.out.printf("LayoutServer handleMessage: r's class = %s\n", r.getClass().toString());
         }
         // This server has not been bootstrapped yet, ignore ALL requests except for LAYOUT_BOOTSTRAP
         if (getCurrentLayout() == null && !msg.getMsgType().equals(CorfuMsg.CorfuMsgType.LAYOUT_BOOTSTRAP)) {
@@ -237,7 +234,6 @@ public class LayoutServer extends AbstractServer {
                     log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
                 }
             }
-            /*
             try (DirectoryStream<Path> stream =
                          Files.newDirectoryStream(dir, "*")) {
                 for (Path entry : stream) {
@@ -246,7 +242,6 @@ public class LayoutServer extends AbstractServer {
             } catch (IOException e) {
                 log.error("reset: error deleting prefix: " + e.toString());
             }
-            */
         }
         if ((Boolean) opts.get("--single")) {
             String localAddress = opts.get("--address") + ":" + opts.get("<port>");
@@ -293,7 +288,10 @@ public class LayoutServer extends AbstractServer {
         }
         // else the client is somehow ahead of the server.
         //TODO figure out a strategy to deal with this situation
-        log.warn("Message Epoch {} ahead of Server epoch {}", msg.getEpoch(), serverContext.getServerConfig());
+        log.warn("Message Epoch {} ahead of Server epoch {}", msg.getEpoch(), serverContext.getServerEpoch());
+        // Very odd ... if we don't send any response here, we hang the OTP mailbox thread.
+        long serverEpoch = serverContext.getServerEpoch();
+        r.sendResponse(ctx, msg, new CorfuSetEpochMsg(CorfuMsg.CorfuMsgType.WRONG_EPOCH, serverEpoch));
     }
 
     /**

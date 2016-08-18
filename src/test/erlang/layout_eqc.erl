@@ -127,19 +127,22 @@ postcondition2(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition2(#state{committed_layout=CommittedLayout},
+postcondition2(#state{committed_layout=CommittedLayout,
+                      committed_epoch=CommittedEpoch},
                {call,_,query,[_Mbox, _EP, C_Epoch]}, Ret) ->
-    case Ret of
+    case termify(Ret) of
         timeout ->
             false;
-        ["OK", _JSON] when CommittedLayout == "" ->
+        {ok, _JSON} when CommittedLayout == "" ->
             %% We haven't committed anything.  Whatever default layout
             %% that the server has (e.g. after reset()) is ok.
             true;
-        ["OK", JSON] ->
+        {ok, JSON} ->
             JSON == layout_to_json(CommittedLayout);
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch /= C_Epoch;
+            CorrectEpoch /= C_Epoch
+            orelse
+            C_Epoch /= CommittedEpoch;
         Else ->
             io:format(user, "Q ~p\n", [Else]),
             false
@@ -280,6 +283,8 @@ commit(Mbox, Endpoint, C_Epoch, Rank, Layout) ->
 
 termify(["OK"]) ->
     ok;
+termify(["OK", JSON_perhaps]) ->
+    {ok, JSON_perhaps};
 termify(["ERROR", "NACK"]) ->
     {error, nack};
 termify(["ERROR", "Exception " ++ _E1, E2|Rest] = _L) ->
