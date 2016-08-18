@@ -203,13 +203,12 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
             %%
             %% Thus, no rank checking here, just epoch going forward.
             Layout#layout.epoch > CommittedEpoch;
-        {error, nack} ->
-            %% TODO: verify that the epoch went backward.
-            Layout#layout.epoch =< CommittedEpoch;
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch /= C_Epoch
-            andalso
-            CorrectEpoch == CommittedEpoch;
+            (CorrectEpoch /= C_Epoch
+             andalso
+             CorrectEpoch == CommittedEpoch)
+            orelse
+            Layout#layout.epoch =< CommittedEpoch;
         Else ->
             {commit, rank, Rank, layout, Layout,
              committed, CommittedEpoch, Else}
