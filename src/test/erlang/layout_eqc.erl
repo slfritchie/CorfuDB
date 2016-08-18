@@ -234,8 +234,8 @@ next_state(S=#state{prepared_rank=PreparedRank,
             S
     end;
 next_state(S=#state{committed_epoch=CommittedEpoch}, _V,
-           {call,_,commit,[_Mbox, _EP, C_Epoch, _Rank, Layout]}) ->
-    if C_Epoch == CommittedEpoch andalso Layout#layout.epoch > CommittedEpoch ->
+           {call,_,commit,[_Mbox, _EP, _C_Epoch, _Rank, Layout]}) ->
+    if Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=-1,
                     proposed_layout="",
                     committed_layout=Layout,
