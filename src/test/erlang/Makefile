@@ -17,5 +17,5 @@ clean:
 
 ######
 
-ebin/%.beam : src/%.erl
+ebin/%.beam : src/%.erl $(wildcard include/*.hrl)
 	$(ERLC) -o ebin $(EFLAGS) $(QC_EFLAGS) $<

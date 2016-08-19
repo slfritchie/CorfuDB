@@ -6,14 +6,14 @@ case "$1" in
             echo "Env variable EQC_DIR is not set correctly, please set".
             exit 1
         fi
-        export QC_EFLAGS="-DEQC -pz ./ebin -pz $EQC_DIR/ebin"
+        export QC_EFLAGS="-DEQC -I ./include -pz ./ebin -pz $EQC_DIR/ebin"
         ;;
     proper*)
         if [ ! -d $PROPER_DIR/ebin ]; then
             echo "Env variable PROPER_DIR is not set correctly, please set".
             exit 1
         fi
-        export QC_EFLAGS="-DPROPER -pz ./ebin -pz $PROPER_DIR/ebin"
+        export QC_EFLAGS="-DPROPER -I ./include -pz ./ebin -pz $PROPER_DIR/ebin"
         ;;
     clean)
         exec make clean

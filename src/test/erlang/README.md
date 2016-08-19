@@ -128,11 +128,11 @@ Flags are explained below:
 
 # 4. Compiling and running the QuickCheck tests
 
-The documentation here describes running the `layout_eqc` test model,
+The documentation here describes running the `layout_qc` test model,
 which is a single server SUT (System Under Test) to exercise the Paxos
 protocol primitive operations used by the CorfuDB layout manager.  The
 method is very similar for testing other test models, e.g., the
-`smrmap_eqc` model for testing the state machine replicated map
+`smrmap_qc` model for testing the state machine replicated map
 `SMRMap`.
 
 First, set an environment variable to point to the top of the local
@@ -177,22 +177,22 @@ the Erlang shell.
 If we can communicate correctly with the JVM, you should see this
 value from the `reset()` function:
 
-    (qc@sbb5)1> layout_eqc:reset(). 
+    (qc@sbb5)1> layout_qc:reset(). 
     ["OK"]
 
 The following example QuickCheck execution should run in under four
 seconds.
 
-    (qc@sbb5)2> proper:quickcheck(layout_eqc:prop()).
+    (qc@sbb5)2> proper:quickcheck(layout_qc:prop()).
     ....................................................................................................
     OK: Passed 100 test(s).
     
-    29% {layout_eqc,query,3}
-    28% {layout_eqc,prepare,4}
-    18% {layout_eqc,propose,5}
-    9% {layout_eqc,reset,2}
-    7% {layout_eqc,reboot,2}
-    6% {layout_eqc,commit,5}
+    29% {layout_qc,query,3}
+    28% {layout_qc,prepare,4}
+    18% {layout_qc,propose,5}
+    9% {layout_qc,reset,2}
+    7% {layout_qc,reboot,2}
+    6% {layout_qc,commit,5}
     
     cmds_length
     minimum: 1
@@ -203,12 +203,12 @@ seconds.
 Use the wrapper function `proper:numtests(NUM,...)` to change the
 number of tests to be run by the inner function.  For example:
 
-    proper:quickcheck(proper:numtests(5, layout_eqc:prop_parallel())).
-    proper:quickcheck(layout_eqc:prop_parallel()).
+    proper:quickcheck(proper:numtests(5, layout_qc:prop_parallel())).
+    proper:quickcheck(layout_qc:prop_parallel()).
 
-NOTE: The parallel tests created by the `layout_eqc:prop_parallel()`
+NOTE: The parallel tests created by the `layout_qc:prop_parallel()`
       property will run far slower than the sequential-only tests of
-      the `layout_eqc:prop()` property.
+      the `layout_qc:prop()` property.
 
 The reference documentation for PropEr can be found at
 [http://proper.softlab.ntua.gr/doc/](http://proper.softlab.ntua.gr/doc/).
@@ -225,12 +225,12 @@ The `Build.sh` script uses the following assumptions about the
 CorfuDB SUT (System Under Test) and the Erlang VM.
 
 * When the Erlang VM is started by `Build.sh proper-shell`, it
-  will use an Erlang network node name such as `qc@FOO`, where
-  `FOO` is probably the same as the UNIX hostname as shown by the
+  will use an Erlang network node name such as `qc@foo`, where
+  `foo` is probably the same as the UNIX hostname as shown by the
   `uname -n` command.  (For OS X, `uname -n` may display the name
-  `FOO.local`, depending on Mac's network configuration.)
+  `foo.local`, depending on Mac's network configuration.)
 
-* We assume that `FOO` is a name that can be resolved to an IP
+* We assume that `foo` is a name that can be resolved to an IP
   address via `/etc/hosts` or by DNS.
 
 * The CorfuDB endpoint TCP port number is assumed to be `X`.
@@ -238,8 +238,8 @@ In the examples given in this document, `X = 8000`.  If the
 CorfuDB server is not using port 8000, please set the `CORFU_PORT`
 environment variable before using `Build.sh`.
 
-* The Erlang nodename that is used by the JVM is `corfu-PORT@FOO`,
-  where `PORT` is the CorfuDB server's TCP port number, and `FOO`
+* The Erlang nodename that is used by the JVM is `corfu-PORT@foo`,
+  where `PORT` is the CorfuDB server's TCP port number, and `foo`
   is the `uname -n` hostname (discussed above).
 
 The JVM starts 16 extra Pthreads that each listen to an Erlang
@@ -262,7 +262,7 @@ QuickCheck's command sequence generation does not *do* anything: it
 just creates a list of stuff.  That stuff is a symbolic representation
 of some SUT commands, e.g. `reset`, `query`, `prepare`, etc.
 
-Another part of the QuickCheck framework will interpret that command
+Another part of the QuickCheck framework will interpret a command
 sequence to execute some Erlang functions (with the generated
 arguments).  Here's where the RPC stuff comes into play.
 
@@ -270,7 +270,8 @@ As far as QuickCheck is concerned, plain old Erlang functions are
 being executed.  However, each of those SUT functions are RPC stubs.
 The stubs convert the Erlang function argments to strings; the strings
 are exactly the command line argument syntax used by the CorfuDB
-"cmdlet" programs.
+"cmdlet" programs.  The cmdlet program argument strings are send to
+the remote JVM.
 
 The CorfuDB server in `-Q` mode can run arbitrarily many cmdlet
 invocations without exiting/restarting the JVM.  The return value of

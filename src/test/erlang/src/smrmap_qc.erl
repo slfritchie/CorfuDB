@@ -1,33 +1,45 @@
--module(smrmap_eqc).
+-module(smrmap_qc).
 
-%% To compile and run with Quviq's QuickCheck:
+%% -------------------------------------------------------------------
 %%
-%% $ erl -sname foo -pz ~/lib/eqc/ebin
+%% Copyright (c) 2016 VMware, Inc. All Rights Reserved.
 %%
-%% > c(smrmap_eqc, [{d, 'EQC'}]).
-%% > eqc:quickcheck(smrmap_eqc:prop()).
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
 %%
-%% To compile and run with Proper:
+%%   http://www.apache.org/licenses/LICENSE-2.0
 %%
-%% $ erl -sname foo -pz /Users/fritchie/src/erlang/proper/ebin
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
 %%
-%% > c(smrmap_eqc, [{d, 'PROPER'}]).
-%% > proper:quickcheck(smrmap_eqc:prop()).
+%% -------------------------------------------------------------------
+
+%% See the README.md file for instructions for compiling & running.
 
 -ifdef(PROPER).
+%% Automagically import generator functions like choose(), frequency(), etc.
 -include_lib("proper/include/proper.hrl").
 -endif.
 
 -ifdef(EQC).
+%% Automagically import generator functions like choose(), frequency(), etc.
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 -endif.
 
--define(NUM_LOCALHOST_CMDLETS, 16).
+-define(TIMEOUT, 2*1000).
 
 -compile(export_all).
 
 -record(state, {
+          endpoint :: string(),
+          reg_names :: list(),
           reset_p = false :: boolean(),
           stream :: non_neg_integer(),
           d=orddict:new() :: orddict:orddict(),
@@ -53,11 +65,11 @@ gen_svr(#state{server_list=Svrs}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initial_state() ->
-    initial_state([{cmdlet0, 'corfu@sbb5'}]).
+    initial_state(qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-initial_state(ServerList) ->
-    #state{stream=42, server_list=ServerList}.
-    %% #state{stream=random:uniform(999*999), server_list=ServerList}.
+initial_state(Mboxes, Endpoint) ->
+    #state{endpoint=Endpoint, reg_names=Mboxes,
+           stream=42}.  %% #state{stream=random:uniform(999*999)}
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
@@ -192,134 +204,94 @@ next_state(S, _V, _NoSideEffectCall) ->
 
 %%%%
 
-reset(Node, Stream) ->
-    io:format(user, "!R", []),
-    java_rpc(Node, Stream, ["clear"]).
-    %% java_rpc(Node, reset, Stream).
+reset(Mbox, Endpoint) ->
+    io:format(user, "R", []),
+    rpc(Mbox, reset, Endpoint).
 
-put(Node, Stream, Key, Val) ->
-    java_rpc(Node, Stream, ["put", Key ++ "," ++ Val]).
+reboot(Mbox, Endpoint) ->
+    io:format(user, "r", []),
+    rpc(Mbox, reboot, Endpoint).
 
-get(Node, Stream, Key) ->
-    java_rpc(Node, Stream, ["get", Key]).
+put(Mbox, Endpoint, Stream, Key, Val) ->
+    rpc(Mbox, Endpoint, Stream, ["put", Key ++ "," ++ Val]).
 
-size(Node, Stream) ->
-    java_rpc(Node, Stream, ["size"]).
+get(Mbox, Endpoint, Stream, Key) ->
+    rpc(Mbox, Endpoint, Stream, ["get", Key]).
 
-isEmpty(Node, Stream) ->
-    java_rpc(Node, Stream, ["isEmpty"]).
+size(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["size"]).
 
-containsKey(Node, Stream, Key) ->
-    java_rpc(Node, Stream, ["containsKey", Key]).
+isEmpty(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["isEmpty"]).
 
-containsValue(Node, Stream, Value) ->
-    java_rpc(Node, Stream, ["containsValue", Value]).
+containsKey(Mbox, Endpoint, Stream, Key) ->
+    rpc(Mbox, Endpoint, Stream, ["containsKey", Key]).
 
-remove(Node, Stream, Key) ->
-    java_rpc(Node, Stream, ["remove", Key]).
+containsValue(Mbox, Endpoint, Stream, Value) ->
+    rpc(Mbox, Endpoint, Stream, ["containsValue", Value]).
+
+remove(Mbox, Endpoint, Stream, Key) ->
+    rpc(Mbox, Endpoint, Stream, ["remove", Key]).
 
 %% %% putAll() can't be tested because our ASCII protocol can't represent
 %% %% the needed map.
 
-clear(Node, Stream) ->
-    java_rpc(Node, Stream, ["clear"]).
+clear(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["clear"]).
 
-keySet(Node, Stream) ->
-    java_rpc(Node, Stream, ["keySet"]).
+keySet(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["keySet"]).
 
-values(Node, Stream) ->
-    java_rpc(Node, Stream, ["values"]).
+values(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["values"]).
 
-entrySet(Node, Stream) ->
-    java_rpc(Node, Stream, ["entrySet"]).
+entrySet(Mbox, Endpoint, Stream) ->
+    rpc(Mbox, Endpoint, Stream, ["entrySet"]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-local_servers() ->
-    [_, ShortNameRHS] = string:tokens(atom_to_list(node()), "@"),
-    CorfuLocalNode = list_to_atom("corfu@" ++ ShortNameRHS),
-    local_servers(?NUM_LOCALHOST_CMDLETS, CorfuLocalNode).
-
-local_servers(NumCmdlets, CorfuLocalNode) ->
-    [{list_to_atom("cmdlet" ++ integer_to_list(X)), CorfuLocalNode} ||
-        X <- lists:seq(0, NumCmdlets - 1)].
 
 prop() ->
     prop(1).
 
 prop(MoreCmds) ->
-    prop(MoreCmds, local_servers()).
+    prop(MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-prop(MoreCmds, ServerList) ->
+prop(MoreCmds, Mboxes, Endpoint) ->
     random:seed(now()),
     %% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
     ?FORALL(Cmds, more_commands(MoreCmds,
-                                commands(?MODULE, initial_state(ServerList))),
-            begin
-                {H,S,Res} = run_commands(?MODULE, Cmds),
-                %% ["OK", []] = clear(S#state.stream),
-                ?WHENFAIL(
-                io:format("H: ~p~nS: ~w~nR: ~p~n", [H,S,Res]),
-                aggregate(command_names(Cmds),
-                collect(length(Cmds) div 10,
-                        Res == ok)))
-            end).
+                                commands(?MODULE,
+                                         initial_state(Mboxes, Endpoint))),
+            qc_java:run_always(1, ?MODULE, Cmds,
+                               fun(Mod, TheCmds) ->
+                                       run_commands(Mod, TheCmds)
+                               end,
+                               fun(_TheCmds, _H, _S_or_Hs, Res) ->
+                                       Res == ok
+                               end)
+           ).
 
 prop_parallel() ->
     prop_parallel(1).
 
 prop_parallel(MoreCmds) ->
-    prop_parallel(MoreCmds, local_servers()).
+    prop_parallel(MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-% % EQC has an exponential worst case for checking {SIGH}
--define(PAR_CMDS_LIMIT, 6). % worst case so far @ 7 = 52 seconds!
-
-prop_parallel(MoreCmds, ServerList) ->
+prop_parallel(MoreCmds, Mboxes, Endpoint) ->
     random:seed(now()),
-    %% Drat.  EQC 1.37.2's more_commands() is broken: the parallel
-    %% commands lists aren't resized.  So, we're going to do it
-    %% ourself, bleh.
-    ?FORALL(NumPars,
-            choose(1, 4), %% ?NUM_LOCALHOST_CMDLETS - 3),
-    ?FORALL(NewCs,
-            [more_commands(MoreCmds,
+    ?FORALL(Cmds,
+            more_commands(MoreCmds,
                            non_empty(
-                             commands(?MODULE,
-                                      initial_state(ServerList)))) ||
-                _ <- lists:seq(1, NumPars)],
-            begin
-                [Init|Rest] = hd(NewCs),
-                SeqList = case Rest of
-                              [{set,_,{call,_,reset,_}}|_] ->
-                                  %% io:format(user, "\n\n **** Keep original reset\n", []),
-                                  hd(NewCs);
-                              _ ->
-                                  %% io:format(user, "\n\n **** INSERT reset\n", []),
-                                  [Init,
-                                   {set,{var,1},{call,?MODULE,reset,[hd(ServerList), 42]}}] ++ Rest
-                          end,
-                Cmds = {SeqList,
-                        lists:map(fun(L) -> lists:sublist(seq_to_par_cmds(L),
-                                                          ?PAR_CMDS_LIMIT) end,
-                                  tl(NewCs))},
-                {Seq, Pars} = Cmds,
-                Len = length(Seq) +
-                    lists:foldl(fun(L, Acc) -> Acc + length(L) end, 0, Pars),
-                {Elapsed, {H,Hs,Res}} = timer:tc(fun() -> run_parallel_commands(?MODULE, Cmds) end),
-                if Elapsed > 1*1000*1000 ->
-                        io:format(user, "~w,~w", [length(Seq), lists:map(fun(L) -> length(L) end, Pars) ]),
-                        io:format(user, "=~w sec,", [Elapsed / 1000000]);
-                   true ->
-                        ok
-                end,
-                ?WHENFAIL(
-                io:format("H: ~p~nHs: ~p~nR: ~w~n", [H,Hs,Res]),
-                aggregate(command_names(Cmds),
-                collect(if Len == 0 -> 0;
-                           true     -> (Len div 10) + 1
-                        end,
-                        Res == ok)))
-            end)).
+                             parallel_commands(?MODULE,
+                                      initial_state(Mboxes, Endpoint)))),
+            qc_java:run_always(100, ?MODULE, Cmds,
+                               fun(Mod, TheCmds) ->
+                                       run_parallel_commands(Mod, TheCmds)
+                               end,
+                               fun(_TheCmds, _H, _S_or_Hs, Res) ->
+                                       Res == ok
+                               end)
+           ).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
@@ -328,24 +300,26 @@ seq_to_par_cmds(L) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-java_rpc(Node, reset, Stream) ->
-    clear(Node, Stream),
-    AllArgs = ["corfu_smrobject", "reset"],
-    java_rpc_call(Node, AllArgs);
-java_rpc(Node, Stream, Args) ->
-    StreamStr = integer_to_list(Stream),
-    AllArgs = ["corfu_smrobject", "-c", "localhost:8000",
-               "-s", StreamStr, "org.corfudb.runtime.collections.SMRMap"]
+%% rpc(Mbox, reset, Stream) ->
+%%     clear(Mbox, Stream),
+%%     AllArgs = ["corfu_smrobject", "reset"],
+%%     java_rpc_call(Mbox, AllArgs);
+%% rpc(Mbox, Stream, Args) ->
+%%     StreamStr = integer_to_list(Stream),
+%%     AllArgs = ["corfu_smrobject", "-c", "localhost:8000",
+%%                "-s", StreamStr, "org.corfudb.runtime.collections.SMRMap"]
+%%               ++ Args,
+%%     qc_java:rpc_call(Mbox, AllArgs).
+
+rpc(Mbox, reset, Endpoint) ->
+    AllArgs = ["corfu_smrobject", "reset", Endpoint],
+    qc_java:rpc_call(Mbox, AllArgs, ?TIMEOUT);
+rpc(Mbox, reboot, Endpoint) ->
+    AllArgs = ["corfu_smrobject", "reboot", Endpoint],
+    qc_java:rpc_call(Mbox, AllArgs, ?TIMEOUT).
+
+rpc({_RegName, _NodeName} = Mbox, Endpoint, Stream, Args) ->
+    AllArgs = ["corfu_smrobject", "-c", Endpoint,
+               "-s", Stream, "org.corfudb.runtime.collections.SMRMap"]
               ++ Args,
-    java_rpc_call(Node, AllArgs).
-
-java_rpc_call(Node, AllArgs) ->
-    ID = make_ref(),
-    Node ! {self(), ID, AllArgs},
-    receive
-        {ID, Res} ->
-            Res
-    after 2*1000 ->
-            timeout
-    end.
-
+    qc_java:rpc_call(Mbox, AllArgs, ?TIMEOUT).
