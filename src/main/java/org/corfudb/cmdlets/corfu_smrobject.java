@@ -83,9 +83,10 @@ public class corfu_smrobject implements ICmdlet {
 
         String argz = ((String) opts.get("<args>"));
         int arity;
-        String[] splitz = null;
+        String[] splitz;
 
         if (argz == null) {
+             splitz = new String[0];
             arity = 0;
         } else {
             splitz = argz.split(",");
@@ -147,7 +148,8 @@ public class corfu_smrobject implements ICmdlet {
                     "stack: " + ExceptionUtils.getStackTrace(e));
         } catch (Exception e) {
             return cmdlet.err("Exception on object: " + e,
-                    "stack: " + ExceptionUtils.getStackTrace(e));
+                    "stack: " + ExceptionUtils.getStackTrace(e),
+                    "cause: " + ExceptionUtils.getCause(e));
         }
 
         if (ret != null) {
