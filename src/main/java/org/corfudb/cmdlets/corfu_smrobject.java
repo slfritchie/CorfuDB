@@ -1,5 +1,8 @@
 package org.corfudb.cmdlets;
 
+import org.codehaus.plexus.util.ExceptionUtils;
+import org.corfudb.infrastructure.CorfuServer;
+import org.corfudb.infrastructure.LogUnitServer;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.util.GitRepositoryState;
 import org.corfudb.util.Utils;
@@ -11,13 +14,13 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static org.fusesource.jansi.Ansi.Color.GREEN;
-import static org.fusesource.jansi.Ansi.Color.WHITE;
-import static org.fusesource.jansi.Ansi.ansi;
+import lombok.extern.slf4j.Slf4j;
+
 
 /**
  * Created by mwei on 1/21/16.
  */
+@Slf4j
 public class corfu_smrobject implements ICmdlet {
 
     static private CorfuRuntime rt = null;
@@ -40,11 +43,30 @@ public class corfu_smrobject implements ICmdlet {
     @Override
     public String[] main2(String[] args) {
         if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
+            log.trace("corfu_smrobject top: reset");
             if (rt != null) {
                 rt.stop();
             }
             rt = null;
-            return cmdlet.ok();
+            LogUnitServer ls = CorfuServer.getLogUnitServer();
+            if (ls != null) {
+                log.trace("corfu_smrobject top: reset now");
+                ls.reset();
+                return cmdlet.ok();
+            } else {
+                return cmdlet.err("No active log server");
+            }
+        }
+        if (args != null && args.length > 0 && args[0].contentEquals("reboot")) {
+            log.trace("corfu_smrobject top: reboot");
+            LogUnitServer ls = CorfuServer.getLogUnitServer();
+            if (ls != null) {
+                log.trace("corfu_smrobject top: reboot now");
+                ls.reboot();
+                return cmdlet.ok();
+            } else {
+                return cmdlet.err("No active log server");
+            }
         }
 
         // Parse the options given, using docopt.
@@ -113,9 +135,19 @@ public class corfu_smrobject implements ICmdlet {
 
         Object ret;
         try {
+            System.out.println("opts = " + opts.toString());
+            for (int i = 0; i < splitz.length; i++) {
+                System.out.printf("splitz[%d] = %s\n", i, splitz[i].toString());
+            }
+            System.out.println("m = " + m.toString());
+            System.out.println("o = " + o.toString());
             ret = m.invoke(o, splitz);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            return cmdlet.err("Couldn't invoke method on object" + e);
+            return cmdlet.err("Couldn't invoke method on object: " + e,
+                    "stack: " + ExceptionUtils.getStackTrace(e));
+        } catch (Exception e) {
+            return cmdlet.err("Exception on object: " + e,
+                    "stack: " + ExceptionUtils.getStackTrace(e));
         }
 
         if (ret != null) {

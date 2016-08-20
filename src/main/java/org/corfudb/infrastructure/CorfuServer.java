@@ -48,6 +48,9 @@ public class CorfuServer {
     @Getter
     private static LayoutServer layoutServer;
 
+    @Getter
+    private static LogUnitServer logUnitServer;
+
     /**
      * This string defines the command line arguments,
      * in the docopt DSL (see http://docopt.org) for the executable.
@@ -168,7 +171,8 @@ public class CorfuServer {
         router.addServer(new SequencerServer(serverContext));
         layoutServer = new LayoutServer(serverContext);
         router.addServer(layoutServer);
-        router.addServer(new LogUnitServer(serverContext));
+        logUnitServer = new LogUnitServer(serverContext);
+        router.addServer(logUnitServer);
         router.baseServer.setOptionsMap(opts);
 
         // Create the event loops responsible for servicing inbound messages.

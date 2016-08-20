@@ -151,6 +151,7 @@ public class LayoutServer extends AbstractServer {
         this.serverContext = serverContext;
 
         reboot();
+        reset_part_2();
 
         // schedule config manager polling.
         if (! disableConfigMgrPolling) {

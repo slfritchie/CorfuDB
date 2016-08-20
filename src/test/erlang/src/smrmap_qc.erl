@@ -33,6 +33,8 @@
 -include_lib("eqc/include/eqc_statem.hrl").
 -endif.
 
+-include("qc_java.hrl").
+
 -define(TIMEOUT, 2*1000).
 
 -compile(export_all).
@@ -42,11 +44,14 @@
           reg_names :: list(),
           reset_p = false :: boolean(),
           stream :: non_neg_integer(),
-          d=orddict:new() :: orddict:orddict(),
-          server_list=[] :: list()
+          d=orddict:new() :: orddict:orddict()
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
+    noshrink( ?LET(RegName, oneof(RegNames),
+                   {RegName, qc_java:endpoint2nodename(Endpoint)} )).
 
 gen_key() ->
     oneof([[choose($a, $b)],                     % make it a list
@@ -58,9 +63,6 @@ gen_val() ->
            "Another-value",
            ?LET(L, choose(0, 50),
                 vector(L, choose($a, $z)))]).
-
-gen_svr(#state{server_list=Svrs}) ->
-    noshrink(oneof(Svrs)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -76,34 +78,38 @@ precondition(S, {call,_,reset,_}) ->
 precondition(S, _Call) ->
     S#state.reset_p.
 
-command(S=#state{stream=Stream, reset_p=false}) ->
-    {call, ?MODULE, reset, [gen_svr(S), Stream]};
-command(S=#state{stream=Stream, reset_p=true}) ->
+command(S=#state{endpoint=Endpoint, reset_p=false}) ->
+    {call, ?MODULE, reset, [gen_mbox(S), Endpoint]};
+command(S=#state{endpoint=Endpoint, stream=Stream, reset_p=true}) ->
     frequency(
       [
-       {20, {call, ?MODULE, put, [gen_svr(S), Stream, gen_key(), gen_val()]}},
-       { 5, {call, ?MODULE, get, [gen_svr(S), Stream, gen_key()]}},
-       { 3, {call, ?MODULE, size, [gen_svr(S), Stream]}},
-       { 3, {call, ?MODULE, isEmpty, [gen_svr(S), Stream]}},
-       { 3, {call, ?MODULE, containsKey, [gen_svr(S), Stream, gen_key()]}},
+       {20, {call, ?MODULE, put, [gen_mbox(S), Endpoint, Stream,
+                                  gen_key(), gen_val()]}},
+       { 5, {call, ?MODULE, get, [gen_mbox(S), Endpoint, Stream,
+                                  gen_key()]}},
+       { 3, {call, ?MODULE, size, [gen_mbox(S), Endpoint, Stream]}},
+       { 3, {call, ?MODULE, isEmpty, [gen_mbox(S), Endpoint, Stream]}},
+       { 3, {call, ?MODULE, containsKey, [gen_mbox(S), Endpoint, Stream,
+                                          gen_key()]}},
        %% BOO.  Our ASCII-oriented protocol can't tell the difference
        %% between an arity 0 function and an arity 1 function with
        %% an argument of length 0.
-       { 3, {call, ?MODULE, containsValue, [gen_svr(S),
-                                            Stream, non_empty(gen_val())]}},
-       { 5, {call, ?MODULE, remove, [gen_svr(S), Stream, gen_key()]}},
-       { 3, {call, ?MODULE, clear, [gen_svr(S), Stream]}},
-       { 3, {call, ?MODULE, keySet, [gen_svr(S), Stream]}},
-       { 3, {call, ?MODULE, values, [gen_svr(S), Stream]}},
-       { 3, {call, ?MODULE, entrySet, [gen_svr(S), Stream]}}
+       { 3, {call, ?MODULE, containsValue, [gen_mbox(S), Endpoint, Stream,
+                                            non_empty(gen_val())]}},
+       { 5, {call, ?MODULE, remove, [gen_mbox(S), Endpoint, Stream,
+                                     gen_key()]}},
+       { 3, {call, ?MODULE, clear, [gen_mbox(S), Endpoint, Stream]}},
+       { 3, {call, ?MODULE, keySet, [gen_mbox(S), Endpoint, Stream]}},
+       { 3, {call, ?MODULE, values, [gen_mbox(S), Endpoint, Stream]}},
+       { 3, {call, ?MODULE, entrySet, [gen_mbox(S), Endpoint, Stream]}}
       ]).
 
-postcondition(_S, {call,_,reset,[_Svr, _Str]}, Ret) ->
+postcondition(_S, {call,_,reset,[_Mbox, _EP]}, Ret) ->
     case Ret of
         ["OK"] -> true;
         Else   -> {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,put,[_Svr, _Str, Key, _Val]}, Ret) ->
+postcondition(#state{d=D}, {call,_,put,[_Mbox, _EP, _Str, Key, _Val]}, Ret) ->
     case Ret of
         timeout ->
             false;
@@ -116,32 +122,32 @@ postcondition(#state{d=D}, {call,_,put,[_Svr, _Str, Key, _Val]}, Ret) ->
                 {ok, Else}             -> {key, Key, expected, Else, got, Prev}
             end
     end;
-postcondition(S, {call,_,get,[_Svr, Str, Key]}, Ret) ->
+postcondition(S, {call,_,get,[_Mbox, _EP, Str, Key]}, Ret) ->
     %% get's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    postcondition(S, {call,x,put,[_Svr, Str, Key, <<"get_post()">>]}, Ret);
-postcondition(#state{d=D}, {call,_,size,[_Svr, _Stream]}, Res) ->
+    postcondition(S, {call,x,put,[_Mbox, _EP, Str, Key, <<"get_post()">>]}, Ret);
+postcondition(#state{d=D}, {call,_,size,[_Mbox, _EP, _Stream]}, Res) ->
     case Res of
         ["OK", SizeStr] ->
             list_to_integer(SizeStr) == length(orddict:to_list(D));
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,isEmpty,[_Svr, _Stream]}, Res) ->
+postcondition(#state{d=D}, {call,_,isEmpty,[_Mbox, _EP, _Stream]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_empty(D);
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,containsKey,[_Svr, _Stream, Key]}, Res) ->
+postcondition(#state{d=D}, {call,_,containsKey,[_Mbox, _EP, _Stream, Key]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_key(Key, D);
         Else ->
             {got, Else}
     end;
-postcondition(#state{d=D}, {call,_,containsValue,[_Svr, _Stream, Value]}, Res) ->
+postcondition(#state{d=D}, {call,_,containsValue,[_Mbox, _EP, _Stream, Value]}, Res) ->
     case Res of
         ["OK", Bool] ->
             Val_in_d = case [V || {_K, V} <- orddict:to_list(D),
@@ -153,20 +159,20 @@ postcondition(#state{d=D}, {call,_,containsValue,[_Svr, _Stream, Value]}, Res) -
         Else ->
             {got, Else}
     end;
-postcondition(S, {call,_,remove,[_Svr, Str, Key]}, Ret) ->
+postcondition(S, {call,_,remove,[_Mbox, _EP, Str, Key]}, Ret) ->
     %% remove's return value is the same as post's return value, so
     %% mock up a put call and share put_post().
-    postcondition(S, {call,x,put,[_Svr, Str, Key, <<"remove_post()">>]}, Ret);
-postcondition(_S, {call,_,clear,[_Svr, _Str]}, ["OK"]) ->
+    postcondition(S, {call,x,put,[_Mbox, _EP, Str, Key, <<"remove_post()">>]}, Ret);
+postcondition(_S, {call,_,clear,[_Mbox, _EP, _Str]}, ["OK"]) ->
     true;
-postcondition(#state{d=D}, {call,_,keySet,[_Svr, _Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,keySet,[_Mbox, _EP, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
             Ks = string:tokens(X2, ", "),
             lists:sort(Ks) == lists:sort([K || {K,_V} <- orddict:to_list(D)])
     end;
-postcondition(#state{d=D}, {call,_,values,[_Svr, _Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,values,[_Mbox, _EP, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -177,7 +183,7 @@ postcondition(#state{d=D}, {call,_,values,[_Svr, _Str]}, Ret) ->
             lists:sort(Vs) == lists:sort([V || {_K,V} <- orddict:to_list(D),
                                                V /= ""])
     end;
-postcondition(#state{d=D}, {call,_,entrySet,[_Svr, _Str]}, Ret) ->
+postcondition(#state{d=D}, {call,_,entrySet,[_Mbox, _EP, _Str]}, Ret) ->
     case Ret of
         ["OK", X] ->
             X2 = string:strip(string:strip(X, left, $[), right, $]),
@@ -191,13 +197,13 @@ postcondition(#state{d=D}, {call,_,entrySet,[_Svr, _Str]}, Ret) ->
             lists:sort(KVs) == lists:sort(orddict:to_list(D))
     end.
 
-next_state(S, _V, {call,_,reset,[_Svr, _Str]}) ->
+next_state(S, _V, {call,_,reset,[_Mbox, _EP]}) ->
     S#state{reset_p=true};
-next_state(S=#state{d=D}, _V, {call,_,put,[_Svr, _Str, Key, Val]}) ->
+next_state(S=#state{d=D}, _V, {call,_,put,[_Mbox, _EP, _Str, Key, Val]}) ->
     S#state{d=orddict:store(Key, Val, D)};
-next_state(S=#state{d=D}, _V, {call,_,remove,[_Svr, _Str, Key]}) ->
+next_state(S=#state{d=D}, _V, {call,_,remove,[_Mbox, _EP, _Str, Key]}) ->
     S#state{d=orddict:erase(Key, D)};
-next_state(S, _V, {call,_,clear,[_Svr, _Str]}) ->
+next_state(S, _V, {call,_,clear,[_Mbox, _EP, _Str]}) ->
     S#state{d=orddict:new()};
 next_state(S, _V, _NoSideEffectCall) ->
     S.
@@ -262,14 +268,19 @@ prop(MoreCmds, Mboxes, Endpoint) ->
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 commands(?MODULE,
                                          initial_state(Mboxes, Endpoint))),
-            qc_java:run_always(1, ?MODULE, Cmds,
-                               fun(Mod, TheCmds) ->
-                                       run_commands(Mod, TheCmds)
-                               end,
-                               fun(_TheCmds, _H, _S_or_Hs, Res) ->
-                                       Res == ok
-                               end)
-           ).
+            begin
+                {H, S_or_Hs, Res} = run_commands(?MODULE, Cmds),
+                aggregate(command_names(Cmds),
+                measure(
+                  cmds_length,
+                  ?COMMANDS_LENGTH(Cmds),
+                ?PRETTY_FAIL(
+                  ?MODULE, Cmds, H,S_or_Hs,Res,
+                  begin
+                      Res == ok
+                  end
+                )))
+            end).
 
 prop_parallel() ->
     prop_parallel(1).
@@ -284,14 +295,19 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                            non_empty(
                              parallel_commands(?MODULE,
                                       initial_state(Mboxes, Endpoint)))),
-            qc_java:run_always(100, ?MODULE, Cmds,
-                               fun(Mod, TheCmds) ->
-                                       run_parallel_commands(Mod, TheCmds)
-                               end,
-                               fun(_TheCmds, _H, _S_or_Hs, Res) ->
-                                       Res == ok
-                               end)
-           ).
+            begin
+                {H, S_or_Hs, Res} = run_commands(?MODULE, Cmds),
+                aggregate(command_names(Cmds),
+                measure(
+                  cmds_length,
+                  ?COMMANDS_LENGTH(Cmds),
+                ?PRETTY_FAIL(
+                  ?MODULE, Cmds, H,S_or_Hs,Res,
+                  begin
+                      Res == ok
+                  end
+                )))
+            end).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
@@ -320,6 +336,9 @@ rpc(Mbox, reboot, Endpoint) ->
 
 rpc({_RegName, _NodeName} = Mbox, Endpoint, Stream, Args) ->
     AllArgs = ["corfu_smrobject", "-c", Endpoint,
-               "-s", Stream, "org.corfudb.runtime.collections.SMRMap"]
+               %% -p = --quickcheck-ap-prefix
+               ["-p", lists:flatten(io_lib:format("~w", [Mbox])) ] ++
+               "-s", integer_to_list(Stream),
+               "org.corfudb.runtime.collections.SMRMap"]
               ++ Args,
     qc_java:rpc_call(Mbox, AllArgs, ?TIMEOUT).
