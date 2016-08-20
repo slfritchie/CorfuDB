@@ -51,6 +51,7 @@ public class corfu_smrobject implements ICmdlet {
             LogUnitServer ls = CorfuServer.getLogUnitServer();
             if (ls != null) {
                 log.trace("corfu_smrobject top: reset now");
+                System.out.println("corfu_smrobject top: reset now @ ls " + ls.toString());
                 ls.reset();
                 return cmdlet.ok();
             } else {
@@ -62,6 +63,7 @@ public class corfu_smrobject implements ICmdlet {
             LogUnitServer ls = CorfuServer.getLogUnitServer();
             if (ls != null) {
                 log.trace("corfu_smrobject top: reboot now");
+                System.out.println("corfu_smrobject top: reboot now @ ls " + ls.toString());
                 ls.reboot();
                 return cmdlet.ok();
             } else {
@@ -136,12 +138,6 @@ public class corfu_smrobject implements ICmdlet {
 
         Object ret;
         try {
-            System.out.println("opts = " + opts.toString());
-            for (int i = 0; i < splitz.length; i++) {
-                System.out.printf("splitz[%d] = %s\n", i, splitz[i].toString());
-            }
-            System.out.println("m = " + m.toString());
-            System.out.println("o = " + o.toString());
             ret = m.invoke(o, splitz);
         } catch (IllegalAccessException | InvocationTargetException e) {
             return cmdlet.err("Couldn't invoke method on object: " + e,

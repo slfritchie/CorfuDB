@@ -32,6 +32,11 @@ import org.corfudb.util.retry.IRetry;
 import org.corfudb.util.retry.IntervalAndSentinelRetry;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class LogUnitServer extends AbstractServer {
+
+    private ServerContext serverContext;
 
     /**
      * A scheduler, which is used to schedule periodic tasks like garbage collection.
@@ -94,23 +101,13 @@ public class LogUnitServer extends AbstractServer {
     LoadingCache<Long, LogUnitEntry> dataCache;
     long maxCacheSize;
 
-    private final AbstractLocalLog localLog;
+    private AbstractLocalLog localLog;
 
     public LogUnitServer(ServerContext serverContext) {
         this.opts = serverContext.getServerConfig();
+        this.serverContext = serverContext;
 
         maxCacheSize = Utils.parseLong(opts.get("--max-cache"));
-        String logdir = opts.get("--log-path") + File.separator + "log";
-        if ((Boolean) opts.get("--memory")) {
-            log.warn("Log unit opened in-memory mode (Maximum size={}). " +
-                    "This should be run for testing purposes only. " +
-                    "If you exceed the maximum size of the unit, old entries will be AUTOMATICALLY trimmed. " +
-                    "The unit WILL LOSE ALL DATA if it exits.", Utils.convertToByteStringRepresentation(maxCacheSize));
-            localLog = new InMemoryLog(0, Long.MAX_VALUE);
-            reboot();
-        } else {
-            localLog = new RollingLog(0, Long.MAX_VALUE, logdir, (Boolean) opts.get("--sync"));
-        }
 
         reboot();
 
@@ -173,9 +170,25 @@ public class LogUnitServer extends AbstractServer {
 
     @Override
     public void reset() {
-        // TODO: implement fully.
-        log.warn("LogUnitServer reset() called: NOT IMPLEMENTED");
+        String d = serverContext.getDataStore().getLogDir();
+        System.out.println("LogUnitServer top: reset, d = " + d);
+        if (d != null) {
+            Path dir = FileSystems.getDefault().getPath(d);
+            String prefixes[] = new String[]{"log"};
 
+            for (String pfx : prefixes) {
+                System.out.println("LogUnitServer top: reset, pfx = " + pfx);
+                try (DirectoryStream<Path> stream =
+                             Files.newDirectoryStream(dir, pfx + "*")) {
+                    for (Path entry : stream) {
+                        System.out.println("Deleting " + entry);
+                        Files.delete(entry);
+                    }
+                } catch (IOException e) {
+                    log.error("reset: error deleting prefix " + pfx + ": " + e.toString());
+                }
+            }
+        }
         reboot();
     }
 
@@ -183,12 +196,23 @@ public class LogUnitServer extends AbstractServer {
     public void reboot() {
         contiguousHead = 0L;
 
+        if ((Boolean) opts.get("--memory")) {
+            log.warn("Log unit opened in-memory mode (Maximum size={}). " +
+                    "This should be run for testing purposes only. " +
+                    "If you exceed the maximum size of the unit, old entries will be AUTOMATICALLY trimmed. " +
+                    "The unit WILL LOSE ALL DATA if it exits.", Utils.convertToByteStringRepresentation(maxCacheSize));
+            localLog = new InMemoryLog(0, Long.MAX_VALUE);
+        } else {
+            String logdir = opts.get("--log-path") + File.separator + "log";
+            localLog = new RollingLog(0, Long.MAX_VALUE, logdir, (Boolean) opts.get("--sync"));
+        }
+
         if (dataCache != null) {
             /** Free all references */
             dataCache.asMap().values().parallelStream()
-                    .map(m -> m.buffer.release());
+                    .map(m -> { System.out.println("dc release " + m.buffer); return m.buffer.release(); } );
+                    // .map(m -> m.buffer.release());
         }
-
         dataCache = Caffeine.newBuilder()
                 .<Long, LogUnitEntry>weigher((k, v) -> v.buffer == null ? 1 : v.buffer.readableBytes())
                 .maximumWeight(maxCacheSize)
@@ -213,6 +237,8 @@ public class LogUnitServer extends AbstractServer {
         // Trim map is set to empty on start
         // TODO: persist trim map - this is optional since trim is just a hint.
         trimMap = new ConcurrentHashMap<>();
+        System.out.println("REBOOT: localLog = " + localLog);
+        System.out.println("REBOOT: dataCache = " + dataCache);
     }
 
     /**
