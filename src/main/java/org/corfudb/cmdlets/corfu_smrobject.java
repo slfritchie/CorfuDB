@@ -45,6 +45,7 @@ public class corfu_smrobject implements ICmdlet {
         if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
             log.trace("corfu_smrobject top: reset");
             if (rt != null) {
+                log.trace("corfu_smrobject top: rt.stop()");
                 rt.stop();
             }
             rt = null;

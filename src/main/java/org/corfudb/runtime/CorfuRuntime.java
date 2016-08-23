@@ -37,30 +37,30 @@ public class CorfuRuntime {
     /**
      * A view of the layout service in the Corfu server instance.
      */
-    @Getter(lazy = true)
-    private final LayoutView layoutView = new LayoutView(this);
+    @Getter
+    private LayoutView layoutView;
     /**
      * A view of the sequencer server in the Corfu server instance.
      */
-    @Getter(lazy = true)
-    private final SequencerView sequencerView = new SequencerView(this);
+    @Getter
+    private SequencerView sequencerView;
     /**
      * A view of the address space in the Corfu server instance.
      */
-    @Getter(lazy = true)
-    private final AddressSpaceView addressSpaceView = new AddressSpaceView(this);
+    @Getter
+    private AddressSpaceView addressSpaceView;
     /**
      * A view of streams in the Corfu server instance.
      */
-    @Getter(lazy = true)
-    private final StreamsView streamsView = new StreamsView(this);
+    @Getter
+    private StreamsView streamsView;
 
     //region Address Space Options
     /**
      * Views of objects in the Corfu server instance.
      */
-    @Getter(lazy = true)
-    private final ObjectsView objectsView = new ObjectsView(this);
+    @Getter
+    private ObjectsView objectsView;
     /**
      * A list of known layout servers.
      */
@@ -134,8 +134,7 @@ public class CorfuRuntime {
     };
 
     public CorfuRuntime() {
-        layoutServers = new ArrayList<>();
-        nodeRouters = new ConcurrentHashMap<>();
+        reset_some_members();
         retryRate = 5;
         log.debug("Corfu runtime version {} initialized.", getVersionString());
     }
@@ -153,12 +152,25 @@ public class CorfuRuntime {
                 System.out.println("clients " + clients);
                 int outstandings = ((NettyClientRouter) r).outstandingRequests.size();
                 System.out.println("outstandings " + outstandings);
-                // (NettyClientRouter) r).context.channel().close();
+                // ((NettyClientRouter) r).context.channel().close();
                 */
             }
             r.stop();
         }
+        // Reset object data, in the order they are declared.
+        reset_some_members();
+        System.out.printf("STOP rt %s\n", this.toString());
+    }
+
+    private void reset_some_members() {
+        layoutView = new LayoutView(this);
+        sequencerView = new SequencerView(this);
+        addressSpaceView = new AddressSpaceView(this);
+        streamsView = new StreamsView(this);
+        objectsView = new ObjectsView(this);
+        layoutServers = new ArrayList<>();
         nodeRouters = new ConcurrentHashMap<>();
+        layout = null;
     }
 
     /**

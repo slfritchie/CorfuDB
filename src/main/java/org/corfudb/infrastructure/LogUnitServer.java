@@ -208,10 +208,17 @@ public class LogUnitServer extends AbstractServer {
         }
 
         if (dataCache != null) {
+            System.out.printf("REBOOT: old dataCache = %s\n", dataCache.asMap().toString());
+            System.out.printf("REBOOT: old dataCache isempty = %s\n", dataCache.asMap().keySet().isEmpty());
+            System.out.printf("REBOOT: old dataCache isempty = %s\n", dataCache.asMap().isEmpty());
+            dataCache.asMap().keySet().stream().map(m -> { System.out.printf("Key %d\n", m); return m; } );
+            System.out.printf("REBOOT: old dataCache = %s\n", dataCache.asMap().toString());
             /** Free all references */
-            dataCache.asMap().values().parallelStream()
-                    .map(m -> { System.out.println("dc release " + m.buffer); return m.buffer.release(); } );
+            dataCache.asMap().values().stream()
+                    .map(m -> { System.out.println("dc release " + m.buffer + "\n"); return m.buffer.release(); } );
                     // .map(m -> m.buffer.release());
+            dataCache.invalidateAll();
+            System.out.printf("REBOOT: old dataCache isempty = %s\n", dataCache.asMap().keySet().isEmpty());
         }
         dataCache = Caffeine.newBuilder()
                 .<Long, LogUnitEntry>weigher((k, v) -> v.buffer == null ? 1 : v.buffer.readableBytes())
@@ -237,8 +244,7 @@ public class LogUnitServer extends AbstractServer {
         // Trim map is set to empty on start
         // TODO: persist trim map - this is optional since trim is just a hint.
         trimMap = new ConcurrentHashMap<>();
-        System.out.println("REBOOT: localLog = " + localLog);
-        System.out.println("REBOOT: dataCache = " + dataCache);
+        System.out.printf("REBOOT: localLog = %s, dataCache = %s\n", localLog.toString(), dataCache.toString());
     }
 
     /**
@@ -251,6 +257,7 @@ public class LogUnitServer extends AbstractServer {
      * unwritten (null).
      */
     public synchronized LogUnitEntry handleRetrieval(Long address) {
+        System.out.printf("handleRetrieval: localLog = %s, dataCache = %s\n", localLog.toString(), dataCache.toString());
         LogUnitEntry entry = localLog.read(address);
         log.trace("Retrieved[{} : {}]", address, entry);
         return entry;
@@ -268,6 +275,7 @@ public class LogUnitServer extends AbstractServer {
      * Service an incoming read request.
      */
     public void read(LogUnitReadRequestMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+        System.out.printf("LogUnitServer::read: this %s localLog %s dataCache %s\n", this.toString(), localLog.toString(), dataCache.toString());
         log.trace("Read[{}]", msg.getAddress());
         LogUnitEntry e = dataCache.get(msg.getAddress());
         if (e == null) {
@@ -283,6 +291,7 @@ public class LogUnitServer extends AbstractServer {
      * Service an incoming ranged read request.
      */
     public void read(CorfuRangeMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+        System.out.printf("LogUnitServer::read range: this %s localLog %s dataCache %s\n", this.toString(), localLog.toString(), dataCache.toString());
         log.trace("ReadRange[{}]", msg.getRanges());
         Set<Long> total = new HashSet<>();
         for (Range<Long> range : msg.getRanges().asRanges()) {
@@ -300,6 +309,8 @@ public class LogUnitServer extends AbstractServer {
      * Service an incoming write request.
      */
     public void write(LogUnitWriteMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
+        System.out.printf("LogUnitServer::write: this %s localLog %s dataCache %s\n", this.toString(), localLog.toString(), dataCache.toString());
+
         long address = msg.getAddress();
         log.trace("Write[{}]", address);
         // The payload in the message is a view of a larger buffer allocated

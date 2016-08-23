@@ -115,6 +115,8 @@ public class SMRMap<K, V> implements Map<K, V>, ICorfuSMRObject<HashMap<K, V>> {
     @Override
     @Accessor
     public V get(Object key) {
+        System.out.printf("SMRMap::get this = %s\n", this.toString());
+        System.out.printf("SMRMap::get getSMRObject = %s\n", getSMRObject().toString());
         return getSMRObject().get(key);
     }
 

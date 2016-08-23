@@ -187,12 +187,15 @@ public class CorfuProxyBuilder {
     public static <T, R extends ISMRInterface>
     T getProxy(@NonNull Class<T> type, Class<R> overlay, @NonNull StreamView sv, @NonNull CorfuRuntime runtime,
                Serializers.SerializerType serializer, Set<ObjectOpenOptions> options, Object... constructorArgs) {
+        System.out.printf("WOO getProxy sv = %s at %d\n", sv.getStreamID().toString(), sv.getLogPointer());
         try {
             CorfuObjectProxy<T> proxy;
 
             if (type.isAnnotationPresent(CorfuObject.class)) {
+                System.out.println("WOO 1");
                 CorfuObject annotation = type.getAnnotation(CorfuObject.class);
                 if (annotation.objectType() == ObjectType.SMR) {
+                    System.out.println("WOO 3");
                     proxy = new CorfuSMRObjectProxy<>(runtime, sv, type, serializer);
                     if (annotation.stateSource().equals(StateSource.SELF)) {
                         ((CorfuSMRObjectProxy) proxy).setSelfState(true);
@@ -200,10 +203,12 @@ public class CorfuProxyBuilder {
                         ((CorfuSMRObjectProxy) proxy).setStateClass(annotation.stateType());
                     }
                 } else {
+                    System.out.println("WOO 4");
                     proxy = new CorfuObjectProxy<>(runtime, sv, type, serializer);
                 }
 
                 if (annotation.constructorType() == ConstructorType.PERSISTED) {
+                    System.out.println("WOO 5");
                     // we need to either persist the constructor, or load from the saved args...
                     long token = sv.check();
                     boolean readConstructor = true;
@@ -217,8 +222,10 @@ public class CorfuProxyBuilder {
                         if (annotation.objectType() == ObjectType.SMR) {
                             ((CorfuSMRObjectProxy) proxy).setCreationArguments(constructorArgs);
                         }
+                        System.out.println("WOO 6 + rc = " + readConstructor);
                     }
                     if (readConstructor) {
+                        System.out.println("WOO 7");
                         if (options.contains(ObjectOpenOptions.CREATE_ONLY)) {
                             throw new ObjectExistsException(token);
                         }
@@ -226,6 +233,7 @@ public class CorfuProxyBuilder {
                         // The "default" entry should be the first entry in the stream.
                         // TODO: handle garbage collected streams.
                         ILogUnitEntry entry = sv.read();
+                        System.out.printf("WOO sv.read = %s\n", entry);
                         while (entry != null) {
                             if (entry.getPayload() instanceof SMREntry &&
                                     ((SMREntry) entry.getPayload()).getSMRMethod().equals("default")) {
@@ -238,23 +246,29 @@ public class CorfuProxyBuilder {
                                 break;
                             }
                             entry = sv.read();
+                            System.out.printf("WOO sv.read = %s\n", entry);
                         }
                     }
                 }
             } else {
+                System.out.println("WOO 2");
                 proxy = new CorfuSMRObjectProxy<>(runtime, sv, type, serializer);
             }
             T ret;
             if (constructorArgs == null || constructorArgs.length == 0) {
+                System.out.println("WOO 10");
                 ret = getProxyClass(proxy, type, overlay).newInstance();
             } else {
+                System.out.println("WOO 11");
                 ret = ReflectionUtils.newInstanceFromUnknownArgumentTypes(getProxyClass(proxy, type, overlay),
                         constructorArgs);
             }
             if (proxy instanceof CorfuSMRObjectProxy) {
+                System.out.println("WOO 12");
                 ((CorfuSMRObjectProxy) proxy).calculateMethodHashTable(ret.getClass());
             }
             if (type.isAnnotationPresent(CorfuObject.class)) {
+                System.out.println("WOO 13");
                 CorfuObject annotation = type.getAnnotation(CorfuObject.class);
                 if (annotation.objectType().equals(ObjectType.SMR) &&
                         annotation.stateSource().equals(StateSource.SELF)) {

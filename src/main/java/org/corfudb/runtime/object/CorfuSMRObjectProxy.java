@@ -64,6 +64,7 @@ public class CorfuSMRObjectProxy<P> extends CorfuObjectProxy<P> {
     public CorfuSMRObjectProxy(CorfuRuntime runtime, StreamView sv,
                                Class<P> originalClass, Serializers.SerializerType serializer) {
         super(runtime, sv, originalClass, serializer);
+        System.out.printf("WOO CorfuSMRObjectProxy sv = %s\n", sv.toString());
         this.completableFutureMap = new ConcurrentHashMap<>();
         if (Arrays.stream(originalClass.getInterfaces()).anyMatch(ICorfuSMRObject.class::isAssignableFrom)) {
             isCorfuObject = true;
@@ -201,6 +202,7 @@ public class CorfuSMRObjectProxy<P> extends CorfuObjectProxy<P> {
                                    @SuperCall Callable superMethod
     ) throws Exception {
         String method = getSMRMethodName(Mmethod);
+        System.out.printf("WOO interceptMutator %s\n", method);
         log.debug("Object[{}]: +Mutator {} {}", getStreamID(),
                 TransactionalContext.isInTransaction() ? "tx" : "", method);
         StackTraceElement[] stack = new Exception().getStackTrace();
@@ -239,6 +241,7 @@ public class CorfuSMRObjectProxy<P> extends CorfuObjectProxy<P> {
             @AllArguments Object[] allArguments,
             @This P obj) throws Exception {
         String method = getSMRMethodName(Mmethod);
+        System.out.printf("WOO interceptMutatorAccessor %s\n", method);
         log.debug("Object[{}] +MutatorAccessor {} {}", getStreamID(),
                 TransactionalContext.isInTransaction() ? "tx" : "", method);
 
@@ -271,10 +274,13 @@ public class CorfuSMRObjectProxy<P> extends CorfuObjectProxy<P> {
                                     @Origin Method method,
                                     @AllArguments Object[] arguments,
                                     @This P obj) throws Exception {
+        System.out.printf("WOO interceptAccessor %s\n", method);
         log.trace("Object[{}] +Accessor {} {}", getStreamID(), TransactionalContext.isInTransaction() ? "tx" : "", method);
         // Linearize this access with respect to other accesses in the system.
         if (!TransactionalContext.isInTransaction()) {
+            System.out.printf("WOO interceptAccessor %s 2\n", method);
             sync(obj, Long.MAX_VALUE);
+            System.out.printf("WOO interceptAccessor %s 3\n", method);
             return doUnderlyingCall(superMethod, method, arguments);
         } else {
             doTransactionalSync(obj);
