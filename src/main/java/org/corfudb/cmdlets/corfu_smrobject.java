@@ -60,7 +60,7 @@ public class corfu_smrobject implements ICmdlet {
                     String key = it.next();
                     CorfuRuntime rt = (CorfuRuntime) rtMap.get(key);
                     System.out.printf("reset: stop rt.%s. @ %s\n", key, rt.toString());
-                    // rt.getObjectsView().getObjectCache().clear();
+                    ///////// rt.getObjectsView().getObjectCache().clear();
                     rt.stop();
                 }
                 rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
