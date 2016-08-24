@@ -57,10 +57,10 @@ public class corfu_smrobject implements ICmdlet {
                 Iterator<String> it = rtMap.keySet().iterator();
                 while (it.hasNext()) {
                     String key = it.next();
-                    System.out.printf("reset: stop rt.%s.\n", key);
-                    // ((CorfuRuntime) rtMap.get(key)).stop();
+                    System.out.printf("reset: stop rt.%s. @ %s\n", key, ((CorfuRuntime) rtMap.get(key)).toString());
+                    ((CorfuRuntime) rtMap.get(key)).stop();
                 }
-                // rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
+                rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
                 return cmdlet.ok();
             } else {
                 return cmdlet.err("No active log server or sequencer server");
