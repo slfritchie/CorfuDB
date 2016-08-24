@@ -54,6 +54,7 @@ public class corfu_smrobject implements ICmdlet {
                 log.trace("corfu_smrobject top: reset now");
                 System.out.println("corfu_smrobject top: reset now @ ls " + ls.toString());
                 ls.reset();
+                /*
                 ss.reset();
                 Iterator<String> it = rtMap.keySet().iterator();
                 while (it.hasNext()) {
@@ -64,6 +65,7 @@ public class corfu_smrobject implements ICmdlet {
                     rt.stop();
                 }
                 rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
+                */
                 return cmdlet.ok();
             } else {
                 return cmdlet.err("No active log server or sequencer server");
