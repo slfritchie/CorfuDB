@@ -103,11 +103,21 @@ public class LogUnitServer extends AbstractServer {
 
     private AbstractLocalLog localLog;
 
+    public static long maxLogFileSize = Integer.MAX_VALUE;  // 2GB by default
+
     public LogUnitServer(ServerContext serverContext) {
         this.opts = serverContext.getServerConfig();
         this.serverContext = serverContext;
 
         maxCacheSize = Utils.parseLong(opts.get("--max-cache"));
+        if ((Boolean) opts.get("--quickcheck-test-mode")) {
+            // It's really annoying when using OS X + HFS+ that HFS+ does not
+            // support sparse files.  If we use the default 2GB file size, then
+            // every time that a sparse file is closed, the OS will always
+            // write 2GB of data to disk.  {sadpanda}  Use this static class
+            // var to signal to RollingLog to use a smaller file size.
+            maxLogFileSize = 4_000_000;
+        }
 
         reboot();
 
@@ -172,6 +182,7 @@ public class LogUnitServer extends AbstractServer {
     public void reset() {
         String d = serverContext.getDataStore().getLogDir();
         System.out.println("LogUnitServer top: reset, d = " + d);
+        localLog.close();
         if (d != null) {
             Path dir = FileSystems.getDefault().getPath(d);
             String prefixes[] = new String[]{"log"};
