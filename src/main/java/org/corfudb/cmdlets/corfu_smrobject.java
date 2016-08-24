@@ -3,6 +3,7 @@ package org.corfudb.cmdlets;
 import org.codehaus.plexus.util.ExceptionUtils;
 import org.corfudb.infrastructure.CorfuServer;
 import org.corfudb.infrastructure.LogUnitServer;
+import org.corfudb.infrastructure.SequencerServer;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.util.GitRepositoryState;
 import org.corfudb.util.Utils;
@@ -11,8 +12,10 @@ import org.docopt.Docopt;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,13 +26,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class corfu_smrobject implements ICmdlet {
 
-    static private CorfuRuntime rt = null;
+    static private ConcurrentHashMap rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
 
     private static final String USAGE =
             "corfu_smrobject, interact with SMR objects in Corfu.\n"
                     + "\n"
                     + "Usage:\n"
-                    + "\tcorfu_smrobject  -c <config> -s <stream-id> <class> <method> [<args>] [-d <level>]\n"
+                    + "\tcorfu_smrobject  -c <config> -s <stream-id> <class> <method> [<args>] [-d <level>] [-p <qapp>]\n"
                     + "\n"
                     + "Options:\n"
                     + " -c <config>, --config=<config>                 The config string to pass to the org.corfudb.runtime. \n"
@@ -44,18 +47,23 @@ public class corfu_smrobject implements ICmdlet {
     public String[] main2(String[] args) {
         if (args != null && args.length > 0 && args[0].contentEquals("reset")) {
             log.trace("corfu_smrobject top: reset");
-            if (rt != null) {
-                rt.stop();
-            }
-            rt = null;
             LogUnitServer ls = CorfuServer.getLogUnitServer();
-            if (ls != null) {
+            SequencerServer ss = CorfuServer.getSequencerServer();
+            if (ls != null && ss != null) {
                 log.trace("corfu_smrobject top: reset now");
                 System.out.println("corfu_smrobject top: reset now @ ls " + ls.toString());
                 ls.reset();
+                ss.reset();
+                Iterator<String> it = rtMap.keySet().iterator();
+                while (it.hasNext()) {
+                    String key = it.next();
+                    System.out.printf("reset: stop rt.%s.\n", key);
+                    // ((CorfuRuntime) rtMap.get(key)).stop();
+                }
+                // rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
                 return cmdlet.ok();
             } else {
-                return cmdlet.err("No active log server");
+                return cmdlet.err("No active log server or sequencer server");
             }
         }
         if (args != null && args.length > 0 && args[0].contentEquals("reboot")) {
@@ -79,9 +87,20 @@ public class corfu_smrobject implements ICmdlet {
         configureBase(opts);
 
         // Get a org.corfudb.runtime instance from the options.
-        if (rt == null) {
-            rt = configureRuntime(opts);
+        String config = (String) opts.get("--config");
+        String qapp = (String) opts.get("--quickcheck-ap-prefix");
+        String addressportPrefix = "";
+        if (qapp != null) {
+            addressportPrefix = qapp;
         }
+        CorfuRuntime rt;
+        if (rtMap.get(addressportPrefix + config) == null) {
+            rt = configureRuntime(opts);
+            rtMap.putIfAbsent(addressportPrefix + config, rt);
+            System.out.printf("RRR PUT IF ABSENT %s\n", addressportPrefix + config);
+        }
+        rt = (CorfuRuntime) rtMap.get(addressportPrefix + config);
+        System.out.printf("RRR GET %s = %s\n", addressportPrefix + config, rt.toString());
 
         String argz = ((String) opts.get("<args>"));
         int arity;

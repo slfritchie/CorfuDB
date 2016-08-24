@@ -46,6 +46,9 @@ import static org.fusesource.jansi.Ansi.ansi;
 @Slf4j
 public class CorfuServer {
     @Getter
+    private static SequencerServer sequencerServer;
+
+    @Getter
     private static LayoutServer layoutServer;
 
     @Getter
@@ -168,7 +171,8 @@ public class CorfuServer {
         ServerContext serverContext = new ServerContext(opts, router);
 
         // Add each role to the router.
-        router.addServer(new SequencerServer(serverContext));
+        sequencerServer = new SequencerServer(serverContext);
+        router.addServer(sequencerServer);
         layoutServer = new LayoutServer(serverContext);
         router.addServer(layoutServer);
         logUnitServer = new LogUnitServer(serverContext);
