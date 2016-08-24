@@ -40,6 +40,7 @@ public class corfu_smrobject implements ICmdlet {
                     + " -s <stream-id>, --stream-id=<stream-id>        The stream id to use. \n"
                     + " -d <level>, --log-level=<level>                Set the logging level, valid levels are: \n"
                     + "                                                ERROR,WARN,INFO,DEBUG,TRACE [default: INFO].\n"
+                    + " -p <qapp>, --quickcheck-ap-prefix=<qapp>       Set QuickCheck addressportPrefix.\n"
                     + " -h, --help                                     Show this screen\n"
                     + " --version                                      Show version\n";
 
@@ -57,8 +58,10 @@ public class corfu_smrobject implements ICmdlet {
                 Iterator<String> it = rtMap.keySet().iterator();
                 while (it.hasNext()) {
                     String key = it.next();
-                    System.out.printf("reset: stop rt.%s. @ %s\n", key, ((CorfuRuntime) rtMap.get(key)).toString());
-                    ((CorfuRuntime) rtMap.get(key)).stop();
+                    CorfuRuntime rt = (CorfuRuntime) rtMap.get(key);
+                    System.out.printf("reset: stop rt.%s. @ %s\n", key, rt.toString());
+                    // rt.getObjectsView().getObjectCache().clear();
+                    rt.stop();
                 }
                 rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
                 return cmdlet.ok();

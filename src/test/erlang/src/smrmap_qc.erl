@@ -337,7 +337,7 @@ rpc(Mbox, reboot, Endpoint) ->
 rpc({_RegName, _NodeName} = Mbox, Endpoint, Stream, Args) ->
     AllArgs = ["corfu_smrobject", "-c", Endpoint,
                %% -p = --quickcheck-ap-prefix
-               %% ["-p", lists:flatten(io_lib:format("~w", [Mbox])) ] ++
+               "-p", lists:flatten(io_lib:format("~w", [Mbox])),
                "-s", integer_to_list(Stream),
                "org.corfudb.runtime.collections.SMRMap"]
               ++ Args,
