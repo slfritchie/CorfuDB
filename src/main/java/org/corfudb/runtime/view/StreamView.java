@@ -154,6 +154,11 @@ public class StreamView implements AutoCloseable {
                     && r.getBackpointerMap().containsKey(streamID)) {
                 long prevRead = backPointer;
                 backPointer = r.getBackpointerMap().get(streamID);
+                if (! (backPointer < prevRead)) {
+                    // throw new Exception("Backpointer error in stream {}: backPointer {} prevRead {}", streamID.toString(), backPointer, prevRead);
+                    System.out.printf("************************** ERROR/TODO: Backpointer error in stream %s: backPointer %d prevRead %d\n", streamID.toString(), backPointer, prevRead);
+                    return resolvedBackpointers;
+                }
                 log.trace("Read backPointer to {} at {}", backPointer, prevRead);
                 System.out.printf("Read backPointer to %d at %d\n", backPointer, prevRead);
                 if (backPointer == read) {
