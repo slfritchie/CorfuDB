@@ -36,8 +36,10 @@ public abstract class AbstractView {
     public Layout getCurrentLayout() {
         while (true) {
             try {
+                System.out.printf("%%%%%%%% AbstractLayout use %s 1\n", runtime.toString());
                 return runtime.layout.get();
             } catch (Exception ex) {
+                System.out.printf("%%%%%%%% AbstractLayout use %s 2\n", runtime.toString());
                 log.warn("Error executing remote call, invalidating view and retrying in {}s", runtime.retryRate, ex);
                 runtime.invalidateLayout();
                 try {
@@ -66,9 +68,11 @@ public abstract class AbstractView {
             throws A, B, C, D {
         while (true) {
             try {
+                System.out.printf("%%%%%%%% AbstractLayout use %s 3\n", runtime.toString());
                 return function.apply(runtime.layout.get());
             } catch (RuntimeException re) {
                 if (re.getCause() instanceof TimeoutException) {
+                    System.out.printf("%%%%%%%% AbstractLayout use %s 4\n", runtime.toString());
                     log.warn("Timeout executing remote call, invalidating view and retrying in {}s", runtime.retryRate);
                     runtime.invalidateLayout();
                     try {
@@ -79,6 +83,7 @@ public abstract class AbstractView {
                     throw re;
                 }
             } catch (InterruptedException | ExecutionException ex) {
+                System.out.printf("%%%%%%%% AbstractLayout use %s 5\n", runtime.toString());
                 log.warn("Error executing remote call, invalidating view and retrying in {}s", runtime.retryRate, ex);
                 runtime.invalidateLayout();
                 try {

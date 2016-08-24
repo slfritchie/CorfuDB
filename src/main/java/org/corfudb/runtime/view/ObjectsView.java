@@ -67,6 +67,7 @@ public class ObjectsView extends AbstractView {
      */
     @Deprecated
     public <T> T open(@NonNull UUID streamID, @NonNull Class<T> type, Object... args) {
+        System.out.printf("ObjectsView: open %s\n", streamID.toString());
         return build()
                 .setType(type)
                 .setStreamID(streamID)
@@ -116,7 +117,9 @@ public class ObjectsView extends AbstractView {
     public <T> T copy(@NonNull T obj, @NonNull UUID destination) {
         CorfuSMRObjectProxy<T> proxy = (CorfuSMRObjectProxy<T>) ((ICorfuSMRObject) obj).getProxy();
         ObjectID oid = new ObjectID(destination, proxy.getOriginalClass(), null);
+        System.out.printf("ObjectsView: copy 1 %s\n", destination.toString());
         return (T) objectCache.computeIfAbsent(oid, x -> {
+            System.out.printf("ObjectsView: copy 2 %s\n", destination.toString());
             StreamView sv = runtime.getStreamsView().copy(proxy.getSv().getStreamID(),
                     destination, proxy.getTimestamp());
             return CorfuProxyBuilder.getProxy(proxy.getOriginalClass(), null, sv, runtime,
@@ -134,6 +137,7 @@ public class ObjectsView extends AbstractView {
      */
     @SuppressWarnings("unchecked")
     public <T> T copy(@NonNull T obj, @NonNull String destination) {
+        System.out.printf("ObjectsView: copy 3 %s\n", destination.toString());
         return copy(obj, CorfuRuntime.getStreamID(destination));
     }
 

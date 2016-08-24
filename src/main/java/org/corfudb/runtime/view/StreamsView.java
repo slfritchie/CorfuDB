@@ -47,10 +47,12 @@ public class StreamsView {
     public StreamView copy(UUID source, UUID destination, long timestamp) {
         boolean written = false;
         while (!written) {
+            System.out.printf("%%%%%%%% StreamsView use %s 1\n", runtime.toString());
             SequencerClient.TokenResponse tokenResponse =
                     runtime.getSequencerView().nextToken(Collections.singleton(destination), 1);
             if (!tokenResponse.getBackpointerMap().get(destination).equals(-1L)) {
                 try {
+                    System.out.printf("%%%%%%%% StreamsView use %s 2\n", runtime.toString());
                     runtime.getAddressSpaceView().fillHole(tokenResponse.getToken());
                 } catch (OverwriteException oe) {
                     log.trace("Attempted to hole fill due to already-existing stream but hole filled by other party");
@@ -59,6 +61,7 @@ public class StreamsView {
             }
             StreamCOWEntry entry = new StreamCOWEntry(source, timestamp);
             try {
+                System.out.printf("%%%%%%%% StreamsView use %s 3\n", runtime.toString());
                 runtime.getAddressSpaceView().write(tokenResponse.getToken(), Collections.singleton(destination),
                         entry, tokenResponse.getBackpointerMap());
                 written = true;
@@ -66,6 +69,7 @@ public class StreamsView {
                 log.debug("hole fill during COW entry write, retrying...");
             }
         }
+        System.out.printf("%%%%%%%% StreamsView use %s 4\n", runtime.toString());
         return new StreamView(runtime, destination);
     }
 
@@ -82,6 +86,7 @@ public class StreamsView {
      * @return The address this
      */
     public long write(Set<UUID> streamIDs, Object object) {
+        System.out.printf("StreamsView::write\n");
         return acquireAndWrite(streamIDs, object, t -> true, t -> true);
     }
 
@@ -101,6 +106,7 @@ public class StreamsView {
                                 Function<SequencerClient.TokenResponse, Boolean> acquisitionCallback,
                                 Function<SequencerClient.TokenResponse, Boolean> deacquisitionCallback) {
         while (true) {
+            System.out.printf("%%%%%%%% StreamsView use %s 6\n", runtime.toString());
             SequencerClient.TokenResponse token =
                     runtime.getSequencerView().nextToken(streamIDs, 1);
             log.trace("Write: acquired token = {}", token.getToken());
@@ -108,6 +114,7 @@ public class StreamsView {
                 if (!acquisitionCallback.apply(token)) {
                     log.trace("Acquisition rejected token, hole filling acquired address.");
                     try {
+                        System.out.printf("%%%%%%%% StreamsView use %s 7\n", runtime.toString());
                         runtime.getAddressSpaceView().fillHole(token.getToken());
                     } catch (OverwriteException oe) {
                         log.trace("Hole fill completed by remote client.");
@@ -116,6 +123,7 @@ public class StreamsView {
                 }
             }
             try {
+                System.out.printf("%%%%%%%% StreamsView use %s 8\n", runtime.toString());
                 runtime.getAddressSpaceView().write(token.getToken(), streamIDs,
                         object, token.getBackpointerMap());
                 return token.getToken();

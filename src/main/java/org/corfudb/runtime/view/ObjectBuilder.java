@@ -77,7 +77,9 @@ public class ObjectBuilder<T> {
         ObjectsView.ObjectID<T, ?> oid = new ObjectsView.ObjectID(streamID, type, overlay);
         System.out.printf("VVV 2\n");
         return (T) runtime.getObjectsView().objectCache.computeIfAbsent(oid, x -> {
+            System.out.printf("ObjectsView: cache in ObjectBuilder %s\n", streamID.toString());
             StreamView sv = runtime.getStreamsView().get(streamID);
+            System.out.printf("ObjectsView: getLogPointer() = %d\n", sv.getLogPointer());
             return CorfuProxyBuilder.getProxy(type, overlay, sv, runtime, serializer, options, arguments);
         });
     }

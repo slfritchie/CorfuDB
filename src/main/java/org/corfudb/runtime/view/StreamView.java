@@ -88,6 +88,7 @@ public class StreamView implements AutoCloseable {
     public long acquireAndWrite(Object object, Function<SequencerClient.TokenResponse, Boolean> acquisitionCallback,
                                 Function<SequencerClient.TokenResponse, Boolean> deacquisitionCallback) {
         while (true) {
+            System.out.printf("%%%%%%%% !Stream!View use %s 1\n", runtime.toString());
             SequencerClient.TokenResponse tokenResponse =
                     runtime.getSequencerView().nextToken(Collections.singleton(streamID), 1);
             long token = tokenResponse.getToken();
@@ -96,6 +97,7 @@ public class StreamView implements AutoCloseable {
                 if (!acquisitionCallback.apply(tokenResponse)) {
                     log.trace("Acquisition rejected token, hole filling acquired address.");
                     try {
+                        System.out.printf("%%%%%%%% !Stream!View use %s 2\n", runtime.toString());
                         runtime.getAddressSpaceView().fillHole(token);
                     } catch (OverwriteException oe) {
                         log.trace("Hole fill completed by remote client.");
@@ -104,6 +106,7 @@ public class StreamView implements AutoCloseable {
                 }
             }
             try {
+                System.out.printf("%%%%%%%% !Stream!View use %s 3\n", runtime.toString());
                 runtime.getAddressSpaceView().write(token, Collections.singleton(streamID),
                         object, tokenResponse.getBackpointerMap());
                 return token;
@@ -123,7 +126,7 @@ public class StreamView implements AutoCloseable {
      * @return The last issued token for this stream.
      */
     public long check() {
-        return runtime.getSequencerView().nextToken(Collections.singleton(streamID), 0).getToken();
+        System.out.printf("%%%%%%%% !Stream!View use %s 4\n", runtime.toString());return runtime.getSequencerView().nextToken(Collections.singleton(streamID), 0).getToken();
     }
 
     /**
@@ -133,6 +136,7 @@ public class StreamView implements AutoCloseable {
      * @return A list of entries that we have resolved for reading.
      */
     public NavigableSet<Long> resolveBackpointersToRead(UUID streamID, long read) {
+        System.out.printf("%%%%%%%% !Stream!View use %s 5\n", runtime.toString());
         long latestToken = runtime.getSequencerView().nextToken(Collections.singleton(streamID), 0).getToken();
         log.trace("Read[{}]: latest token at {}", streamID, latestToken);
         if (latestToken < read) {
@@ -143,6 +147,7 @@ public class StreamView implements AutoCloseable {
         boolean hitBeforeRead = false;
         if (!runtime.backpointersDisabled) {
             resolvedBackpointers.add(latestToken);
+            System.out.printf("%%%%%%%% !Stream!View use %s 6\n", runtime.toString());
             ILogUnitEntry r = runtime.getAddressSpaceView().read(latestToken);
             long backPointer = latestToken;
             while (r.getResultType() != LogUnitReadResponseMsg.ReadResultType.EMPTY
@@ -150,6 +155,7 @@ public class StreamView implements AutoCloseable {
                 long prevRead = backPointer;
                 backPointer = r.getBackpointerMap().get(streamID);
                 log.trace("Read backPointer to {} at {}", backPointer, prevRead);
+                System.out.printf("Read backPointer to %d at %d\n", backPointer, prevRead);
                 if (backPointer == read) {
                     resolvedBackpointers.add(backPointer);
                     break;
@@ -168,8 +174,15 @@ public class StreamView implements AutoCloseable {
                 }
 
                 // following backpointers...
-                log.trace("Following backpointer to {}", backPointer);
+                log.trace("Following backpointer to {}\n", backPointer);
                 r = runtime.getAddressSpaceView().read(backPointer);
+                log.trace("Following backpointer to %d\n", backPointer);
+                System.out.printf("%%%%%%%% !Stream!View use %s 7, r = %s\n", runtime.toString(), r.toString());
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         } else {
             resolvedBackpointers.add(latestToken);
@@ -230,9 +243,11 @@ public class StreamView implements AutoCloseable {
             getCurrentContext().logPointer.set(thisRead + 1);
 
             log.trace("Read[{}]: reading at {}", streamID, thisRead);
+            System.out.printf("%%%%%%%% !Stream!View use %s 8\n", runtime.toString());
             ILogUnitEntry r = runtime.getAddressSpaceView().read(thisRead);
             if (r.getResultType() == LogUnitReadResponseMsg.ReadResultType.EMPTY) {
                 //determine whether or not this is a hole
+                System.out.printf("%%%%%%%% !Stream!View use %s 9\n", runtime.toString());
                 long latestToken = runtime.getSequencerView().nextToken(Collections.singleton(streamID), 0).getToken();
                 log.trace("Read[{}]: latest token at {}", streamID, latestToken);
                 if (latestToken < thisRead) {
@@ -241,10 +256,12 @@ public class StreamView implements AutoCloseable {
                 }
                 log.debug("Read[{}]: hole detected at {} (token at {}), attempting fill.", streamID, thisRead, latestToken);
                 try {
+                    System.out.printf("%%%%%%%% !Stream!View use %s 10\n", runtime.toString());
                     runtime.getAddressSpaceView().fillHole(thisRead);
                 } catch (OverwriteException oe) {
                     //ignore overwrite.
                 }
+                System.out.printf("%%%%%%%% !Stream!View use %s 11\n", runtime.toString());
                 r = runtime.getAddressSpaceView().read(thisRead);
                 log.debug("Read[{}]: holeFill {} result: {}", streamID, thisRead, r.getResultType());
             }
@@ -269,6 +286,7 @@ public class StreamView implements AutoCloseable {
         boolean max = false;
         if (pos == Long.MAX_VALUE) {
             max = true;
+            System.out.printf("%%%%%%%% !Stream!View use %s 12\n", runtime.toString());
             latestToken = runtime.getSequencerView().nextToken(Collections.singleton(streamID), 0).getToken();
             log.trace("Linearization point set to {}", latestToken);
         }
