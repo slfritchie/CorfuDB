@@ -185,7 +185,6 @@ public class SequencerServer extends AbstractServer {
             synchronized (fcLock) {
                 try { fc.close(); } catch (IOException e) { /* Not a fatal problem, right? */ }
                 try {
-                    System.out.printf("Deleting %s\n", make_checkpoint_path());
                     Files.delete(make_checkpoint_path());
                 } catch (IOException e) {
                     log.warn("Error deleting " + make_checkpoint_path() + ":" + e);

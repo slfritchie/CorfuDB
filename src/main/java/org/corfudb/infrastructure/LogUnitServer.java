@@ -181,18 +181,16 @@ public class LogUnitServer extends AbstractServer {
     @Override
     public void reset() {
         String d = serverContext.getDataStore().getLogDir();
-        System.out.println("LogUnitServer top: reset, d = " + d);
         localLog.close();
         if (d != null) {
             Path dir = FileSystems.getDefault().getPath(d);
             String prefixes[] = new String[]{"log"};
 
             for (String pfx : prefixes) {
-                System.out.println("LogUnitServer top: reset, pfx = " + pfx);
                 try (DirectoryStream<Path> stream =
                              Files.newDirectoryStream(dir, pfx + "*")) {
                     for (Path entry : stream) {
-                        System.out.println("Deleting " + entry);
+                        // System.out.println("Deleting " + entry);
                         Files.delete(entry);
                     }
                 } catch (IOException e) {
@@ -221,8 +219,7 @@ public class LogUnitServer extends AbstractServer {
         if (dataCache != null) {
             /** Free all references */
             dataCache.asMap().values().parallelStream()
-                    .map(m -> { System.out.println("dc release " + m.buffer); return m.buffer.release(); } );
-                    // .map(m -> m.buffer.release());
+                    .map(m -> m.buffer.release());
         }
         dataCache = Caffeine.newBuilder()
                 .<Long, LogUnitEntry>weigher((k, v) -> v.buffer == null ? 1 : v.buffer.readableBytes())
@@ -248,8 +245,6 @@ public class LogUnitServer extends AbstractServer {
         // Trim map is set to empty on start
         // TODO: persist trim map - this is optional since trim is just a hint.
         trimMap = new ConcurrentHashMap<>();
-        System.out.println("REBOOT: localLog = " + localLog);
-        System.out.println("REBOOT: dataCache = " + dataCache);
     }
 
     /**

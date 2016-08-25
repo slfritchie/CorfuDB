@@ -52,7 +52,6 @@ public class corfu_smrobject implements ICmdlet {
             SequencerServer ss = CorfuServer.getSequencerServer();
             if (ls != null && ss != null) {
                 log.trace("corfu_smrobject top: reset now");
-                System.out.println("corfu_smrobject top: reset now @ ls " + ls.toString());
 
                 // Reset the local log server.
                 ls.reset();
@@ -65,7 +64,6 @@ public class corfu_smrobject implements ICmdlet {
                 while (it.hasNext()) {
                     String key = it.next();
                     CorfuRuntime rt = (CorfuRuntime) rtMap.get(key);
-                    System.out.printf("reset: stop rt.%s. @ %s\n", key, rt.toString());
                     // Brrrrr, state needs resetting in rt's ObjectsView
                     rt.getObjectsView().getObjectCache().clear();
                     // Brrrrr, state needs resetting in rt's AddressSpaceView
@@ -85,7 +83,6 @@ public class corfu_smrobject implements ICmdlet {
             LogUnitServer ls = CorfuServer.getLogUnitServer();
             if (ls != null) {
                 log.trace("corfu_smrobject top: reboot now");
-                System.out.println("corfu_smrobject top: reboot now @ ls " + ls.toString());
                 ls.reboot();
                 return cmdlet.ok();
             } else {
@@ -111,10 +108,8 @@ public class corfu_smrobject implements ICmdlet {
         if (rtMap.get(addressportPrefix + config) == null) {
             rt = configureRuntime(opts);
             rtMap.putIfAbsent(addressportPrefix + config, rt);
-            System.out.printf("RRR PUT IF ABSENT %s\n", addressportPrefix + config);
         }
         rt = (CorfuRuntime) rtMap.get(addressportPrefix + config);
-        System.out.printf("RRR GET %s = %s\n", addressportPrefix + config, rt.toString());
 
         String argz = ((String) opts.get("<args>"));
         int arity;

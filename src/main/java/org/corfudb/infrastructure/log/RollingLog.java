@@ -310,12 +310,10 @@ public class RollingLog extends AbstractLocalLog {
     }
 
     public void close() {
-        System.out.printf("** CLOSE: size = %d\n", channelMap.keySet().size());
         Iterator<Long> it = channelMap.keySet().iterator();
         while (it.hasNext()) {
             Long key = it.next();
             FileHandle fh = channelMap.get(key);
-            System.out.printf("** CLOSE: key = %d fh = %s\n", key, fh.toString());
             try {
                 fh.getChannel().close();
                 fh.channel = null;
@@ -332,7 +330,6 @@ public class RollingLog extends AbstractLocalLog {
                 log.warn("Error closing fh {}: {}", fh.toString(), e.toString());
             }
         }
-
         channelMap = new HashMap<>();
     }
 

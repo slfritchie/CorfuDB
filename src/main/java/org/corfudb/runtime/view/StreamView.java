@@ -174,7 +174,7 @@ public class StreamView implements AutoCloseable {
 
                 // following backpointers...
                 r = runtime.getAddressSpaceView().read(backPointer);
-                log.trace("Following backpointer to %d\n", backPointer);
+                log.trace("Following backpointer to %{}", backPointer);
             }
         } else {
             resolvedBackpointers.add(latestToken);

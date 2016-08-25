@@ -68,7 +68,6 @@ public class CorfuObjectProxy<P> {
 
     public CorfuObjectProxy(CorfuRuntime runtime, StreamView sv,
                             Class<P> originalClass, Serializers.SerializerType serializer) {
-        System.out.printf("%%%%%%%% CorfuObjectProxy use %s 1\n", runtime.toString());
         this.runtime = runtime;
         this.sv = sv;
         this.originalClass = originalClass;
@@ -115,24 +114,20 @@ public class CorfuObjectProxy<P> {
             if (!method.getReturnType().getName().equals("void")) {
                 CompletableFuture cf = new CompletableFuture();
                 long txAddr = runtime.getStreamsView().acquireAndWrite(affectedStreams, tlre, t -> {
-                    System.out.printf("%%%%%%%% CorfuObjectProxy use %s 2\n", runtime.toString());
                     runtime.getObjectsView().getTxFuturesMap().put(t.getToken(), cf);
                     return true;
                 }, t -> {
-                    System.out.printf("%%%%%%%% CorfuObjectProxy use %s 3\n", runtime.toString());
                     runtime.getObjectsView().getTxFuturesMap().remove(t.getToken());
                     return true;
                 });
                 log.debug("Wrote TX to log@{}", txAddr);
                 // pick the first affected object and sync.
-                System.out.printf("%%%%%%%% CorfuObjectProxy use %s 4\n", runtime.toString());
                 ICorfuObject cobj = (ICorfuObject) runtime.getObjectsView().getObjectCache().entrySet().stream()
                         .filter(x -> affectedStreams.contains(x.getKey().getStreamID()))
                         .findFirst().get().getValue();
                 cobj.getProxy().sync(cobj, txAddr);
                 return cf.join();
             } else {
-                System.out.printf("%%%%%%%% CorfuObjectProxy use %s 5\n", runtime.toString());
                 // TX doesn't return anything, so we can blindly write to the log.
                 long txAddr = runtime.getStreamsView().write(affectedStreams, tlre);
                 log.debug("Wrote TX to log@{}", txAddr);
@@ -141,7 +136,6 @@ public class CorfuObjectProxy<P> {
 
         } else {
             try {
-                System.out.printf("%%%%%%%% CorfuObjectProxy use %s 6\n", runtime.toString());
                 runtime.getObjectsView().TXBegin();
                 res = originalCall.call();
                 runtime.getObjectsView().TXEnd();
