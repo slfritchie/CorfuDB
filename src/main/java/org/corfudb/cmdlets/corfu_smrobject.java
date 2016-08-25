@@ -53,19 +53,28 @@ public class corfu_smrobject implements ICmdlet {
             if (ls != null && ss != null) {
                 log.trace("corfu_smrobject top: reset now");
                 System.out.println("corfu_smrobject top: reset now @ ls " + ls.toString());
+
+                // Reset the local log server.
                 ls.reset();
-                /*
-                */
+
+                // Reset the local sequencer server
                 ss.reset();
+
+                // Reset all local CorfuRuntime instances
                 Iterator<String> it = rtMap.keySet().iterator();
                 while (it.hasNext()) {
                     String key = it.next();
                     CorfuRuntime rt = (CorfuRuntime) rtMap.get(key);
                     System.out.printf("reset: stop rt.%s. @ %s\n", key, rt.toString());
+                    // Brrrrr, state needs resetting in rt's ObjectsView
                     rt.getObjectsView().getObjectCache().clear();
+                    // Brrrrr, state needs resetting in rt's AddressSpaceView
+                    rt.getAddressSpaceView().resetCaches();
                     rt.stop();
                 }
                 rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
+
+                // Reset all local CorfuRuntime StreamView
                 return cmdlet.ok();
             } else {
                 return cmdlet.err("No active log server or sequencer server");
