@@ -35,7 +35,7 @@
 
 -include("qc_java.hrl").
 
--define(TIMEOUT, 2*1000).
+-define(TIMEOUT, 12*1000).
 
 -compile(export_all).
 
@@ -211,7 +211,7 @@ next_state(S, _V, _NoSideEffectCall) ->
 %%%%
 
 reset(Mbox, Endpoint) ->
-    io:format(user, "R", []),
+    %% io:format(user, "R", []),
     rpc(Mbox, reset, Endpoint).
 
 reboot(Mbox, Endpoint) ->
