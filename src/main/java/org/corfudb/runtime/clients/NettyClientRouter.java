@@ -288,8 +288,17 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
      */
     @Override
     public void stop() {
-        shutdown = true;
+        stop(false);
+    }
+
+    @Override
+    public void stop(boolean shutdown_p) {
+        // A very hasty check of Netty state-of-the-art is that shutting down
+        // the worker threads is tricksy or impossible.
+        shutdown = shutdown_p;
+
         channel.disconnect();
+        connected_p = false;
     }
 
     /**

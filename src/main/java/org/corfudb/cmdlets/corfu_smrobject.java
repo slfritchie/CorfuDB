@@ -68,9 +68,12 @@ public class corfu_smrobject implements ICmdlet {
                     rt.getObjectsView().getObjectCache().clear();
                     // Brrrrr, state needs resetting in rt's AddressSpaceView
                     rt.getAddressSpaceView().resetCaches();
-                    rt.stop();
+                    // Stop the router, sortof.  false means don't really shutdown,
+                    // but disconnect any existing connection.
+                    rt.stop(false);
                 }
-                rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
+                // Avoid leak of Netty Pthread worker pool by reusing routers.
+                // rtMap = new ConcurrentHashMap<String,CorfuRuntime>();
 
                 // Reset all local CorfuRuntime StreamView
                 return cmdlet.ok();
