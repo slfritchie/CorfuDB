@@ -110,7 +110,8 @@ public class LogUnitServer extends AbstractServer {
         this.serverContext = serverContext;
 
         maxCacheSize = Utils.parseLong(opts.get("--max-cache"));
-        if ((Boolean) opts.get("--quickcheck-test-mode")) {
+        if (opts.get("--quickcheck-test-mode") != null &&
+            (Boolean) opts.get("--quickcheck-test-mode")) {
             // It's really annoying when using OS X + HFS+ that HFS+ does not
             // support sparse files.  If we use the default 2GB file size, then
             // every time that a sparse file is closed, the OS will always
