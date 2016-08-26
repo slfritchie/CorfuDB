@@ -297,8 +297,14 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
         // the worker threads is tricksy or impossible.
         shutdown = shutdown_p;
 
-        channel.disconnect();
         connected_p = false;
+        channel.disconnect();
+
+        /*
+        // Oi oi oi, this doesn't work:
+        ChannelFuture cf = channel.disconnect();
+        cf.syncUninterruptibly();
+        */
     }
 
     /**

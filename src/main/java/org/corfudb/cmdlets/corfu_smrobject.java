@@ -180,17 +180,6 @@ public class corfu_smrobject implements ICmdlet {
                     // of non-determinism is evil.  Just retry a few times via 'for' loop.
                     log.warn("WHOA, 'Disconnected endpoint', looping...\n");
                     try { Thread.sleep(50); } catch (InterruptedException ie){};
-
-                    // TODO: we are probably hiding a legitimate client-side bug, because if we
-                    // sleep for 1 second each time in this loop without rt.stop()'s, we won't
-                    // hit success for 10 seconds ... but a reset & retry for QC's shrinking will
-                    // immediately fix the "problem".
-                    Iterator<String> it = rtMap.keySet().iterator();
-                    while (it.hasNext()) {
-                        String key = it.next();
-                        CorfuRuntime rtrt = (CorfuRuntime) rtMap.get(key);
-                        rtrt.stop(false);
-                    }
                     continue;
                 } else {
                     /*
