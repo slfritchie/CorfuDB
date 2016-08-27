@@ -290,13 +290,11 @@ prop_parallel(MoreCmds) ->
 
 prop_parallel(MoreCmds, Mboxes, Endpoint) ->
     random:seed(now()),
-    ?FORALL(Cmds,
-            more_commands(MoreCmds,
-                           non_empty(
-                             parallel_commands(?MODULE,
-                                      initial_state(Mboxes, Endpoint)))),
+    ?FORALL(Cmds, more_commands(MoreCmds,
+                                parallel_commands(?MODULE,
+                                         initial_state(Mboxes, Endpoint))),
             begin
-                {H, S_or_Hs, Res} = run_commands(?MODULE, Cmds),
+                {H, S_or_Hs, Res} = run_parallel_commands(?MODULE, Cmds),
                 aggregate(command_names(Cmds),
                 measure(
                   cmds_length,
