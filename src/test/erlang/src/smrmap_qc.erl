@@ -35,7 +35,7 @@
 
 -include("qc_java.hrl").
 
--define(TIMEOUT, 2*1000).
+-define(TIMEOUT, 12*1000).
 
 -compile(export_all).
 

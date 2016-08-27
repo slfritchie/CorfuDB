@@ -19,6 +19,7 @@ import io.netty.util.concurrent.EventExecutorGroup;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.codehaus.groovy.tools.shell.IO;
 import org.corfudb.protocols.wireprotocol.CorfuMsg;
 import org.corfudb.protocols.wireprotocol.NettyCorfuMessageDecoder;
 import org.corfudb.protocols.wireprotocol.NettyCorfuMessageEncoder;
@@ -136,6 +137,8 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
     @Getter
     Boolean connected_p;
 
+    private Bootstrap b;
+
     public NettyClientRouter(String endpoint) {
         this(endpoint.split(":")[0], Integer.parseInt(endpoint.split(":")[1]));
     }
@@ -227,8 +230,7 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
             }
         });
 
-
-        Bootstrap b = new Bootstrap();
+        b = new Bootstrap();
         b.group(workerGroup);
         b.channel(NioSocketChannel.class);
         b.option(ChannelOption.SO_KEEPALIVE, true);
@@ -254,7 +256,7 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
         }
     }
 
-    void connectChannel(Bootstrap b, long c) {
+    synchronized void connectChannel(Bootstrap b, long c) {
         ChannelFuture cf = b.connect(host, port);
         cf.syncUninterruptibly();
         if (!cf.awaitUninterruptibly(timeoutConnect)) {
@@ -296,14 +298,22 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
         // A very hasty check of Netty state-of-the-art is that shutting down
         // the worker threads is tricksy or impossible.
         shutdown = shutdown_p;
-
         connected_p = false;
-        channel.disconnect();
 
-        /*
-        // Oi oi oi, this doesn't work:
         ChannelFuture cf = channel.disconnect();
         cf.syncUninterruptibly();
+        boolean b1 = cf.awaitUninterruptibly(1000);
+
+        /*
+        boolean b2=false;
+
+        ChannelFuture cf2 = channel.closeFuture();
+        cf2.syncUninterruptibly();
+        boolean b3 = cf2.awaitUninterruptibly(1000);
+        try { Thread.sleep(20); } catch (InterruptedException ljasdldkjlkjasdflkjasdflkjasdf) {};
+        System.out.printf("Channel %s is open? %s %s %s %s b1 %s b2 %s b3 %s\n",
+                channel.toString(), channel.isOpen(), channel.isActive(), channel.isRegistered(), channel.isWritable(), b1, b2, b3);
+        connectChannel(b, -1);
         */
     }
 
