@@ -54,6 +54,8 @@ public class CorfuServer {
     @Getter
     private static LogUnitServer logUnitServer;
 
+    public static boolean serverRunning_p = false;
+
     /**
      * This string defines the command line arguments,
      * in the docopt DSL (see http://docopt.org) for the executable.
@@ -108,6 +110,7 @@ public class CorfuServer {
     }
 
     public static void main(String[] args) {
+        serverRunning_p = true;
 
         // Parse the options given, using docopt.
         Map<String, Object> opts =
@@ -228,7 +231,6 @@ public class CorfuServer {
                     .childOption(ChannelOption.SO_REUSEADDR, true)
                     .childOption(ChannelOption.TCP_NODELAY, true)
                     .childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
-                    .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         public void initChannel(io.netty.channel.socket.SocketChannel ch) throws Exception {
