@@ -263,7 +263,6 @@ prop(MoreCmds) ->
     prop(MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
 prop(MoreCmds, Mboxes, Endpoint) ->
-    random:seed(now()),
     %% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 commands(?MODULE,
@@ -289,10 +288,12 @@ prop_parallel(MoreCmds) ->
     prop_parallel(MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
 prop_parallel(MoreCmds, Mboxes, Endpoint) ->
-    random:seed(now()),
+    AlwaysNum = 20,
+    io:format(user, "NOTE: parallel cmds are executed ~w times to try to detect non-determinism\n", [AlwaysNum]),
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 parallel_commands(?MODULE,
                                          initial_state(Mboxes, Endpoint))),
+            ?WRAP_ALWAYS(AlwaysNum,
             begin
                 {H, S_or_Hs, Res} = run_parallel_commands(?MODULE, Cmds),
                 aggregate(command_names(Cmds),
@@ -305,7 +306,7 @@ prop_parallel(MoreCmds, Mboxes, Endpoint) ->
                       Res == ok
                   end
                 )))
-            end).
+            end)).
 
 seq_to_par_cmds(L) ->
     [Cmd || Cmd <- L,
