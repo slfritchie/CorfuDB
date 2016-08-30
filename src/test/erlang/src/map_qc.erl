@@ -25,12 +25,22 @@
 -ifdef(PROPER).
 %% Automagically import generator functions like choose(), frequency(), etc.
 -include_lib("proper/include/proper.hrl").
+
+%% Proper doesn't like postcondition() return values that are not
+%% boolean().  So, for non-true return values, we wrap in ?ELSE() so
+%% that EQC QuickCheck can be slightly more helpful in reporting
+%% postcondition() failures.
+-define(ELSE(_X), false).
+
 -endif.
 
 -ifdef(EQC).
 %% Automagically import generator functions like choose(), frequency(), etc.
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
+
+-define(ELSE(X), (X)).
+
 -endif.
 
 -include("qc_java.hrl").
@@ -118,7 +128,7 @@ command(S=#state{map_type=MapType,
 postcondition(_S, {call,_,reset,[_Mbox, _EP]}, Ret) ->
     case Ret of
         ["OK"] -> true;
-        Else   -> {got, Else}
+        _Else  -> ?ELSE({got, _Else})
     end;
 postcondition(#state{d=D}, {call,_,put,[_Mbox, _EP, _Str, _MT, Key, _Val]}, Ret) ->
     case Ret of
@@ -130,7 +140,8 @@ postcondition(#state{d=D}, {call,_,put,[_Mbox, _EP, _Str, _MT, Key, _Val]}, Ret)
             case orddict:find(Key, D) of
                 error                  -> Prev == [];
                 {ok, V} when V == Prev -> true;
-                {ok, Else}             -> {key, Key, expected, Else, got, Prev}
+                {ok, _Else}            -> ?ELSE({key, Key, expected, _Else,
+                                                 got, Prev})
             end
     end;
 postcondition(S, {call,_,get,[_Mbox, _EP, Str, _MT, Key]}, Ret) ->
@@ -141,22 +152,22 @@ postcondition(#state{d=D}, {call,_,size,[_Mbox, _EP, _Str, _MT]}, Res) ->
     case Res of
         ["OK", SizeStr] ->
             list_to_integer(SizeStr) == length(orddict:to_list(D));
-        Else ->
-            {got, Else}
+        _Else ->
+            ?ELSE({got, _Else})
     end;
 postcondition(#state{d=D}, {call,_,isEmpty,[_Mbox, _EP, _Str, _MT]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_empty(D);
-        Else ->
-            {got, Else}
+        _Else ->
+            ?ELSE({got, _Else})
     end;
 postcondition(#state{d=D}, {call,_,containsKey,[_Mbox, _EP, _Str, _MT, Key]}, Res) ->
     case Res of
         ["OK", Bool] ->
             list_to_atom(Bool) == orddict:is_key(Key, D);
-        Else ->
-            {got, Else}
+        _Else ->
+            ?ELSE({got, _Else})
     end;
 postcondition(#state{d=D}, {call,_,containsValue,[_Mbox, _EP, _Str, _MT, Value]}, Res) ->
     case Res of
@@ -167,8 +178,8 @@ postcondition(#state{d=D}, {call,_,containsValue,[_Mbox, _EP, _Str, _MT, Value]}
                            _  -> true
                        end,
             list_to_atom(Bool) == Val_in_d;
-        Else ->
-            {got, Else}
+        _Else ->
+            ?ELSE({got, _Else})
     end;
 postcondition(S, {call,_,remove,[_Mbox, _EP, Str, _MT, Key]}, Ret) ->
     %% remove's return value is the same as post's return value, so
