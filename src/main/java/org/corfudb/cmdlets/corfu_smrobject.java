@@ -182,13 +182,6 @@ public class corfu_smrobject implements ICmdlet {
                     try { Thread.sleep(50); } catch (InterruptedException ie){};
                     continue;
                 } else {
-                    /*
-                    System.out.printf("DERP getclass: %s\n", c.getClass().toString());
-                    System.out.printf("DERP getclass comparison: %s\n", c.getClass() == org.corfudb.runtime.exceptions.NetworkException.class);
-                    System.out.printf("DERP c-str: %s\n", c.toString());
-                    System.out.printf("DERP c-str comparison: %s\n", c.toString().matches("Disconnected endpoint"));
-                    System.out.printf("DERP c-str comparison3: %s\n", c.toString().matches(".*Disconnected endpoint.*"));
-                    */
                     return cmdlet.err("Couldn't invoke method on object: " + e,
                             "stack: " + ExceptionUtils.getStackTrace(e),
                             "cause: " + ExceptionUtils.getCause(e));

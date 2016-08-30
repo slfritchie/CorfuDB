@@ -5,14 +5,10 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.clients.SequencerClient;
 import org.corfudb.util.GitRepositoryState;
-import org.corfudb.util.Utils;
 import org.docopt.Docopt;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-
-import static org.fusesource.jansi.Ansi.Color.WHITE;
-import static org.fusesource.jansi.Ansi.ansi;
 
 /**
  * Created by mwei on 12/11/15.
