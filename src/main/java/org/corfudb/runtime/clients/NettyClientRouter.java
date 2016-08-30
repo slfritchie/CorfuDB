@@ -303,18 +303,6 @@ public class NettyClientRouter extends SimpleChannelInboundHandler<CorfuMsg>
         ChannelFuture cf = channel.disconnect();
         cf.syncUninterruptibly();
         boolean b1 = cf.awaitUninterruptibly(1000);
-
-        /*
-        boolean b2=false;
-
-        ChannelFuture cf2 = channel.closeFuture();
-        cf2.syncUninterruptibly();
-        boolean b3 = cf2.awaitUninterruptibly(1000);
-        try { Thread.sleep(20); } catch (InterruptedException ljasdldkjlkjasdflkjasdflkjasdf) {};
-        System.out.printf("Channel %s is open? %s %s %s %s b1 %s b2 %s b3 %s\n",
-                channel.toString(), channel.isOpen(), channel.isActive(), channel.isRegistered(), channel.isWritable(), b1, b2, b3);
-        connectChannel(b, -1);
-        */
     }
 
     /**
