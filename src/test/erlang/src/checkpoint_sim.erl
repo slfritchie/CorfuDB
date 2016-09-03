@@ -38,23 +38,30 @@ expand_cmds(Cmds) ->
     expand_cmds(Cmds, orddict:new()).
 
 expand_cmds([{start_cp, CP_Name, PassNow, PassInt, Batch, Status}|Rest], D) ->
+    %% Remove this tuple and insert a bunch of checkpoint items.
     Rest2 = insert_cps(CP_Name, PassNow, PassInt, Batch, Status, Rest, D),
     expand_cmds(Rest2, D);
-expand_cmds([{m, Mutation}=Cmd|Rest], D) ->
-    [Cmd|expand_cmds(Rest, apply_mutation(Mutation, D))];
 expand_cmds([{cp, _Name, _DumpList}=Cmd|Rest], D) ->
+    %% Keep this record.
     [Cmd|expand_cmds(Rest, D)];
+expand_cmds([{m, Mutation}=Cmd|Rest], D) ->
+    %% Keep this record.  Also apply the mutation to our local dict.
+    [Cmd|expand_cmds(Rest, apply_mutation(Mutation, D))];
 expand_cmds([], _D) ->
     [].
 
 insert_cps(CP_Name, _PassNow, _PassInt, BatchNum, Status, Rest, D)
   when BatchNum > 0 ->
     CPs = make_cp_dumps_and_end(CP_Name, BatchNum, Status, D),
+    %% We want the {cp,_,start} record to appear immediately, so
+    %% don't let it slip into random_merge()'s args.
     [{cp, CP_Name, start}] ++ random_merge(CPs, Rest).
 
 make_cp_dumps_and_end(CP_Name, BatchNum, Status, D) ->
-    make_cp_dumps(shuffle(orddict:to_list(D)), CP_Name, BatchNum) ++
-    [{cp, CP_Name, Status}].
+    %% Shuffle up the order of entries in our dict, then make a bunch
+    %% of dump records, then put a status record at the end.
+    make_cp_dumps(shuffle(orddict:to_list(D)), CP_Name, BatchNum)
+        ++ [{cp, CP_Name, Status}].
 
 make_cp_dumps([], _, _) ->
     [];
@@ -76,6 +83,8 @@ random_merge([H1|Rest1]=L1, [H2|Rest2]=L2) ->
         _ ->
             [H2|random_merge(L1, Rest2)]
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 random_cmd_list(N, Keys, Vals, CPs) ->
     shuffle(cmds(N, Keys, Vals) ++ checkpoint_cmds(CPs)).
