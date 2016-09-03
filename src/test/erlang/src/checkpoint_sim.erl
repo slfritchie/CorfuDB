@@ -6,15 +6,21 @@
 %% N = # of times to repeat the Keys + Vals put sequence,
 %%     plus # of times to repeat deleting each key,
 %%     plus # of times to clear the table with 'del_all'
+%% Keys = Number of unique keys
+%% Vals = Number of unique values per key
+%% CPs = Number of checkpoints to insert into the simulated log
 
 make_random_cmd_list_with_cps(N, Keys, Vals, CPs) ->
     expand_cmds(random_cmd_list(N, Keys, Vals, CPs)).
+
+%% Apply simulated log entries to an SMR-style map.  Assume the map is
+%% empty at the start of the cmd sequence.
 
 apply_log(Cmds) ->
     lists:foldl(fun apply_mutation/2, orddict:new(), Cmds).
 
 apply_mutation({m, M}, D) ->
-    apply_mutation(M, D);
+    apply_mutation(M, D);                   % Strip {m, M} wrapper & retry
 apply_mutation(del_all, _D) ->
     orddict:new();
 apply_mutation({del, K}, D) ->
@@ -23,46 +29,53 @@ apply_mutation({put, K, V}, D) ->
     orddict:store(K, V, D).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%% Helper functions
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 expand_cmds(Cmds) ->
     expand_cmds(Cmds, orddict:new()).
 
-expand_cmds([{m, Mutation}=Cmd|Rest], D) ->
-    [Cmd|expand_cmds(Rest, apply_mutation(Mutation, D))];
 expand_cmds([{start_cp, CP_Name, PassNow, PassInt, Batch, Status}|Rest], D) ->
     Rest2 = insert_cps(CP_Name, PassNow, PassInt, Batch, Status, Rest, D),
     expand_cmds(Rest2, D);
+expand_cmds([{m, Mutation}=Cmd|Rest], D) ->
+    [Cmd|expand_cmds(Rest, apply_mutation(Mutation, D))];
 expand_cmds([{cp, _Name, _DumpList}=Cmd|Rest], D) ->
     [Cmd|expand_cmds(Rest, D)];
 expand_cmds([], _D) ->
     [].
 
-insert_cps(CP_Name, PassNow, PassInt, BatchNum, Status, Rest, D)
-  when PassInt >= 0, BatchNum > 0 ->
-    {Rest1, Rest2} = l_split(PassNow, Rest),
-    %% Snapshot_KVs = shuffle(orddict:to_list(D)),
-    Snapshot_KVs = orddict:to_list(D),
-    [{cp, CP_Name, start}] ++ Rest1 ++
-         insert_cps2(CP_Name, PassInt, PassInt, BatchNum,
-                     Snapshot_KVs, Status, Rest2).
+insert_cps(CP_Name, _PassNow, _PassInt, BatchNum, Status, Rest, D)
+  when BatchNum > 0 ->
+    CPs = make_cp_dumps_and_end(CP_Name, BatchNum, Status, D),
+    [{cp, CP_Name, start}] ++ random_merge(CPs, Rest).
 
-insert_cps2(CP_Name, 0, PassInt, BatchNum, [], Status, Rest) ->
-    [{cp, CP_Name, Status}|
-     insert_cps2(CP_Name, -1, PassInt, BatchNum, [], Status, Rest)];
-insert_cps2(CP_Name, 0, PassInt, BatchNum, Snapshot_KVs, Status, Rest) ->
-    {S_KV1, S_KV2} = l_split(BatchNum, Snapshot_KVs),
-    Snap = {cp, CP_Name, [{put, K, V} || {K, V} <- S_KV1]},
-    [Snap|insert_cps2(CP_Name, PassInt, PassInt, BatchNum, S_KV2, Status, Rest)];
-insert_cps2(_CP_Name, -1, _PassInt, _BatchNum, _Snapshot_KVs, _Status, []) ->
+make_cp_dumps_and_end(CP_Name, BatchNum, Status, D) ->
+    make_cp_dumps(shuffle(orddict:to_list(D)), CP_Name, BatchNum) ++
+    [{cp, CP_Name, Status}].
+
+make_cp_dumps([], _, _) ->
     [];
-insert_cps2(CP_Name, Pass, PassInt, BatchNum, Snapshot_KVs, Status, []) ->
-    NewPass = if Pass >= 0 -> 0;
-                 true      -> -1
-              end,
-    insert_cps2(CP_Name, NewPass, PassInt, BatchNum, Snapshot_KVs, Status, []);
-insert_cps2(CP_Name, Pass, PassInt, BatchNum, Snapshot_KVs, Status, [H|Rest]) ->
-    [H|insert_cps2(CP_Name, Pass - 1, PassInt, BatchNum,
-                   Snapshot_KVs, Status, Rest)].
+make_cp_dumps(KVs, CP_Name, BatchNum) ->
+    {Now_KVs, Later_KVs} = l_split(BatchNum, KVs),
+    [{cp, CP_Name, [{put, K, V} || {K, V} <- Now_KVs]}] ++
+        make_cp_dumps(Later_KVs, CP_Name, BatchNum).
+
+random_merge([], []) ->
+    [];
+random_merge(Rest1, []) ->
+    Rest1;
+random_merge([], Rest2) ->
+    Rest2;
+random_merge([H1|Rest1]=L1, [H2|Rest2]=L2) ->
+    case random:uniform(100) of
+        N when N < 50 ->
+            [H1|random_merge(Rest1, L2)];
+        _ ->
+            [H2|random_merge(L1, Rest2)]
+    end.
 
 random_cmd_list(N, Keys, Vals, CPs) ->
     shuffle(cmds(N, Keys, Vals) ++ checkpoint_cmds(CPs)).
