@@ -37,9 +37,9 @@ apply_mutation({put, K, V}, D) ->
 expand_cmds(Cmds) ->
     expand_cmds(Cmds, orddict:new()).
 
-expand_cmds([{start_cp, CP_Name, PassNow, PassInt, Batch, Status}|Rest], D) ->
+expand_cmds([{start_cp, CP_Name, Batch, Status}|Rest], D) ->
     %% Remove this tuple and insert a bunch of checkpoint items.
-    Rest2 = insert_cps(CP_Name, PassNow, PassInt, Batch, Status, Rest, D),
+    Rest2 = insert_cps(CP_Name, Batch, Status, Rest, D),
     expand_cmds(Rest2, D);
 expand_cmds([{cp, _Name, _DumpList}=Cmd|Rest], D) ->
     %% Keep this record.
@@ -50,7 +50,7 @@ expand_cmds([{m, Mutation}=Cmd|Rest], D) ->
 expand_cmds([], _D) ->
     [].
 
-insert_cps(CP_Name, _PassNow, _PassInt, BatchNum, Status, Rest, D)
+insert_cps(CP_Name, BatchNum, Status, Rest, D)
   when BatchNum > 0 ->
     CPs = make_cp_dumps_and_end(CP_Name, BatchNum, Status, D),
     %% We want the {cp,_,start} record to appear immediately, so
@@ -90,7 +90,8 @@ random_cmd_list(N, Keys, Vals, CPs) ->
     shuffle(cmds(N, Keys, Vals) ++ checkpoint_cmds(CPs)).
 
 cmds(N, Keys, Vals) ->
-    [{m, del_all} || _ <- lists:seq(1, N)] ++
+    [{m, del_all} || _ <- lists:seq(1, N)]
+    ++
     lists:append(
       lists:duplicate(N,
                       [{m, {put, key(X), val(Y)}} || X <- lists:seq(1, Keys),
@@ -101,12 +102,9 @@ cmds(N, Keys, Vals) ->
                       [{m, {del, key(X)}} || X <- lists:seq(1, Keys)])).
 
 checkpoint_cmds(N) ->
-    %% {start_cp, # cmds to pass now, # cmds to pass intermittently,
-    %%            dump batch size, final success/fail status}
+    %% {start_cp, dump batch size, final success/fail status}
     [{start_cp,
       "cp-name-" ++ integer_to_list(CP_Num),
-      random:uniform(4) - 1,
-      random:uniform(4) - 1,
       random:uniform(3),
       case random:uniform(100) rem 3 of
           0 -> fail;
