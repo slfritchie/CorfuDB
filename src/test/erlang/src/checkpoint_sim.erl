@@ -93,9 +93,10 @@ cmds(N, Keys, Vals) ->
     [{m, del_all} || _ <- lists:seq(1, N)]
     ++
     lists:append(
-      lists:duplicate(N,
-                      [{m, {put, key(X), val(Y)}} || X <- lists:seq(1, Keys),
-                                                     Y <- lists:seq(1, Vals)]))
+      lists:duplicate(
+        N,
+        [{m, {put, key(X), val(X, Y)}} || X <- lists:seq(1, Keys),
+                                          Y <- lists:seq(1, Vals)]))
     ++
     lists:append(
       lists:duplicate(N,
@@ -122,8 +123,8 @@ l_split(Num, L) ->
 key(N) ->
     "key" ++ integer_to_list(N).
 
-val(N) ->
-    "val" ++ integer_to_list(N).
+val(X, N) ->
+    "val" ++ integer_to_list(X) ++ "-" ++ integer_to_list(N).
 
 shuffle(L) ->
     [X || {_, X} <- lists:sort([{random:uniform(999999), Y} || Y <- L])].
