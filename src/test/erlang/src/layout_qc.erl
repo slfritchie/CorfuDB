@@ -34,7 +34,7 @@
 -endif.
 
 -define(QUICK_MBOX, qc_java:quick_mbox_endpoint()).
--define(TIMEOUT, 2*1000).
+-define(TIMEOUT, 15*1000).
 
 -include("qc_java.hrl").
 
