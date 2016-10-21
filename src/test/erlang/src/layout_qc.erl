@@ -47,7 +47,7 @@
           prepared_rank=-1 :: non_neg_integer(),
           proposed_layout="" :: string(),
           committed_layout="",
-          committed_epoch=0    % Must match server's epoch after reset()!
+          last_epoch_set=0    % Must match server's epoch after reset()!
          }).
 
 -record(layout, {
@@ -72,8 +72,8 @@ gen_rank(#state{prepared_rank=PR}) ->
     frequency([{10, PR},
                { 2, gen_rank()}]).
 
-gen_c_epoch(#state{committed_epoch=CommittedEpoch}) ->
-    CommittedEpoch.
+gen_c_epoch(#state{last_epoch_set=LastEpochSet}) ->
+    LastEpochSet.
 
 gen_epoch() ->
     choose(1, 100).
@@ -114,6 +114,8 @@ command(S=#state{endpoint=Endpoint, reset_p=true,
              [gen_mbox(S), Endpoint]}},
        {20, {call, ?MODULE, query,
              [gen_mbox(S), Endpoint, gen_c_epoch(S)]}},
+       {20, {call, ?MODULE, set_epoch,
+             [gen_mbox(S), Endpoint, gen_epoch()]}},
        {20, {call, ?MODULE, prepare,
              [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank()]}},
        {20, {call, ?MODULE, propose,
@@ -137,7 +139,7 @@ postcondition2(_S, {call,_,RRR,[_Mbox, _EP]}, Ret)
         Else   -> {got, Else}
     end;
 postcondition2(#state{committed_layout=CommittedLayout,
-                      committed_epoch=CommittedEpoch},
+                      last_epoch_set=LastEpochSet},
                {call,_,query,[_Mbox, _EP, C_Epoch]}, Ret) ->
     case termify(Ret) of
         timeout ->
@@ -151,13 +153,25 @@ postcondition2(#state{committed_layout=CommittedLayout,
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch /= C_Epoch
             orelse
-            C_Epoch /= CommittedEpoch;
+            C_Epoch /= LastEpochSet;
         Else ->
             io:format(user, "Q ~p\n", [Else]),
             false
     end;
+postcondition2(#state{last_epoch_set=LastEpochSet},
+              {call,_,set_epoch,[_Mbox, _EP, Epoch]}, RetStr) ->
+    case termify(RetStr) of
+        ok ->
+            Epoch > LastEpochSet;
+        {error, wrongEpochException, CorrectEpoch} ->
+            CorrectEpoch == LastEpochSet;
+        Else ->
+            M = {set_epoch, arg_epoch, Epoch, Else},
+            io:format(user, "~p\n", [M]),
+            false
+    end;
 postcondition2(#state{prepared_rank=PreparedRank,
-                      committed_epoch=CommittedEpoch},
+                      last_epoch_set=LastEpochSet},
               {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}, RetStr) ->
     case termify(RetStr) of
         ok ->
@@ -165,13 +179,13 @@ postcondition2(#state{prepared_rank=PreparedRank,
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch == CommittedEpoch;
+            CorrectEpoch == LastEpochSet;
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
                       proposed_layout=ProposedLayout,
-                      committed_epoch=CommittedEpoch},
+                      last_epoch_set=LastEpochSet},
               {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
@@ -185,11 +199,11 @@ postcondition2(#state{prepared_rank=PreparedRank,
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch == CommittedEpoch;
+            CorrectEpoch == LastEpochSet;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition2(#state{committed_epoch=CommittedEpoch},
+postcondition2(#state{last_epoch_set=LastEpochSet},
                {call,_,commit,[_Mbox, _EP, _C_Epoch, Rank, Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
@@ -207,20 +221,31 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
             %% #210 and perhaps elsewhere.
             %%
             %% Thus, no rank checking here, just epoch going forward.
-            Layout#layout.epoch > CommittedEpoch;
+            Layout#layout.epoch > LastEpochSet;
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch == CommittedEpoch
+            CorrectEpoch == LastEpochSet
             orelse
-            Layout#layout.epoch =< CommittedEpoch;
+            Layout#layout.epoch =< LastEpochSet;
         Else ->
             {commit, rank, Rank, layout, Layout,
-             committed, CommittedEpoch, Else}
+             committed, LastEpochSet, Else}
     end.
 
 next_state(S, _V, {call,_,reset,[_Mbox, _EP]}) ->
     S#state{reset_p=true};
+next_state(S, _V, {call,_,reboot,[_Mbox, _EP]}) ->
+    S#state{last_epoch_set=0};
+next_state(S=#state{last_epoch_set=LastEpochSet}, _V,
+           {call,_,set_epoch,[_Mbox, _EP, Epoch]}) ->
+    if Epoch > LastEpochSet ->
+            S#state{prepared_rank=-1,
+                    proposed_layout="",
+                    last_epoch_set=Epoch};
+       true ->
+            S
+    end;
 next_state(S=#state{prepared_rank=PreparedRank,
-                    committed_epoch=_CommittedEpoch}, _V,
+                    last_epoch_set=_LastEpochSet}, _V,
            {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}) ->
     if Rank > PreparedRank ->
             S#state{prepared_rank=Rank, proposed_layout=""};
@@ -228,20 +253,19 @@ next_state(S=#state{prepared_rank=PreparedRank,
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank,
-                    committed_epoch=_CommittedEpoch}, _V,
+                    last_epoch_set=_LastEpochSet}, _V,
            {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
     if Rank == PreparedRank ->
             S#state{proposed_layout=Layout};
        true ->
             S
     end;
-next_state(S=#state{committed_epoch=CommittedEpoch}, _V,
+next_state(S=#state{last_epoch_set=LastEpochSet}, _V,
            {call,_,commit,[_Mbox, _EP, _C_Epoch, _Rank, Layout]}) ->
-    if Layout#layout.epoch > CommittedEpoch ->
+    if Layout#layout.epoch > LastEpochSet ->
             S#state{prepared_rank=-1,
                     proposed_layout="",
-                    committed_layout=Layout,
-                    committed_epoch=Layout#layout.epoch};
+                    committed_layout=Layout};
        true ->
             S
     end;
@@ -260,6 +284,9 @@ reboot(Mbox, Endpoint) ->
 
 query(Mbox, Endpoint, C_Epoch) ->
     rpc(Mbox, "query", Endpoint, C_Epoch, []).
+
+set_epoch(Mbox, Endpoint, C_Epoch) ->
+    rpc(Mbox, "set_epoch", Endpoint, C_Epoch, []).
 
 prepare(Mbox, Endpoint, C_Epoch, Rank) ->
     rpc(Mbox, "prepare", Endpoint, C_Epoch,
