@@ -158,15 +158,13 @@ postcondition2(#state{committed_layout=CommittedLayout,
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
                       committed_epoch=CommittedEpoch},
-              {call,_,prepare,[_Mbox, _EP, C_Epoch, Rank]}, RetStr) ->
+              {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}, RetStr) ->
     case termify(RetStr) of
         ok ->
-            C_Epoch == CommittedEpoch andalso Rank > PreparedRank;
+            Rank > PreparedRank;
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch /= C_Epoch
-            andalso
             CorrectEpoch == CommittedEpoch;
         Else ->
             {prepare, Rank, prepared_rank, PreparedRank, Else}
@@ -174,7 +172,7 @@ postcondition2(#state{prepared_rank=PreparedRank,
 postcondition2(#state{prepared_rank=PreparedRank,
                       proposed_layout=ProposedLayout,
                       committed_epoch=CommittedEpoch},
-              {call,_,propose,[_Mbox, _EP, C_Epoch, Rank, _Layout]}, RetStr) ->
+              {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             Rank == PreparedRank;
@@ -187,14 +185,12 @@ postcondition2(#state{prepared_rank=PreparedRank,
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= "";
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch /= C_Epoch
-            andalso
             CorrectEpoch == CommittedEpoch;
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
 postcondition2(#state{committed_epoch=CommittedEpoch},
-               {call,_,commit,[_Mbox, _EP, C_Epoch, Rank, Layout]}, RetStr) ->
+               {call,_,commit,[_Mbox, _EP, _C_Epoch, Rank, Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -213,9 +209,7 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
             %% Thus, no rank checking here, just epoch going forward.
             Layout#layout.epoch > CommittedEpoch;
         {error, wrongEpochException, CorrectEpoch} ->
-            (CorrectEpoch /= C_Epoch
-             andalso
-             CorrectEpoch == CommittedEpoch)
+            CorrectEpoch == CommittedEpoch
             orelse
             Layout#layout.epoch =< CommittedEpoch;
         Else ->
@@ -226,17 +220,17 @@ postcondition2(#state{committed_epoch=CommittedEpoch},
 next_state(S, _V, {call,_,reset,[_Mbox, _EP]}) ->
     S#state{reset_p=true};
 next_state(S=#state{prepared_rank=PreparedRank,
-                    committed_epoch=CommittedEpoch}, _V,
-           {call,_,prepare,[_Mbox, _EP, C_Epoch, Rank]}) ->
-    if C_Epoch == CommittedEpoch andalso Rank > PreparedRank ->
+                    committed_epoch=_CommittedEpoch}, _V,
+           {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}) ->
+    if Rank > PreparedRank ->
             S#state{prepared_rank=Rank, proposed_layout=""};
        true ->
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank,
-                    committed_epoch=CommittedEpoch}, _V,
-           {call,_,propose,[_Mbox, _EP, C_Epoch, Rank, Layout]}) ->
-    if C_Epoch == CommittedEpoch andalso Rank == PreparedRank ->
+                    committed_epoch=_CommittedEpoch}, _V,
+           {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
+    if Rank == PreparedRank ->
             S#state{proposed_layout=Layout};
        true ->
             S
