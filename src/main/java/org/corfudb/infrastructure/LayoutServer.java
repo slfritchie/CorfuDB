@@ -344,14 +344,6 @@ public class LayoutServer extends AbstractServer {
      */
     // TODO this can work under a separate lock for this step as it does not change the global components
     public synchronized void handleMessageLayoutPrepare(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
-        // Check if the prepare is for the correct epoch
-        long serverEpoch = getServerEpoch();
-        if (msg.getEpoch() != serverEpoch) {
-            r.sendResponse(ctx, msg, new CorfuPayloadMsg<>(CorfuMsgType.WRONG_EPOCH, serverEpoch));
-            log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}", msg.getEpoch(), serverEpoch, msg);
-            return;
-        }
-
         Rank prepareRank = getRank(msg);
         Rank phase1Rank = getPhase1Rank();
         Layout proposedLayout = getProposedLayout();
@@ -375,14 +367,6 @@ public class LayoutServer extends AbstractServer {
      * @param r
      */
     public synchronized void handleMessageLayoutPropose(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
-        // Check if the propose is for the correct epoch
-        long serverEpoch = getServerEpoch();
-        if (msg.getEpoch() != serverEpoch) {
-            r.sendResponse(ctx, msg, new CorfuPayloadMsg<>(CorfuMsgType.WRONG_EPOCH, serverEpoch));
-            log.trace("Incoming message with wrong epoch, got {}, expected {}, message was: {}", msg.getEpoch(), serverEpoch, msg);
-            return;
-        }
-
         Rank proposeRank = getRank(msg);
         Layout proposeLayout = msg.getLayout();
         Rank phase1Rank = getPhase1Rank();
@@ -425,7 +409,8 @@ public class LayoutServer extends AbstractServer {
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         long serverEpoch = getServerEpoch();
-        if(msg.getLayout().getEpoch() <= serverEpoch) {
+        // if(msg.getLayout().getEpoch() != serverEpoch) { // Remember: we got a SET_EPOCH op earlier. This layout's epoch ought to match.
+        if(msg.getLayout().getEpoch() < serverEpoch) { // Remember: we got a SET_EPOCH op earlier. This layout's epoch ought to match.
             r.sendResponse(ctx, msg, new CorfuPayloadMsg<>(CorfuMsgType.WRONG_EPOCH, serverEpoch));
             return;
         }

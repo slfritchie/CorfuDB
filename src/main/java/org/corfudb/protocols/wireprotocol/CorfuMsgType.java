@@ -35,9 +35,9 @@ public enum CorfuMsgType {
     LAYOUT_REQUEST(10, TypeToken.of(CorfuMsg.class), LayoutServer.class, true),
     LAYOUT_RESPONSE(11, TypeToken.of(LayoutMsg.class), LayoutServer.class, true),
     LAYOUT_PREPARE(12, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true),
-    LAYOUT_PREPARE_REJECT(13, TypeToken.of(LayoutRankMsg.class), LayoutServer.class),
+    LAYOUT_PREPARE_REJECT(13, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true),
     LAYOUT_PROPOSE(14, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true),
-    LAYOUT_PROPOSE_REJECT(15, TypeToken.of(LayoutRankMsg.class), LayoutServer.class),
+    LAYOUT_PROPOSE_REJECT(15, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true),
     LAYOUT_COMMITTED(16, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true),
     LAYOUT_QUERY(17, TypeToken.of(LayoutRankMsg.class), LayoutServer.class),
     LAYOUT_BOOTSTRAP(18, TypeToken.of(LayoutMsg.class), LayoutServer.class, true),
@@ -71,7 +71,7 @@ public enum CorfuMsgType {
 
     // EXTRA CODES
     LAYOUT_ALREADY_BOOTSTRAP(60, TypeToken.of(CorfuMsg.class), LayoutServer.class),
-    LAYOUT_PREPARE_ACK(61, TypeToken.of(LayoutRankMsg.class), LayoutServer.class);
+    LAYOUT_PREPARE_ACK(61, TypeToken.of(LayoutRankMsg.class), LayoutServer.class, true);
 
 
     public final int type;

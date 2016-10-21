@@ -78,7 +78,7 @@ public class corfu_layout implements ICmdlet {
             // connections, and leaks Netty client-side worker threads.
             // FIX ME.  These leaks make QuickCheck testing extremely difficult.
             layoutViews.forEach((k, v_layout) -> {
-                v_layout.getRuntime().stop(true);
+                /////////////////////////////////// v_layout.getRuntime().stop(true);
                 });
             layoutViews = new ConcurrentHashMap<>();
 
