@@ -409,8 +409,12 @@ public class LayoutServer extends AbstractServer {
     // TODO how do reject the older epoch commits, should it be an explicit NACK.
     public synchronized void handleMessageLayoutCommit(LayoutRankMsg msg, ChannelHandlerContext ctx, IServerRouter r) {
         long serverEpoch = getServerEpoch();
-        // if(msg.getLayout().getEpoch() != serverEpoch) { // Remember: we got a SET_EPOCH op earlier. This layout's epoch ought to match.
-        if(msg.getLayout().getEpoch() < serverEpoch) { // Remember: we got a SET_EPOCH op earlier. This layout's epoch ought to match.
+        long msgEpoch = msg.getLayout().getEpoch();
+        Layout currentWrittenEpoch = getLayoutInHistory(msgEpoch);
+        // This layout must not already be written. But also remember: we got a SET_EPOCH op earlier,
+        // and this layout's epoch may not be smaller.
+        if((currentWrittenEpoch != null && currentWrittenEpoch.getEpoch() == msgEpoch) ||
+                msgEpoch < serverEpoch) {
             r.sendResponse(ctx, msg, new CorfuPayloadMsg<>(CorfuMsgType.WRONG_EPOCH, serverEpoch));
             return;
         }
@@ -467,6 +471,10 @@ public class LayoutServer extends AbstractServer {
 
     public void setLayoutInHistory(Layout layout) {
         serverContext.getDataStore().put(Layout.class, PREFIX_LAYOUTS, String.valueOf(layout.getEpoch()), layout);
+    }
+
+    public Layout getLayoutInHistory(long epoch) {
+        return serverContext.getDataStore().get(Layout.class, PREFIX_LAYOUTS, Long.toString(epoch));
     }
 
     private void setServerEpoch(long serverEpoch) {
