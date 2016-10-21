@@ -326,8 +326,8 @@ public class LayoutServer extends AbstractServer {
      */
     public synchronized void handleMessageSetEpoch(CorfuPayloadMsg<Long> msg, ChannelHandlerContext ctx, IServerRouter r) {
         long serverEpoch = getServerEpoch();
-        if (msg.getPayload() >= serverEpoch) {
-            log.info("Received SET_EPOCH, moving to new epoch {}", msg.getPayload());
+        if (msg.getPayload() > serverEpoch) {
+            log.info("Received SET_EPOCH, moving to new epoch {} -> {}", serverEpoch, msg.getPayload());
             setServerEpoch(msg.getPayload());
             r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsgType.ACK));
         } else {
