@@ -22,9 +22,7 @@ import org.docopt.Docopt;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
@@ -46,6 +44,7 @@ public class corfu_layout implements ICmdlet {
                     + "Usage:\n"
                     + "\tcorfu_layout query <address>:<port> [-d <level>] [-e epoch] [-p <qapp>]\n"
                     + "\tcorfu_layout bootstrap <address>:<port> [-l <layout>|-s] [-d <level>] [-e epoch] [-p <qapp>]\n"
+                    + "\tcorfu_layout set_epoch <address>:<port> -e epoch [-d <level>] [-p <qapp>]\n"
                     + "\tcorfu_layout prepare <address>:<port> -r <rank> [-d <level>] [-e epoch] [-p <qapp>]\n"
                     + "\tcorfu_layout propose <address>:<port> -r <rank> [-l <layout>|-s] [-d <level>] [-e epoch] [-p <qapp>]\n"
                     + "\tcorfu_layout committed <address>:<port> -r <rank> [-l <layout>] [-d <level>] [-e epoch] [-p <qapp>]\n"
@@ -180,6 +179,27 @@ public class corfu_layout implements ICmdlet {
                 return cmdlet.err("Exception bootstrapping layout", ex.getCause().toString());
             } catch (Exception e) {
                 return cmdlet.err("Exception bootstrapping layout", e.toString());
+            }
+        } else if ((Boolean) opts.get("set_epoch")) {
+            long epoch = Long.parseLong((String) opts.get("--epoch"));
+            log.debug("Set epoch with new epoch={}", epoch);
+            try {
+                CorfuRuntime rt = new CorfuRuntime().addLayoutServer(addressport);
+                List<String> ls = new ArrayList(1);
+                ls.add(addressport);
+                List<String> none1 = new ArrayList(0);
+                List<Layout.LayoutSegment> none2 = new ArrayList(0);
+                Layout fooLayout = new Layout(ls, none1, none2, epoch);
+                fooLayout.setRuntime(rt);
+                fooLayout.moveServersToEpoch();
+                return cmdlet.ok();
+            } catch (WrongEpochException we) {
+                return cmdlet.err("Exception during set_epoch",
+                        we.getCause() == null ? "WrongEpochException" : we.getCause().toString(),
+                        "correctEpoch: " + we.getCorrectEpoch(),
+                        "stack: " + ExceptionUtils.getStackTrace(we));
+            } catch (Exception e) {
+                return cmdlet.err("Exception during set_epoch", e.toString(), ExceptionUtils.getStackTrace(e));
             }
         } else if ((Boolean) opts.get("prepare")) {
             long rank = Long.parseLong((String) opts.get("--rank"));
