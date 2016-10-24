@@ -158,13 +158,20 @@ postcondition2(#state{committed_layout=CommittedLayout,
             io:format(user, "Q ~p\n", [Else]),
             false
     end;
-postcondition2(#state{last_epoch_set=LastEpochSet},
+
+postcondition2(#state{committed_layout=CL,
+                      last_epoch_set=LastEpochSet},
               {call,_,set_epoch,[_Mbox, _EP, Epoch]}, RetStr) ->
+    CommittedEpoch = calc_committed_epoch(CL),
     case termify(RetStr) of
         ok ->
-            Epoch > LastEpochSet;
+            Epoch > LastEpochSet
+            andalso
+            Epoch > CommittedEpoch;
         {error, wrongEpochException, CorrectEpoch} ->
-            CorrectEpoch == LastEpochSet;
+            CorrectEpoch == LastEpochSet
+            orelse
+            Epoch < CommittedEpoch;
         Else ->
             M = {set_epoch, arg_epoch, Epoch, Else},
             io:format(user, "~p\n", [M]),
@@ -235,9 +242,13 @@ next_state(S, _V, {call,_,reset,[_Mbox, _EP]}) ->
     S#state{reset_p=true};
 next_state(S, _V, {call,_,reboot,[_Mbox, _EP]}) ->
     S#state{last_epoch_set=0};
-next_state(S=#state{last_epoch_set=LastEpochSet}, _V,
+next_state(S=#state{committed_layout=CL,
+                    last_epoch_set=LastEpochSet}, _V,
            {call,_,set_epoch,[_Mbox, _EP, Epoch]}) ->
-    if Epoch > LastEpochSet ->
+    CommittedEpoch = calc_committed_epoch(CL),
+    if Epoch > LastEpochSet
+       andalso
+       Epoch > CommittedEpoch ->
             %% set_epoch does not affect prepare & propose state.
             S#state{last_epoch_set=Epoch};
        true ->
@@ -415,6 +426,11 @@ layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
 
 string_ify_list(L) ->
     "[" ++ string:join([[$\"] ++ X ++ [$\"] || X <- L], ",") ++ "]".
+
+calc_committed_epoch("") ->
+    -1;
+calc_committed_epoch(#layout{epoch=Epoch}) ->
+    Epoch.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
