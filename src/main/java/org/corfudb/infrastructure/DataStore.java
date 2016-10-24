@@ -55,15 +55,7 @@ public class DataStore implements IDataStore {
 
             @Override
             public synchronized void delete(@Nonnull String key, @Nullable String value, @Nonnull RemovalCause cause) {
-                if (logDir == null) {
-                    return;
-                }
-                try {
-                    Path path = Paths.get(logDir + File.separator + key);
-                    Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                deleteFileStore(key);
             }
         }).maximumSize(10_00)
                 .build(key -> {
@@ -80,6 +72,22 @@ public class DataStore implements IDataStore {
                     }
                     return null;
                 });
+    }
+
+    public void deleteBackingStoreFile(String prefix, String key) throws RuntimeException {
+        deleteFileStore(getKey(prefix, key));
+    }
+
+    private void deleteFileStore(String key) throws RuntimeException {
+        if (logDir == null) {
+            return;
+        }
+        try {
+            Path path = Paths.get(logDir + File.separator + key);
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

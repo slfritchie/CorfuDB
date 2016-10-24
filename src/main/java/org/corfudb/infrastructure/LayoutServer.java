@@ -420,7 +420,16 @@ public class LayoutServer extends AbstractServer {
         }
         Layout commitLayout = msg.getLayout();
         setCurrentLayout(commitLayout);
-        setServerEpoch(commitLayout.getEpoch());
+        try {
+            setServerEpoch(commitLayout.getEpoch());
+            deletePhase1Rank();
+            deletePhase2Data();
+        } catch (Exception e) {
+            log.warn("Partial failure in state reset block: {} at {}", e.toString(), e.getCause() == null ? "no cause" : e.getCause().toString());
+            // TODO: We won't return a reply to the client here. Finish error handling here, perhaps as
+            //       part of fault injection testing.
+            return;
+        }
         r.sendResponse(ctx, msg, new CorfuMsg(CorfuMsgType.ACK));
     }
 
@@ -463,12 +472,22 @@ public class LayoutServer extends AbstractServer {
         serverContext.getDataStore().put(Rank.class, PREFIX_PHASE_1, epochIndependent + KEY_SUFFIX_PHASE_1, rank);
     }
 
+    public void deletePhase1Rank() {
+        serverContext.getDataStore().delete(Rank.class, PREFIX_PHASE_1, epochIndependent + KEY_SUFFIX_PHASE_1);
+        serverContext.getDataStore().deleteBackingStoreFile(PREFIX_PHASE_1, epochIndependent + KEY_SUFFIX_PHASE_1);
+    }
+
     public Phase2Data getPhase2Data() {
         return serverContext.getDataStore().get(Phase2Data.class, PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2);
     }
 
     public void setPhase2Data(Phase2Data phase2Data) {
         serverContext.getDataStore().put(Phase2Data.class, PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2, phase2Data);
+    }
+
+    public void deletePhase2Data() {
+        serverContext.getDataStore().delete(Phase2Data.class, PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2);
+        serverContext.getDataStore().deleteBackingStoreFile(PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2);
     }
 
     public void setLayoutInHistory(Layout layout) {
