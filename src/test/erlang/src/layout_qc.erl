@@ -210,8 +210,10 @@ postcondition2(#state{prepared_rank=PreparedRank,
         Else ->
             {propose, Rank, prepared_rank, PreparedRank, Else}
     end;
-postcondition2(#state{last_epoch_set=LastEpochSet},
+postcondition2(#state{committed_layout=CL,
+                      last_epoch_set=LastEpochSet},
                {call,_,commit,[_Mbox, _EP, _C_Epoch, Rank, Layout]}, RetStr) ->
+    CommittedEpoch = calc_committed_epoch(CL),
     case termify(RetStr) of
         ok ->
             %% According to the model, prepare & propose are optional.
@@ -231,6 +233,8 @@ postcondition2(#state{last_epoch_set=LastEpochSet},
             Layout#layout.epoch > LastEpochSet;
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet
+            orelse
+            CorrectEpoch == CommittedEpoch
             orelse
             Layout#layout.epoch =< LastEpochSet;
         Else ->
@@ -270,9 +274,13 @@ next_state(S=#state{prepared_rank=PreparedRank,
        true ->
             S
     end;
-next_state(S=#state{last_epoch_set=LastEpochSet}, _V,
+next_state(S=#state{committed_layout=CL,
+                    last_epoch_set=LastEpochSet}, _V,
            {call,_,commit,[_Mbox, _EP, _C_Epoch, _Rank, Layout]}) ->
-    if Layout#layout.epoch > LastEpochSet ->
+    CommittedEpoch = calc_committed_epoch(CL),
+    if Layout#layout.epoch > LastEpochSet
+       andalso
+       Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=-1,
                     proposed_layout="",
                     committed_layout=Layout};
