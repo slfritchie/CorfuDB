@@ -171,7 +171,7 @@ postcondition2(#state{committed_layout=CL,
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet
             orelse
-            Epoch < CommittedEpoch;
+            Epoch =< CommittedEpoch;
         Else ->
             M = {set_epoch, arg_epoch, Epoch, Else},
             io:format(user, "~p\n", [M]),
@@ -230,7 +230,7 @@ postcondition2(#state{committed_layout=CL,
             %% #210 and perhaps elsewhere.
             %%
             %% Thus, no rank checking here, just epoch going forward.
-            Layout#layout.epoch > LastEpochSet;
+            Layout#layout.epoch >= LastEpochSet;
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet
             orelse
@@ -278,7 +278,7 @@ next_state(S=#state{committed_layout=CL,
                     last_epoch_set=LastEpochSet}, _V,
            {call,_,commit,[_Mbox, _EP, _C_Epoch, _Rank, Layout]}) ->
     CommittedEpoch = calc_committed_epoch(CL),
-    if Layout#layout.epoch > LastEpochSet
+    if Layout#layout.epoch >= LastEpochSet
        andalso
        Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=-1,
@@ -436,7 +436,7 @@ string_ify_list(L) ->
     "[" ++ string:join([[$\"] ++ X ++ [$\"] || X <- L], ",") ++ "]".
 
 calc_committed_epoch("") ->
-    -1;
+    0; % Must match server's epoch after reset()!
 calc_committed_epoch(#layout{epoch=Epoch}) ->
     Epoch.
 
