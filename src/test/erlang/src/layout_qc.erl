@@ -211,6 +211,8 @@ postcondition2(#state{prepared_rank=PreparedRank,
             %% -1 = no prepare
             (ExceptionRank == -1 andalso PreparedRank == ?NO_PREPARED_RANK)
             orelse
+            %% Technically, "outranked" should only mean "less than", but
+            %% our implementaiton is actually comparing equality.
             Rank /= PreparedRank
             orelse
             %% Already proposed?  2x isn't permitted.
@@ -248,7 +250,7 @@ postcondition2(#state{committed_layout=CL,
             orelse
             CorrectEpoch == CommittedEpoch
             orelse
-            Layout#layout.epoch =< LastEpochSet;
+            Layout#layout.epoch < LastEpochSet;
         Else ->
             {commit, rank, Rank, layout, Layout,
              committed, LastEpochSet, Else}
