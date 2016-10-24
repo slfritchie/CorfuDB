@@ -36,25 +36,27 @@
 -define(QUICK_MBOX, qc_java:quick_mbox_endpoint()).
 -define(TIMEOUT, 15*1000).
 
+-define(NO_PREPARED_RANK, -999).
+
 -include("qc_java.hrl").
 
 -compile(export_all).
-
--record(state, {
-          reset_p = false :: boolean(),
-          endpoint :: string(),
-          reg_names :: list(),
-          prepared_rank=-1 :: non_neg_integer(),
-          proposed_layout="" :: string(),
-          committed_layout="",
-          last_epoch_set=0    % Must match server's epoch after reset()!
-         }).
 
 -record(layout, {
           epoch=-1,
           ls=[],
           ss=[],
           segs=[]
+         }).
+
+-record(state, {
+          reset_p = false :: boolean(),
+          endpoint :: string(),
+          reg_names :: list(),
+          prepared_rank=?NO_PREPARED_RANK :: integer(),
+          proposed_layout=layout_not_proposed :: 'layout_not_proposed' | #layout{},
+          committed_layout=layout_not_committed :: 'layout_not_committed' | #layout{},
+          last_epoch_set=0    % Must match server's epoch after reset()!
          }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -64,9 +66,10 @@ gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
          {RegName, qc_java:endpoint2nodename(Endpoint)} ).
 
 gen_rank() ->
-    choose(1, 100).
+    %% So, it looks like negative ranks are accepted by the LayoutServer, cool.
+    choose(-5, 100).
 
-gen_rank(#state{prepared_rank=0}) ->
+gen_rank(#state{prepared_rank=?NO_PREPARED_RANK}) ->
     gen_rank();
 gen_rank(#state{prepared_rank=PR}) ->
     frequency([{10, PR},
@@ -98,12 +101,12 @@ initial_state(Mboxes, Endpoint) ->
 
 precondition(S, {call,_,reset,_}) ->
     not S#state.reset_p;
-precondition(S, {call,_,prepare,[_,_,_,Rank]}) ->
-    S#state.reset_p andalso Rank > 0;
-precondition(S, {call,_,propose,[_,_,_,Rank,Layout]}) ->
-    S#state.reset_p andalso Rank > 0 andalso Layout /= "";
-precondition(S, {call,_,commit,[_,_,_,Rank,Layout]}) ->
-    S#state.reset_p andalso Rank > 0 andalso Layout /= "";
+precondition(S, {call,_,prepare,[_,_,_,_Rank]}) ->
+    S#state.reset_p;
+precondition(S, {call,_,propose,[_,_,_,_Rank,Layout]}) ->
+    S#state.reset_p andalso Layout /= layout_not_proposed;
+precondition(S, {call,_,commit,[_,_,_,_Rank,Layout]}) ->
+    S#state.reset_p andalso Layout /= layout_not_proposed;
 precondition(S, _Call) ->
     S#state.reset_p.
 
@@ -149,7 +152,7 @@ postcondition2(#state{committed_layout=CommittedLayout,
     case termify(Ret) of
         timeout ->
             false;
-        {ok, _JSON} when CommittedLayout == "" ->
+        {ok, _JSON} when CommittedLayout == layout_not_committed ->
             %% We haven't committed anything.  Whatever default layout
             %% that the server has (e.g. after reset()) is ok.
             true;
@@ -201,15 +204,17 @@ postcondition2(#state{prepared_rank=PreparedRank,
               {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
-            Rank == PreparedRank;
+            Rank == PreparedRank
+            andalso
+            ProposedLayout == layout_not_proposed;
         {error, outrankedException, ExceptionRank} ->
             %% -1 = no prepare
-            (ExceptionRank == -1 andalso PreparedRank == -1)
+            (ExceptionRank == -1 andalso PreparedRank == ?NO_PREPARED_RANK)
             orelse
             Rank /= PreparedRank
             orelse
             %% Already proposed?  2x isn't permitted.
-            ProposedLayout /= "";
+            ProposedLayout /= layout_not_proposed;
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet;
         Else ->
@@ -234,7 +239,9 @@ postcondition2(#state{committed_layout=CL,
             %% commit -- that may change, pending more changes in PR
             %% #210 and perhaps elsewhere.
             %%
-            %% Thus, no rank checking here, just epoch going forward.
+            %% Thus, no rank checking here, just epoch going forward ... where
+            %% "forward" is also defined in part by set_epoch's postcondition()
+            %% test (commit's layout's epoch == LastEpochSet)!!
             Layout#layout.epoch >= LastEpochSet;
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet
@@ -267,7 +274,7 @@ next_state(S=#state{prepared_rank=PreparedRank,
                     last_epoch_set=_LastEpochSet}, _V,
            {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}) ->
     if Rank > PreparedRank ->
-            S#state{prepared_rank=Rank, proposed_layout=""};
+            S#state{prepared_rank=Rank, proposed_layout=layout_not_proposed};
        true ->
             S
     end;
@@ -286,8 +293,8 @@ next_state(S=#state{committed_layout=CL,
     if Layout#layout.epoch >= LastEpochSet
        andalso
        Layout#layout.epoch > CommittedEpoch ->
-            S#state{prepared_rank=-1,
-                    proposed_layout="",
+            S#state{prepared_rank=?NO_PREPARED_RANK,
+                    proposed_layout=layout_not_proposed,
                     committed_layout=Layout};
        true ->
             S
@@ -440,7 +447,7 @@ layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
 string_ify_list(L) ->
     "[" ++ string:join([[$\"] ++ X ++ [$\"] || X <- L], ",") ++ "]".
 
-calc_committed_epoch("") ->
+calc_committed_epoch(layout_not_committed) ->
     0; % Must match server's epoch after reset()!
 calc_committed_epoch(#layout{epoch=Epoch}) ->
     Epoch.
