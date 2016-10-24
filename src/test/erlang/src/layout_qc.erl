@@ -238,9 +238,8 @@ next_state(S, _V, {call,_,reboot,[_Mbox, _EP]}) ->
 next_state(S=#state{last_epoch_set=LastEpochSet}, _V,
            {call,_,set_epoch,[_Mbox, _EP, Epoch]}) ->
     if Epoch > LastEpochSet ->
-            S#state{prepared_rank=-1,
-                    proposed_layout="",
-                    last_epoch_set=Epoch};
+            %% set_epoch does not affect prepare & propose state.
+            S#state{last_epoch_set=Epoch};
        true ->
             S
     end;

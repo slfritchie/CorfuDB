@@ -453,20 +453,22 @@ public class LayoutServer extends AbstractServer {
         setLayoutInHistory(layout);
     }
 
+    String epochIndependent = "epoch-independent";
+
     public Rank getPhase1Rank() {
-        return serverContext.getDataStore().get(Rank.class, PREFIX_PHASE_1, serverContext.getServerEpoch() + KEY_SUFFIX_PHASE_1);
+        return serverContext.getDataStore().get(Rank.class, PREFIX_PHASE_1, epochIndependent + KEY_SUFFIX_PHASE_1);
     }
 
     public void setPhase1Rank(Rank rank) {
-        serverContext.getDataStore().put(Rank.class, PREFIX_PHASE_1, serverContext.getServerEpoch() + KEY_SUFFIX_PHASE_1, rank);
+        serverContext.getDataStore().put(Rank.class, PREFIX_PHASE_1, epochIndependent + KEY_SUFFIX_PHASE_1, rank);
     }
 
     public Phase2Data getPhase2Data() {
-        return serverContext.getDataStore().get(Phase2Data.class, PREFIX_PHASE_2, serverContext.getServerEpoch() + KEY_SUFFIX_PHASE_2);
+        return serverContext.getDataStore().get(Phase2Data.class, PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2);
     }
 
     public void setPhase2Data(Phase2Data phase2Data) {
-        serverContext.getDataStore().put(Phase2Data.class, PREFIX_PHASE_2, serverContext.getServerEpoch() + KEY_SUFFIX_PHASE_2, phase2Data);
+        serverContext.getDataStore().put(Phase2Data.class, PREFIX_PHASE_2, epochIndependent + KEY_SUFFIX_PHASE_2, phase2Data);
     }
 
     public void setLayoutInHistory(Layout layout) {
