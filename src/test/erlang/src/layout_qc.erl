@@ -60,8 +60,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
-    noshrink( ?LET(RegName, oneof(RegNames),
-                   {RegName, qc_java:endpoint2nodename(Endpoint)} )).
+    ?LET(RegName, oneof(RegNames),
+         {RegName, qc_java:endpoint2nodename(Endpoint)} ).
 
 gen_rank() ->
     choose(1, 100).
@@ -77,6 +77,9 @@ gen_c_epoch(#state{last_epoch_set=LastEpochSet}) ->
 
 gen_epoch() ->
     choose(1, 100).
+
+gen_epoch(#state{last_epoch_set=LastEpochSet}) ->
+    oneof([LastEpochSet, gen_epoch()]).
 
 gen_layout() ->
     ?LET(Epoch, oneof([5, 22, gen_epoch()]),
@@ -108,6 +111,8 @@ command(S=#state{endpoint=Endpoint, reset_p=false}) ->
     {call, ?MODULE, reset, [gen_mbox(S), Endpoint]};
 command(S=#state{endpoint=Endpoint, reset_p=true,
                  proposed_layout=ProposedLayout}) ->
+    CommitLayout = oneof([ProposedLayout,
+                          gen_layout(gen_epoch(S))]),
     frequency(
       [
        {5,  {call, ?MODULE, reboot,
@@ -121,7 +126,7 @@ command(S=#state{endpoint=Endpoint, reset_p=true,
        {20, {call, ?MODULE, propose,
              [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank(S), gen_layout()]}},
        {20, {call, ?MODULE, commit,
-             [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank(S), ProposedLayout]}}
+             [gen_mbox(S), Endpoint, gen_c_epoch(S), gen_rank(S), CommitLayout]}}
       ]).
 
 postcondition(S, Call, Ret) ->
