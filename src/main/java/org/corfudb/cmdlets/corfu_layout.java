@@ -37,6 +37,7 @@ public class corfu_layout implements ICmdlet {
 
     private static Map<String, NettyClientRouter> routers = new ConcurrentHashMap<>();
     private static Map<String, LayoutView> layoutViews = new ConcurrentHashMap<>();
+    private static Map<String, CorfuRuntime> setEpochRTs = new ConcurrentHashMap<>();
 
     private static final String USAGE =
             "corfu_layout, directly interact with a layout server.\n"
@@ -184,7 +185,14 @@ public class corfu_layout implements ICmdlet {
             long epoch = Long.parseLong((String) opts.get("--epoch"));
             log.debug("Set epoch with new epoch={}", epoch);
             try {
-                CorfuRuntime rt = new CorfuRuntime().addLayoutServer(addressport);
+                CorfuRuntime rt;
+                if ((rt = setEpochRTs.get(addressport)) == null) {
+                    log.trace("Creating CorfuRuntime for set_epoch for {} ", addressport);
+                    rt = new CorfuRuntime().addLayoutServer(addressport);
+                    setEpochRTs.putIfAbsent(addressport, rt);
+                }
+                rt = setEpochRTs.get(addressport);
+
                 List<String> ls = new ArrayList(1);
                 ls.add(addressport);
                 List<String> none1 = new ArrayList(0);
