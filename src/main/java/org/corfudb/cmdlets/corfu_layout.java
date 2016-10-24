@@ -10,6 +10,7 @@ import org.corfudb.infrastructure.LayoutServer;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.BaseClient;
 import org.corfudb.runtime.clients.LayoutClient;
+import org.corfudb.runtime.clients.LayoutPrepareResponse;
 import org.corfudb.runtime.clients.NettyClientRouter;
 import org.corfudb.runtime.exceptions.OutrankedException;
 import org.corfudb.runtime.exceptions.QuorumUnreachableException;
@@ -213,10 +214,20 @@ public class corfu_layout implements ICmdlet {
             long rank = Long.parseLong((String) opts.get("--rank"));
             log.debug("Prepare with new rank={}", rank);
             try {
-                if (router.getClient(LayoutClient.class).prepare(rank).get().isAccepted()) {
-                    return cmdlet.ok();
+                LayoutPrepareResponse r = router.getClient(LayoutClient.class).prepare(rank).get();
+                Layout r_layout = r.getLayout();
+                if (r.isAccepted()) {
+                    if (r_layout == null) {
+                        return cmdlet.ok();
+                    } else {
+                        return cmdlet.ok("layout: " + r_layout.asJSONString());
+                    }
                 } else {
-                    return cmdlet.err("ACK");
+                    if (r_layout == null) {
+                        return cmdlet.err("ACK");
+                    } else {
+                        return cmdlet.err("ACK", "layout: " + r_layout.asJSONString());
+                    }
                 }
             } catch (ExecutionException ex) {
                 if (ex.getCause().getClass() == OutrankedException.class) {
