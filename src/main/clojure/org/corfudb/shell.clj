@@ -49,7 +49,7 @@ Options:
 
 
 (defn -main [& args]
-  (def cmd (.. (new Docopt usage) (parse args)))
+  (def cmd (.. (new Docopt usage) (parse (if (nil? args) (make-array String 0) args))))
   (require 'reply.main)
   (def *args (.. cmd (get "<args>")))
   (def repl-args {:custom-eval       '(do (println "Welcome to the Corfu Shell")
