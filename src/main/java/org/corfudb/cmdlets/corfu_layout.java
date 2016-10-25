@@ -152,7 +152,7 @@ public class corfu_layout implements ICmdlet {
             try {
                 Layout l = router.getClient(LayoutClient.class).getLayout().get();
                 Gson gs = new GsonBuilder().setPrettyPrinting().create();
-                return cmdlet.ok(gs.toJson(l));
+                return cmdlet.ok("layout: " + gs.toJson(l));
             } catch (ExecutionException ex) {
                 if (ex.getCause().getClass() == WrongEpochException.class) {
                     WrongEpochException we = (WrongEpochException) ex.getCause();
@@ -218,7 +218,7 @@ public class corfu_layout implements ICmdlet {
                 Layout r_layout = r.getLayout();
                 if (r.isAccepted()) {
                     if (r_layout == null) {
-                        return cmdlet.ok();
+                        return cmdlet.ok("ignored: ignored");
                     } else {
                         return cmdlet.ok("layout: " + r_layout.asJSONString());
                     }

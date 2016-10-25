@@ -152,11 +152,12 @@ postcondition2(#state{committed_layout=CommittedLayout,
     case termify(Ret) of
         timeout ->
             false;
-        {ok, _JSON} when CommittedLayout == layout_not_committed ->
+        {ok, _Props} when CommittedLayout == layout_not_committed ->
             %% We haven't committed anything.  Whatever default layout
             %% that the server has (e.g. after reset()) is ok.
             true;
-        {ok, JSON} ->
+        {ok, Props} ->
+            JSON = proplists:get_value(layout, Props),
             JSON == layout_to_json(CommittedLayout);
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch /= C_Epoch
@@ -189,8 +190,13 @@ postcondition2(#state{prepared_rank=PreparedRank,
                       last_epoch_set=LastEpochSet},
               {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}, RetStr) ->
     case termify(RetStr) of
-        ok ->
-            Rank > PreparedRank;
+        {ok, Props} ->
+            case proplists:get_value(layout, Props) of
+                undefined ->
+                    Rank > PreparedRank;
+                Layout ->
+                    {yo, list_to_binary(Layout)}
+            end;
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
         {error, wrongEpochException, CorrectEpoch} ->
@@ -406,8 +412,8 @@ sanity() ->
 
 termify(["OK"]) ->
     ok;
-termify(["OK", JSON_perhaps]) ->
-    {ok, JSON_perhaps};
+termify(["OK"|ProplistStrs]) ->
+    {ok, parse_proplist(ProplistStrs)};
 termify(["ERROR", "NACK"]) ->
     {error, nack};
 termify(["ERROR", "Exception " ++ _E1, E2|Rest] = _L) ->
@@ -424,6 +430,13 @@ termify(["ERROR", "Exception " ++ _E1, E2|Rest] = _L) ->
     end;
 termify(timeout) ->
     timeout.
+
+parse_proplist([]) ->
+    [];
+parse_proplist([H|T]) ->
+    {match, [_, K, V]} =
+        re:run(H, "^([^:]+): (.*)$", [dotall,{capture,all,list}]),
+    [{list_to_atom(K),V}|parse_proplist(T)].
 
 parse_newrank(["newRank: " ++ NR|_]) ->
     list_to_integer(NR);
