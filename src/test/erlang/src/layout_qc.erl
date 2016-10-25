@@ -187,6 +187,7 @@ postcondition2(#state{committed_layout=CL,
             false
     end;
 postcondition2(#state{prepared_rank=PreparedRank,
+                      proposed_layout=ProposedLayout,
                       last_epoch_set=LastEpochSet},
               {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}, RetStr) ->
     case termify(RetStr) of
@@ -194,8 +195,14 @@ postcondition2(#state{prepared_rank=PreparedRank,
             case proplists:get_value(layout, Props) of
                 undefined ->
                     Rank > PreparedRank;
-                Layout ->
-                    {yo, list_to_binary(Layout)}
+                Layout_str1 ->
+                    Layout_str2 = strip_whitespace(Layout_str1),
+                    ProposedLayout_str2 =
+                        strip_whitespace(layout_to_json(ProposedLayout)),
+                    %% io:format(user, "Rank ~p PreparedRank ~p\n        Layout: ~p\nProposedLayout: ~p\n", [Rank, PreparedRank, Layout_str2, ProposedLayout_str2]),
+                    Rank > PreparedRank
+                    andalso
+                    Layout_str2 == ProposedLayout_str2
             end;
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
@@ -457,7 +464,9 @@ layout_to_json(#layout{ls=Ls, ss=Seqs, segs=Segs, epoch=Epoch}) ->
         string_ify_list(Segs) ++
         ",\n  \"epoch\": " ++
         integer_to_list(Epoch) ++
-        "\n}".
+        "\n}";
+layout_to_json(A) when is_atom(A) ->
+    atom_to_list(A).
 
 string_ify_list(L) ->
     "[" ++ string:join([[$\"] ++ X ++ [$\"] || X <- L], ",") ++ "]".
@@ -466,6 +475,9 @@ calc_committed_epoch(layout_not_committed) ->
     0; % Must match server's epoch after reset()!
 calc_committed_epoch(#layout{epoch=Epoch}) ->
     Epoch.
+
+strip_whitespace(Str) ->
+    re:replace(Str, "[ \n\t]", "", [global,{return,list}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
