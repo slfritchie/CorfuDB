@@ -37,6 +37,7 @@
 -define(TIMEOUT, 15*1000).
 
 -define(NO_PREPARED_RANK, -999).
+-define(NO_PROPOSED_RANK, -999).
 
 -include("qc_java.hrl").
 
@@ -54,6 +55,7 @@
           endpoint :: string(),
           reg_names :: list(),
           prepared_rank=?NO_PREPARED_RANK :: integer(),
+          proposed_rank=?NO_PROPOSED_RANK :: integer(),
           proposed_layout=layout_not_proposed :: 'layout_not_proposed' | #layout{},
           committed_layout=layout_not_committed :: 'layout_not_committed' | #layout{},
           last_epoch_set=0    % Must match server's epoch after reset()!
@@ -67,6 +69,7 @@ gen_mbox(#state{endpoint=Endpoint, reg_names=RegNames}) ->
 
 gen_rank() ->
     %% So, it looks like negative ranks are accepted by the LayoutServer, cool.
+    %% Don't allow a choice equal to ?NO_PROPOSED_RANK or ?NO_PREPARED_RANK.
     choose(-5, 100).
 
 gen_rank(#state{prepared_rank=?NO_PREPARED_RANK}) ->
@@ -199,7 +202,6 @@ postcondition2(#state{prepared_rank=PreparedRank,
                     Layout_str2 = strip_whitespace(Layout_str1),
                     ProposedLayout_str2 =
                         strip_whitespace(layout_to_json(ProposedLayout)),
-                    %% io:format(user, "Rank ~p PreparedRank ~p\n        Layout: ~p\nProposedLayout: ~p\n", [Rank, PreparedRank, Layout_str2, ProposedLayout_str2]),
                     Rank > PreparedRank
                     andalso
                     Layout_str2 == ProposedLayout_str2
@@ -299,15 +301,18 @@ next_state(S=#state{prepared_rank=PreparedRank,
             %% prepare(rank=1), propose(rank=1,layout=L),
             %% prepare(rank=2), prepare(rank=3), ...
             %% and in each case, we still need to remember layout L.
-            S#state{prepared_rank=Rank};
+            S#state{prepared_rank=Rank, proposed_rank=?NO_PROPOSED_RANK};
        true ->
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank,
+                    proposed_rank=ProposedRank,
                     last_epoch_set=_LastEpochSet}, _V,
            {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
-    if Rank == PreparedRank ->
-            S#state{proposed_layout=Layout};
+    if Rank == PreparedRank
+       andalso
+       ProposedRank == ?NO_PROPOSED_RANK ->
+            S#state{proposed_rank=Rank, proposed_layout=Layout};
        true ->
             S
     end;
@@ -319,6 +324,7 @@ next_state(S=#state{committed_layout=CL,
        andalso
        Layout#layout.epoch > CommittedEpoch ->
             S#state{prepared_rank=?NO_PREPARED_RANK,
+                    proposed_rank=?NO_PROPOSED_RANK,
                     proposed_layout=layout_not_proposed,
                     committed_layout=Layout};
        true ->
