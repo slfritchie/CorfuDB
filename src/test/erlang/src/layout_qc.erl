@@ -289,14 +289,21 @@ next_state(S=#state{prepared_rank=PreparedRank,
                     last_epoch_set=_LastEpochSet}, _V,
            {call,_,prepare,[_Mbox, _EP, _C_Epoch, Rank]}) ->
     if Rank > PreparedRank ->
-            S#state{prepared_rank=Rank, proposed_layout=layout_not_proposed};
+            %% Do not reset proposed_layout here.  We may have sequence of:
+            %% prepare(rank=1), propose(rank=1,layout=L),
+            %% prepare(rank=2), prepare(rank=3), ...
+            %% and in each case, we still need to remember layout L.
+            S#state{prepared_rank=Rank};
        true ->
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank,
+                    proposed_layout=ProposedLayout,
                     last_epoch_set=_LastEpochSet}, _V,
            {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
-    if Rank == PreparedRank ->
+    if Rank == PreparedRank
+       andalso
+       ProposedLayout == layout_not_proposed ->
             S#state{proposed_layout=Layout};
        true ->
             S
