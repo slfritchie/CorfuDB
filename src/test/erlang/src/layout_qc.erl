@@ -208,6 +208,8 @@ postcondition2(#state{prepared_rank=PreparedRank,
             end;
         {error, outrankedException, _ExceptionRank} ->
             Rank =< PreparedRank;
+        %% SLF: As of commit fa2c7d2cb27a89908e5947b806bd940d7ede0d68,
+        %% the following appears not possible?
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet;
         Else ->
@@ -238,6 +240,8 @@ postcondition2(#state{prepared_rank=PreparedRank,
             orelse
             %% Already proposed?  2x isn't permitted.
             ProposedLayout /= layout_not_proposed;
+        %% SLF: As of commit fa2c7d2cb27a89908e5947b806bd940d7ede0d68,
+        %% the following appears not possible?
         {error, wrongEpochException, CorrectEpoch} ->
             CorrectEpoch == LastEpochSet;
         Else ->
