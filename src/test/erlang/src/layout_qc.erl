@@ -217,9 +217,15 @@ postcondition2(#state{prepared_rank=PreparedRank,
               {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, _Layout]}, RetStr) ->
     case termify(RetStr) of
         ok ->
-            Rank == PreparedRank
-            andalso
-            ProposedLayout == layout_not_proposed;
+            %% NOTE: We cannot make assumptions about model state's
+            %%
+            %% proposed_layout here.  We may have had:
+            %% prepare(rank=1), propose(rank=1,layout=L),
+            %% prepare(rank=2), propose(rank=2,layout=L)
+            %%
+            %% ...and we are evaluating the 2nd propose.  Our model state
+            %% already has a layout defined by the 1st propose.
+            Rank == PreparedRank;
         {error, outrankedException, ExceptionRank} ->
             %% -1 = no prepare
             (ExceptionRank == -1 andalso PreparedRank == ?NO_PREPARED_RANK)
@@ -298,12 +304,9 @@ next_state(S=#state{prepared_rank=PreparedRank,
             S
     end;
 next_state(S=#state{prepared_rank=PreparedRank,
-                    proposed_layout=ProposedLayout,
                     last_epoch_set=_LastEpochSet}, _V,
            {call,_,propose,[_Mbox, _EP, _C_Epoch, Rank, Layout]}) ->
-    if Rank == PreparedRank
-       andalso
-       ProposedLayout == layout_not_proposed ->
+    if Rank == PreparedRank ->
             S#state{proposed_layout=Layout};
        true ->
             S
