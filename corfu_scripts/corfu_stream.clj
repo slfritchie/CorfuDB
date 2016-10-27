@@ -13,13 +13,20 @@ Options:
   -h, --help     Show this screen.
 ")
 
+(defn slurp-bytes
+  "Slurp the bytes from a slurpable thing"
+  [x]
+  (with-open [out (java.io.ByteArrayOutputStream.)]
+    (clojure.java.io/copy (clojure.java.io/input-stream x) out)
+    (.toByteArray out)))
+
 ; a function which reads a stream to stdout
 (defn read-stream [stream] (doseq [obj (.. stream (readTo Long/MAX_VALUE))]
-                             (println "a"))
-                             ))
+                             (let [bytes (.. obj (getPayload *r))]
+                             (.. System/out (write bytes 0 (count bytes))))))
 
 ; a function which writes to a stream from stdin
-(defn write-stream [stream] (let [in (slurp *in*)]
+(defn write-stream [stream] (let [in (slurp-bytes System/in)]
                               (.. stream (write in))
                               ))
 

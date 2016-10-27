@@ -32,7 +32,7 @@
 (def usage "The Corfu Shell.
 Usage:
   shell
-  shell run-script <script> [<args>...]
+  shell run-script [-n] <script> [<args>...]
 Options:
   -n --no-exit   When used with a script, does not terminate automatically.
   -h, --help     Show this screen.
@@ -41,7 +41,7 @@ Options:
 (defn -formify-file-base [f] (str "(do " (slurp f) ")"))
 
 (defn -formify-file-exit [f, noexit] (if noexit (do (println "exit") f)
-                                         (str "(do " f " (Thread/sleep 1) (System/exit -1))")))
+                                         (str "(do " f " (Thread/sleep 1) (System/exit 0))")))
 
 (defn -formify-file [f, noexit]
   (read-string (-formify-file-exit (-formify-file-base f) noexit)))
