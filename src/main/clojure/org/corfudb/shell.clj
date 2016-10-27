@@ -31,9 +31,9 @@
 (def *args nil)
 (def usage "The Corfu Shell.
 Usage:
-  shell [-n] [-s <script>] [<args>...]
+  shell
+  shell run-script <script> [<args>...]
 Options:
-  -s <script>    Clojure script to run in the shell.
   -n --no-exit   When used with a script, does not terminate automatically.
   -h, --help     Show this screen.
 ")
@@ -47,9 +47,9 @@ Options:
   (read-string (-formify-file-exit (-formify-file-base f) noexit)))
 
 
-
 (defn -main [& args]
-  (def cmd (.. (new Docopt usage) (parse (if (nil? args) (make-array String 0) args))))
+  (def cmd (.. (.. (new Docopt usage) (withOptionsFirst true))
+               (parse (if (nil? args) (make-array String 0) args))))
   (require 'reply.main)
   (def *args (.. cmd (get "<args>")))
   (def repl-args {:custom-eval       '(do (println "Welcome to the Corfu Shell")
@@ -68,11 +68,11 @@ The variable *r holds the last runtime obtrained, and *o holds the last router o
 ")
                                        (in-ns 'org.corfudb.shell))
                   :color true
-                  :caught '(do (System/exit 0))
                   :skip-default-init true})
-  (if (.. cmd (get "-s")) (def repl-args (assoc repl-args :custom-eval '(do (in-ns 'org.corfudb.shell)))) ())
-  (if (.. cmd (get "-s")) (def repl-args (assoc repl-args :custom-init
-     (org.corfudb.shell/-formify-file (.. cmd (get "-s")) (.. cmd (get "--no-exit"))))) ())
+  (if (.. cmd (get "run-script")) (def repl-args (assoc repl-args :caught '(do (System/exit 0)))) ())
+  (if (.. cmd (get "run-script")) (def repl-args (assoc repl-args :custom-eval '(do (in-ns 'org.corfudb.shell)))) ())
+  (if (.. cmd (get "run-script")) (def repl-args (assoc repl-args :custom-init
+     (org.corfudb.shell/-formify-file (.. cmd (get "<script>")) (.. cmd (get "--no-exit"))))) ())
   ((ns-resolve 'reply.main 'launch-nrepl) repl-args) (System/exit 0))
 
 
@@ -90,7 +90,8 @@ The variable *r holds the last runtime obtrained, and *o holds the last router o
    (add-client (new org.corfudb.runtime.clients.LogUnitClient))
    (add-client (new org.corfudb.runtime.clients.SequencerClient))
   *o)
-
+(defn connect-runtime ([] (.. *r (connect)))
+                          ([runtime] (.. runtime (connect))))
 
 ; Functions that get clients from a router
 (defn get-base-client ([] (.. *o (getClient org.corfudb.runtime.clients.BaseClient)))
@@ -101,3 +102,6 @@ The variable *r holds the last runtime obtrained, and *o holds the last router o
   ([router] (.. router (getClient org.corfudb.runtime.clients.LogUnitClient))))
 (defn get-sequencer-client ([] (.. *o (getClient org.corfudb.runtime.clients.SequencerClient)))
   ([router] (.. router (getClient org.corfudb.runtime.clients.SequencerClient))))
+
+; Functions to interact with a runtime.
+(defn get-stream ([stream] (.. (.. *r (getStreamsView)) (get stream))))
