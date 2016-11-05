@@ -107,22 +107,22 @@ command(S=#state{map_type=MapType,
        {20, {call, ?MODULE, put, [gen_mbox(S), Endpoint, Stream, MapType,
                                   gen_key(), gen_val()]}},
        { 5, {call, ?MODULE, get, [gen_mbox(S), Endpoint, Stream, MapType,
-                                  gen_key()]}},
-       { 3, {call, ?MODULE, size, [gen_mbox(S), Endpoint, Stream, MapType]}},
-       { 3, {call, ?MODULE, isEmpty, [gen_mbox(S), Endpoint, Stream, MapType]}},
-       { 3, {call, ?MODULE, containsKey, [gen_mbox(S), Endpoint, Stream, MapType,
-                                          gen_key()]}},
-       %% BOO.  Our ASCII-oriented protocol can't tell the difference
-       %% between an arity 0 function and an arity 1 function with
-       %% an argument of length 0.
-       { 3, {call, ?MODULE, containsValue, [gen_mbox(S), Endpoint, Stream, MapType,
-                                            non_empty(gen_val())]}},
-       { 5, {call, ?MODULE, remove, [gen_mbox(S), Endpoint, Stream, MapType,
-                                     gen_key()]}},
-       { 3, {call, ?MODULE, clear, [gen_mbox(S), Endpoint, Stream, MapType]}},
-       { 3, {call, ?MODULE, keySet, [gen_mbox(S), Endpoint, Stream, MapType]}},
-       { 3, {call, ?MODULE, values, [gen_mbox(S), Endpoint, Stream, MapType]}},
-       { 3, {call, ?MODULE, entrySet, [gen_mbox(S), Endpoint, Stream, MapType]}}
+                                  gen_key()]}}
+       %% { 3, {call, ?MODULE, size, [gen_mbox(S), Endpoint, Stream, MapType]}},
+       %% { 3, {call, ?MODULE, isEmpty, [gen_mbox(S), Endpoint, Stream, MapType]}},
+       %% { 3, {call, ?MODULE, containsKey, [gen_mbox(S), Endpoint, Stream, MapType,
+       %%                                    gen_key()]}},
+       %% %% BOO.  Our ASCII-oriented protocol can't tell the difference
+       %% %% between an arity 0 function and an arity 1 function with
+       %% %% an argument of length 0.
+       %% { 3, {call, ?MODULE, containsValue, [gen_mbox(S), Endpoint, Stream, MapType,
+       %%                                      non_empty(gen_val())]}},
+       %% { 5, {call, ?MODULE, remove, [gen_mbox(S), Endpoint, Stream, MapType,
+       %%                               gen_key()]}},
+       %% { 3, {call, ?MODULE, clear, [gen_mbox(S), Endpoint, Stream, MapType]}},
+       %% { 3, {call, ?MODULE, keySet, [gen_mbox(S), Endpoint, Stream, MapType]}},
+       %% { 3, {call, ?MODULE, values, [gen_mbox(S), Endpoint, Stream, MapType]}},
+       %% { 3, {call, ?MODULE, entrySet, [gen_mbox(S), Endpoint, Stream, MapType]}}
       ]).
 
 postcondition(_S, {call,_,reset,[_Mbox, _EP]}, Ret) ->
@@ -317,14 +317,21 @@ prop_parallel(MapType, MoreCmds) ->
     prop_parallel(MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
 prop_parallel(MapType, MoreCmds, Mboxes, Endpoint) ->
-    AlwaysNum = 20,
+    AlwaysNum = 2,
     io:format(user, "NOTE: parallel cmds are executed ~w times to try to detect non-determinism\n", [AlwaysNum]),
-    ?FORALL(Cmds, more_commands(MoreCmds,
+    ?FORALL(Cmds0, more_commands(MoreCmds,
                                 parallel_commands(?MODULE,
                                          initial_state(MapType,
                                                        Mboxes, Endpoint))),
             ?WRAP_ALWAYS(AlwaysNum,
             begin
+                {Init, [Seq, Pars]} = Cmds0,
+                Max = 2,
+                Cmds = if length(Pars) > Max -> {Init, [Seq, lists:sublist(Pars, Max)]};
+                          true -> Cmds0
+                       end,
+                {__Init, [__Seq, __Pars]} = Cmds,
+                %% io:format(user, "pars ~w\n~p\n", [length(__Pars), Cmds]),
                 {H, S_or_Hs, Res} = run_parallel_commands(?MODULE, Cmds),
                 aggregate(command_names(Cmds),
                 measure(
