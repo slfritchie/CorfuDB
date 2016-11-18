@@ -292,6 +292,7 @@ public class StreamLogFiles implements StreamLog {
     public void append(long address, LogData entry) {
         //evict the data by getting the next pointer.
         try {
+            if (address > 2 && address < 5) throw new IOException("No space left on device, address + " + address);
             // make sure the entry doesn't currently exist...
             // (probably need a faster way to do this - high watermark?)
             FileHandle fh = getChannelForAddress(address);
