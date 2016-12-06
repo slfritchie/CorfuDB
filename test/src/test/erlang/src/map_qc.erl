@@ -200,20 +200,19 @@ gen_val() ->
            ?LET(L, choose(0, 50),
                 vector(L, choose($a, $z)))]).
 
-gen_replication_type() ->
-    oneof([chain_replication, replex]).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initial_state() ->
-    initial_state(smrmap, qc_java:local_mboxes(), qc_java:local_endpoint()).
+    initial_state(chain_replication, smrmap,
+                  qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-initial_state(MapType, Mboxes, Endpoint) ->
+initial_state(ReplType, MapType, Mboxes, Endpoint) ->
     %% This model restricts itself to always using the same streamID.
     %% Future expansion could exercise multiple streams
     %% simultaneously, e.g., using multiple dictionaries to maintain
     %% per-stream state.
-    #state{map_type=MapType,
+    #state{replication_type=ReplType,
+           map_type=MapType,
            endpoint=Endpoint, reg_names=Mboxes,
            stream=42}.
 
@@ -222,8 +221,8 @@ precondition(S, {call,_,reset,_}) ->
 precondition(S, _Call) ->
     S#state.reset_p.
 
-command(S=#state{endpoint=Endpoint, reset_p=false}) ->
-    {call, ?MODULE, reset, [gen_mbox(S), Endpoint, gen_replication_type()]};
+command(S=#state{replication_type=ReplType, endpoint=Endpoint, reset_p=false}) ->
+    {call, ?MODULE, reset, [gen_mbox(S), Endpoint, ReplType]};
 command(S=#state{map_type=MapType,
                  endpoint=Endpoint, stream=Stream, reset_p=true}) ->
     frequency(
@@ -412,9 +411,6 @@ entrySet(Stream, MapType) ->
     apply(?MODULE, entrySet, ?QUICK_MBOX ++ [Stream, MapType]).
 
 reset(Mbox, Endpoint, ReplicationType) ->
-    %% Reset the SequencerServer and LogUnitServers.
-    Res = rpc(Mbox, reset, Endpoint),
-
     %% Reset the LayoutServer.
     ["OK"] = layout_qc:reset(),
 
@@ -424,9 +420,13 @@ reset(Mbox, Endpoint, ReplicationType) ->
         replex ->
             %% Create & commit a Replex-style layout.
             EP = lists:flatten(io_lib:format("\"~s\"", [Endpoint])),
-            LayoutJSON = "{\"layoutServers\":[" ++ EP ++ "],\"sequencers\":[" ++ EP ++ "],\"segments\":[{\"replicationMode\":\"REPLEX\",\"start\":0,\"end\":-1,\"stripes\":[{\"logServers\":[" ++ EP ++ "]}],\"replexes\":[{\"logServers\":[" ++ EP ++ "]}]}],\"epoch\":3}",
+            LayoutJSON = "{\"layoutServers\":[" ++ EP ++ "],\"sequencers\":[" ++ EP ++ "],\"segments\":[{\"replicationMode\":\"REPLEX\",\"start\":0,\"end\":-1,\"stripes\":[{\"logServers\":[" ++ EP ++ "]}],\"replexes\":[{\"logServers\":[" ++ EP ++ "]}]}],\"epoch\":0}",
             ["OK"] = layout_qc:commit(0, 1, LayoutJSON)
     end,
+
+    %% Reset the SequencerServer and LogUnitServers.
+    Res = rpc(Mbox, reset, Endpoint),
+
     Res.
 
 reboot(Mbox, Endpoint) ->
@@ -489,17 +489,19 @@ cmd_inner(Else) ->
     erlang:halt(1).
 
 prop() ->
-    prop(smrmap, 1).
+    prop(chain_replication, smrmap, 1).
 
-prop(MapType, MoreCmds) ->
-    prop(MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
+prop(ReplType, MapType, MoreCmds) ->
+    prop(ReplType, MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-prop(MapType, MoreCmds, Mboxes, Endpoint)
-  when MapType == smrmap; MapType == fgmap ->
+prop(ReplType, MapType, MoreCmds, Mboxes, Endpoint)
+  when (ReplType == chain_replication orelse ReplType == replex)
+       andalso
+       (MapType == smrmap orelse MapType == fgmap) ->
     %% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 commands(?MODULE,
-                                         initial_state(MapType,
+                                         initial_state(ReplType, MapType,
                                                        Mboxes, Endpoint))),
             begin
                 {H, S_or_Hs, Res} = run_commands(?MODULE, Cmds),
@@ -516,17 +518,17 @@ prop(MapType, MoreCmds, Mboxes, Endpoint)
             end).
 
 prop_parallel() ->
-    prop_parallel(smrmap, 1).
+    prop_parallel(chain_replication, smrmap, 1).
 
-prop_parallel(MapType, MoreCmds) ->
-    prop_parallel(MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
+prop_parallel(ReplType, MapType, MoreCmds) ->
+    prop_parallel(ReplType, MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-prop_parallel(MapType, MoreCmds, Mboxes, Endpoint) ->
+prop_parallel(ReplType, MapType, MoreCmds, Mboxes, Endpoint) ->
     AlwaysNum = 2,
     io:format(user, "NOTE: parallel cmds are executed ~w times to try to detect non-determinism\n", [AlwaysNum]),
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 parallel_commands(?MODULE,
-                                         initial_state(MapType,
+                                         initial_state(ReplType, MapType,
                                                        Mboxes, Endpoint))),
             ?WRAP_ALWAYS(AlwaysNum,
             begin
