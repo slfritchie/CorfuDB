@@ -415,13 +415,13 @@ reset(Mbox, Endpoint, ReplicationType) ->
     %% Reset the SequencerServer and LogUnitServers.
     Res = rpc(Mbox, reset, Endpoint),
 
+    %% Reset the LayoutServer.
+    ["OK"] = layout_qc:reset(),
+
     case ReplicationType of
         chain_replication ->
             ok;
         replex ->
-            %% Reset the LayoutServer.
-            layout_qc:reset(),
-
             %% Create & commit a Replex-style layout.
             EP = lists:flatten(io_lib:format("\"~s\"", [Endpoint])),
             LayoutJSON = "{\"layoutServers\":[" ++ EP ++ "],\"sequencers\":[" ++ EP ++ "],\"segments\":[{\"replicationMode\":\"REPLEX\",\"start\":0,\"end\":-1,\"stripes\":[{\"logServers\":[" ++ EP ++ "]}],\"replexes\":[{\"logServers\":[" ++ EP ++ "]}]}],\"epoch\":3}",
