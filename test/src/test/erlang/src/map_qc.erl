@@ -492,6 +492,16 @@ cmd_inner(Else) ->
 %%       I don't fully understand why ... some bit of state isn't
 %%       getting reset correctly.
 
+warn_about(ReplType) ->
+    case get({?MODULE,warn_about}) of
+        undefined ->
+            put({?MODULE,warn_about}, ReplType);
+        X when X == ReplType ->
+            ok;
+        _Else ->
+            io:format(user, "WARNING: Do not mix replex & chain_replication tests in the same SUT without a full restart.\n", [])
+    end.
+
 prop() ->
     prop(chain_replication, smrmap, 1).
 
@@ -502,6 +512,7 @@ prop(ReplType, MapType, MoreCmds, Mboxes, Endpoint)
   when (ReplType == chain_replication orelse ReplType == replex)
        andalso
        (MapType == smrmap orelse MapType == fgmap) ->
+    warn_about(ReplType),
     %% Hmmmm, more_commands() doesn't appear to work correctly with Proper.
     ?FORALL(Cmds, more_commands(MoreCmds,
                                 commands(?MODULE,
@@ -527,7 +538,11 @@ prop_parallel() ->
 prop_parallel(ReplType, MapType, MoreCmds) ->
     prop_parallel(ReplType, MapType, MoreCmds, qc_java:local_mboxes(), qc_java:local_endpoint()).
 
-prop_parallel(ReplType, MapType, MoreCmds, Mboxes, Endpoint) ->
+prop_parallel(ReplType, MapType, MoreCmds, Mboxes, Endpoint)
+  when (ReplType == chain_replication orelse ReplType == replex)
+       andalso
+       (MapType == smrmap orelse MapType == fgmap) ->
+    warn_about(ReplType),
     AlwaysNum = 2,
     io:format(user, "NOTE: parallel cmds are executed ~w times to try to detect non-determinism\n", [AlwaysNum]),
     ?FORALL(Cmds, more_commands(MoreCmds,
