@@ -488,6 +488,10 @@ cmd_inner(Else) ->
     io:format("\nCounterexample (pretty):\n~s\n\n", [pf(Counter)]),
     erlang:halt(1).
 
+%% NOTE: Do not mix replex & chain_replication tests in the same SUT.
+%%       I don't fully understand why ... some bit of state isn't
+%%       getting reset correctly.
+
 prop() ->
     prop(chain_replication, smrmap, 1).
 
