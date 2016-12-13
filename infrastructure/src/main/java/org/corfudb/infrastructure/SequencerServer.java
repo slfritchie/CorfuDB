@@ -1,5 +1,7 @@
 package org.corfudb.infrastructure;
 
+import com.codahale.metrics.*;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.channel.ChannelHandlerContext;
@@ -209,11 +211,15 @@ public class SequencerServer extends AbstractServer {
     @ServerHandler(type=CorfuMsgType.TOKEN_REQ)
     public synchronized void tokenRequest(CorfuPayloadMsg<TokenRequest> msg,
                                           ChannelHandlerContext ctx, IServerRouter r) {
+        Timer.Context context = BaseServer.timerSeqReq.time();
+      try {
         TokenRequest req = msg.getPayload();
         log.trace("req txn reso: {}", req.getTxnResolution());
+          BaseServer.counterTokenSum.inc(req.getNumTokens());
 
         // if requested number of tokens is zero, it is just a query of current tail(s)
         if (req.getNumTokens() == 0) {
+            BaseServer.counterToken0.inc();
             returnLatestOffsets(msg, ctx, r);
             return;
         }
@@ -284,6 +290,9 @@ public class SequencerServer extends AbstractServer {
                 new TokenResponse(currentTail,
                         backPointerMap.build(),
                         requestStreamTokens.build())));
+      } finally {
+          context.stop();
+      }
     }
 
     @Override
