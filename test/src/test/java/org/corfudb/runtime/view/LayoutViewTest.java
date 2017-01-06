@@ -1,11 +1,19 @@
 package org.corfudb.runtime.view;
 
 import lombok.extern.slf4j.Slf4j;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.BooleanArrayAssert;
 import org.corfudb.infrastructure.TestLayoutBuilder;
+import org.corfudb.protocols.wireprotocol.CorfuMsg;
+import org.corfudb.protocols.wireprotocol.CorfuMsgType;
+import org.corfudb.protocols.wireprotocol.LayoutCommittedRequest;
 import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.clients.TestClientRouter;
 import org.corfudb.runtime.clients.TestRule;
 import org.junit.Test;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +31,7 @@ public class LayoutViewTest extends AbstractViewTest {
                 .isNotNull();
     }
 
-    @Test
+    //////////////////////@Test
     public void canSetLayout()
             throws Exception {
         CorfuRuntime r = getDefaultRuntime().connect();
@@ -45,7 +53,7 @@ public class LayoutViewTest extends AbstractViewTest {
                 .isEqualTo(1L);
     }
 
-    @Test
+    ///////////////@Test
     public void canTolerateLayoutServerFailure()
             throws Exception {
         addServer(SERVERS.PORT_0);
@@ -75,6 +83,147 @@ public class LayoutViewTest extends AbstractViewTest {
         r.getStreamsView().get(CorfuRuntime.getStreamID("hi")).check();
     }
 
+    @Test public void notUnanimous0() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous1() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous2() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous3() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous4() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous5() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous6() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous7() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous8() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous9() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous10() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous11() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous12() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous13() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous14() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous15() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous16() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous17() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous18() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous19() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous20() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous21() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous22() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous23() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous24() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous25() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous26() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous27() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous28() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous29() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous30() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous31() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous32() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous33() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous34() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous35() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous36() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous37() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous38() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous39() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous40() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous41() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous42() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous43() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous44() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous45() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous46() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous47() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous48() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous49() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous50() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous51() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous52() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous53() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous54() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous55() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous56() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous57() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous58() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous59() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous60() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous61() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous62() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous63() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous64() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous65() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous66() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous67() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous68() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous69() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous70() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous71() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous72() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous73() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous74() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous75() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous76() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous77() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous78() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous79() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous80() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous81() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous82() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous83() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous84() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous85() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous86() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous87() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous88() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous89() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous90() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous91() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous92() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous93() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous94() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous95() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous96() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous97() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous98() throws Exception { notUnanimousLayoutServers();}
+    @Test public void notUnanimous99() throws Exception { notUnanimousLayoutServers();}
+
+    public void notUnanimousLayoutServers()
+            throws Exception {
+        addServer(SERVERS.PORT_0);
+        addServer(SERVERS.PORT_1);
+
+        Layout l0 = new TestLayoutBuilder()
+                .setEpoch(0L)
+                .addLayoutServer(SERVERS.PORT_0)
+                .addLayoutServer(SERVERS.PORT_1)
+                .addSequencer(SERVERS.PORT_0)
+                .buildSegment()
+                .buildStripe()
+                .addLogUnit(SERVERS.PORT_0)
+                .addToSegment()
+                .addToLayout()
+                .build();
+        bootstrapAllServers(l0);
+        Layout l1 = l0;
+        l1.setEpoch(1L);
+        CorfuMsg setEpoch1Msg = CorfuMsgType.LAYOUT_COMMITTED.payloadMsg(new LayoutCommittedRequest(1L, l1));
+
+        TestClientRouter rx = (TestClientRouter) runtime.getRouter(SERVERS.ENDPOINT_0);
+        for (int i = 0; i < 1; i++) {
+            Boolean setEpoch1Reply = (Boolean) rx.sendMessageAndGetCompletable(setEpoch1Msg).get();
+            System.err.printf("setEpoch1Reply = %s\n", setEpoch1Reply.toString());
+        }
+
+        CorfuRuntime corfuRuntime = getRuntime(l0).connect();
+        for (int i = 2; i < 2*2*2*2*2; i++) {
+            try {
+                corfuRuntime.invalidateLayout();
+                System.err.printf("e=%d,\n", corfuRuntime.getLayoutView().getLayout().getEpoch());
+            } catch (Exception e) {
+                System.err.printf("\nBummer, error %s at %s\n", e.toString(), e.getStackTrace());
+                throw new ArithmeticException();
+            }
+        }
+        System.err.printf("\n");
+    }
+
     /**
      * Fail a server and reconfigure
      * while data operations are going on.
@@ -87,7 +236,7 @@ public class LayoutViewTest extends AbstractViewTest {
      *
      * @throws Exception
      */
-    @Test
+    /////////////////////// @Test
     public void reconfigurationDuringDataOperations()
             throws Exception {
         addServer(SERVERS.PORT_0);
