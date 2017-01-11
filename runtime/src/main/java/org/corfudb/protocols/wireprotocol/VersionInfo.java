@@ -38,6 +38,12 @@ public class VersionInfo {
     @Getter
     Map<String, Object> statsLayoutServer;
 
+    /**
+     * Statistics for JVM
+     */
+    @Getter
+    Map<String, Object> statsJVMGC;
+
     @Getter
     long upTime = ManagementFactory.getRuntimeMXBean().getUptime();
 
@@ -51,11 +57,13 @@ public class VersionInfo {
                        Map<String,Object> statsLogMap,
                        Map<String,Object> statsSeqMap,
                        Map<String,Object> statsLayoutMap,
-                       Map<String,Object> statsLogCacheMap) {
+                       Map<String,Object> statsLogCacheMap,
+                       Map<String,Object> statsJVMGCMap) {
         this.optionsMap = optionsMap;
         this.statsLogUnitServer = statsLogMap;
         this.statsSequencerServer = statsSeqMap;
         this.statsLayoutServer = statsLayoutMap;
         this.statsLogUnitServerCache = statsLogCacheMap;
+        this.statsJVMGC = statsJVMGCMap;
     }
 }

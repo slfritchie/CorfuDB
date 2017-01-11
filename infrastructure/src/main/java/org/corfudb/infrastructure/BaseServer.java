@@ -1,9 +1,8 @@
 package org.corfudb.infrastructure;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
@@ -53,6 +52,7 @@ public class BaseServer extends AbstractServer {
     public static final Timer timerLayoutPrepare = metricsLayout.timer("prepare");
     public static final Timer timerLayoutPropose = metricsLayout.timer("propose");
     public static final Timer timerLayoutCommitted = metricsLayout.timer("committed");
+    public static final MetricSet metricsJVMGC = new GarbageCollectorMetricSet();
 
 
     /** Respond to a ping message.
@@ -92,7 +92,9 @@ public class BaseServer extends AbstractServer {
             // Don't add LogUnit cache stats: there's no such component configured (e.g. during unit test)
         }
 
-        VersionInfo vi = new VersionInfo(optionsMap, logStats, seqStats, layoutStats, logCacheStats);
+        Map<String,Object> jvmGCStats = new HashMap<>();
+        dumpJVMGCStats(metricsJVMGC, jvmGCStats);
+        VersionInfo vi = new VersionInfo(optionsMap, logStats, seqStats, layoutStats, logCacheStats, jvmGCStats);
         r.sendResponse(ctx, msg, new JSONPayloadMsg<>(vi, CorfuMsgType.VERSION_RESPONSE));
     }
 
@@ -143,5 +145,14 @@ public class BaseServer extends AbstractServer {
         dst.put("hit-rate", src.hitRate());
         dst.put("hits", src.hitCount());
         dst.put("misses", src.missCount());
+    }
+
+    private void dumpJVMGCStats(MetricSet ms, Map<String,Object> dst) {
+        Map<String,Metric> metrics = ms.getMetrics();
+
+        metrics.forEach((k, m) -> {
+            final Gauge gauge = (Gauge) m;
+            dst.put(k, gauge.getValue());
+        });
     }
 }
