@@ -3,6 +3,8 @@ package org.corfudb.infrastructure;
 import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import com.codahale.metrics.jvm.ThreadStatesGaugeSet;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
@@ -53,7 +55,8 @@ public class BaseServer extends AbstractServer {
     public static final Timer timerLayoutPropose = metricsLayout.timer("propose");
     public static final Timer timerLayoutCommitted = metricsLayout.timer("committed");
     public static final MetricSet metricsJVMGC = new GarbageCollectorMetricSet();
-
+    public static final MetricSet metricsJVMMem = new MemoryUsageGaugeSet();
+    public static final MetricSet metricsJVMThread = new ThreadStatesGaugeSet();
 
     /** Respond to a ping message.
      *
@@ -93,8 +96,13 @@ public class BaseServer extends AbstractServer {
         }
 
         Map<String,Object> jvmGCStats = new HashMap<>();
-        dumpJVMGCStats(metricsJVMGC, jvmGCStats);
-        VersionInfo vi = new VersionInfo(optionsMap, logStats, seqStats, layoutStats, logCacheStats, jvmGCStats);
+        dumpMetricsSet(metricsJVMGC, jvmGCStats);
+        Map<String,Object> jvmMemStats = new HashMap<>();
+        dumpMetricsSet(metricsJVMMem, jvmMemStats);
+        Map<String,Object> jvmThreadStats = new HashMap<>();
+        dumpMetricsSet(metricsJVMThread, jvmThreadStats);
+        VersionInfo vi = new VersionInfo(optionsMap, logStats, seqStats, layoutStats, logCacheStats,
+                jvmGCStats, jvmMemStats, jvmThreadStats);
         r.sendResponse(ctx, msg, new JSONPayloadMsg<>(vi, CorfuMsgType.VERSION_RESPONSE));
     }
 
@@ -147,7 +155,7 @@ public class BaseServer extends AbstractServer {
         dst.put("misses", src.missCount());
     }
 
-    private void dumpJVMGCStats(MetricSet ms, Map<String,Object> dst) {
+    private void dumpMetricsSet(MetricSet ms, Map<String,Object> dst) {
         Map<String,Metric> metrics = ms.getMetrics();
 
         metrics.forEach((k, m) -> {
