@@ -138,16 +138,10 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
     @Override
     public <R> R access(ICorfuSMRAccess<R, T> accessMethod,
                         Object[] conflictObject) {
-        R value;
         boolean isEnabled = MetricsUtils.isMetricsCollectionEnabled();
-        Timer.Context context = MetricsUtils.getConditionalContext(isEnabled, timerAccess);
-
-        try {
-            value = accessInner(accessMethod, conflictObject, isEnabled);
-        } finally {
-            MetricsUtils.stopConditionalContext(context);
+        try (Timer.Context context = MetricsUtils.getConditionalContext(isEnabled, timerAccess)){
+            return accessInner(accessMethod, conflictObject, isEnabled);
         }
-        return value;
     }
 
     private <R> R accessInner(ICorfuSMRAccess<R, T> accessMethod,
@@ -281,14 +275,9 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
     @Override
     public long logUpdate(String smrUpdateFunction, Object[] conflictObject,
                           Object... args) {
-        long value;
-        Timer.Context context = MetricsUtils.getConditionalContext(timerLogWrite);
-        try {
-            value = logUpdateInner(smrUpdateFunction, conflictObject, args);
-        } finally {
-            MetricsUtils.stopConditionalContext(context);
+        try (Timer.Context context = MetricsUtils.getConditionalContext(timerLogWrite)) {
+            return logUpdateInner(smrUpdateFunction, conflictObject, args);
         }
-        return value;
     }
 
     private long logUpdateInner(String smrUpdateFunction, Object[] conflictObject,
@@ -322,15 +311,9 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
     @Override
     @SuppressWarnings("unchecked")
     public <R> R getUpcallResult(long timestamp, Object[] conflictObject) {
-        R result;
-        Timer.Context context = MetricsUtils.getConditionalContext(timerUpcall);
-
-        try {
-            result = getUpcallResultInner(timestamp, conflictObject);
-        } finally {
-            MetricsUtils.stopConditionalContext(context);
+        try (Timer.Context context = MetricsUtils.getConditionalContext(timerUpcall);) {
+            return getUpcallResultInner(timestamp, conflictObject);
         }
-        return result;
     }
 
     private <R> R getUpcallResultInner(long timestamp, Object[] conflictObject) {
@@ -400,16 +383,10 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
      */
     @Override
     public <R> R TXExecute(Supplier<R> txFunction) {
-        R value;
         boolean isEnabled = MetricsUtils.isMetricsCollectionEnabled();
-        Timer.Context context = MetricsUtils.getConditionalContext(isEnabled, timerTxn);
-
-        try {
-            value = TXExecuteInner(txFunction, isEnabled);
-        } finally {
-            MetricsUtils.stopConditionalContext(context);
+        try (Timer.Context context = MetricsUtils.getConditionalContext(isEnabled, timerTxn)) {
+            return TXExecuteInner(txFunction, isEnabled);
         }
-        return value;
     }
 
     private <R> R TXExecuteInner(Supplier<R> txFunction, boolean isMetricsEnabled) {
