@@ -74,7 +74,7 @@ public class ManagementServer extends AbstractServer {
      * In milliseconds.
      */
     @Getter
-    private final long policyExecuteInterval = 1000;
+    private final long policyExecuteInterval = 99999*1000;
     /**
      * To schedule failure detection.
      */
