@@ -19,6 +19,7 @@ import org.corfudb.runtime.view.stream.IStreamView;
 import org.corfudb.util.MetricsUtils;
 import org.corfudb.util.Utils;
 import org.corfudb.util.serializer.ISerializer;
+import static org.corfudb.util.CoopScheduler.sched;
 
 import java.lang.reflect.Constructor;
 import java.util.*;
@@ -132,18 +133,18 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
         if (TransactionalContext.isInTransaction()) {
             log.trace("Access[{}] conflictObj={} @TX[{}]", this, conflictObject,
                     Utils.toReadableID(TransactionalContext.getCurrentContext().getTransactionID()) );
-            return TransactionalContext.getCurrentContext()
+            sched(); return TransactionalContext.getCurrentContext()
                     .access(this, accessMethod, conflictObject);
         }
 
         // Linearize this read against a timestamp
-        final long timestamp =
+        sched(); final long timestamp =
                 rt.getSequencerView()
                 .nextToken(Collections.singleton(streamID), 0).getToken();
         log.trace("Access[{}] conflictObj={} Linearized to {}", this, conflictObject, timestamp);
 
         // Perform underlying access
-        return underlyingObject.access(o -> o.getVersionUnsafe() >= timestamp && !o.isOptimisticallyModifiedUnsafe(),
+        sched(); return underlyingObject.access(o -> o.getVersionUnsafe() >= timestamp && !o.isOptimisticallyModifiedUnsafe(),
                 o -> o.syncObjectUnsafe(timestamp),
                 o -> accessMethod.access(o));
     }
@@ -169,7 +170,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
             log.trace("LogUpdate[{}] {}({}) conflictObj={} @TX[{}]",
                     this, smrUpdateFunction, args, conflictObject,
                     Utils.toReadableID(TransactionalContext.getCurrentContext().getTransactionID()) );
-            return TransactionalContext.getCurrentContext()
+            sched(); return TransactionalContext.getCurrentContext()
                     .logUpdate(this, entry, conflictObject);
         }
 
@@ -177,10 +178,10 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
         // If we aren't in a transaction, we can just write the modification.
         // We need to add the acquired token into the pending upcall list.
         SMREntry smrEntry = new SMREntry(smrUpdateFunction, args, serializer);
-        long address = underlyingObject.logUpdate(smrEntry, keepUpcallResult);
+        sched(); long address = underlyingObject.logUpdate(smrEntry, keepUpcallResult);
         log.trace("LogUpdate[{}] {}@{} ({}) conflictObj={}",
                 this, smrUpdateFunction, address, args, conflictObject);
-        return address;
+        sched(); return address;
     }
 
     /**
@@ -190,7 +191,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
     @SuppressWarnings("unchecked")
     public <R> R getUpcallResult(long timestamp, Object[] conflictObject) {
         try (Timer.Context context = MetricsUtils.getConditionalContext(timerUpcall);) {
-            return getUpcallResultInner(timestamp, conflictObject);
+            sched(); return getUpcallResultInner(timestamp, conflictObject);
         }
     }
 
@@ -200,7 +201,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
     @Override
     public void sync() {
         // Linearize this read against a timestamp
-        final long timestamp =
+        sched(); final long timestamp =
                 rt.getSequencerView()
                         .nextToken(Collections.singleton(streamID), 0).getToken();
 
@@ -208,7 +209,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
 
         // Acquire locks and perform read.
         underlyingObject.update(o -> {
-            o.syncObjectUnsafe(timestamp);
+            sched(); o.syncObjectUnsafe(timestamp);
             return null;
         });
     }
@@ -217,7 +218,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
         // If we aren't coming from a transactional context,
         // redirect us to a transactional context first.
         if (TransactionalContext.isInTransaction()) {
-            return (R) TransactionalContext.getCurrentContext()
+            sched(); return (R) TransactionalContext.getCurrentContext()
                     .getUpcallResult(this, timestamp, conflictObject);
         }
 
@@ -227,23 +228,23 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
             log.trace("Upcall[{}] {} Direct", this, timestamp);
             R ret = (R) underlyingObject.upcallResults.get(timestamp);
             underlyingObject.upcallResults.remove(timestamp);
-            return ret == VersionLockedObject.NullValue.NULL_VALUE ? null : ret;
+            sched(); return ret == VersionLockedObject.NullValue.NULL_VALUE ? null : ret;
         }
 
         return underlyingObject.update(o-> {
-            o.syncObjectUnsafe(timestamp);
+            sched(); o.syncObjectUnsafe(timestamp);
             if (o.upcallResults.containsKey(timestamp)) {
                 log.trace("Upcall[{}] {} Sync'd", this,  timestamp);
                 R ret = (R) o.upcallResults.get(timestamp);
                 o.upcallResults.remove(timestamp);
-                return ret == VersionLockedObject.NullValue.NULL_VALUE ? null : ret;
+                sched(); return ret == VersionLockedObject.NullValue.NULL_VALUE ? null : ret;
             }
 
             // The version is already ahead, but we don't have the result.
             // The only way to get the correct result
             // of the upcall would be to rollback. For now, we throw an exception
             // since this is generally not expected. --- and probably a bug if it happens.
-            throw new RuntimeException("Attempted to get the result " +
+            sched(); throw new RuntimeException("Attempted to get the result " +
                     "of an upcall@" + timestamp + " but we are @"
                     + underlyingObject.getVersionUnsafe() +
                     " and we don't have a copy");
@@ -279,9 +280,9 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
         int retries = 1;
         while (true) {
             try {
-                rt.getObjectsView().TXBegin();
-                R ret = txFunction.get();
-                rt.getObjectsView().TXEnd();
+                sched(); rt.getObjectsView().TXBegin();
+                sched(); R ret = txFunction.get();
+                sched(); rt.getObjectsView().TXEnd();
                 return ret;
             } catch (TransactionAbortedException e) {
                 if (retries == 1) {
@@ -324,7 +325,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
      */
     @Override
     public long getVersion() {
-        return underlyingObject.getVersionUnsafe();
+        sched(); return underlyingObject.getVersionUnsafe();
     }
 
     /** Get a new instance of the real underlying object.

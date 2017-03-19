@@ -234,8 +234,8 @@ public class CorfuSMRObjectProxyTest extends AbstractViewTest {
             });
             t2.start();
 
-            t1.join(PARAMETERS.TIMEOUT_NORMAL.toMillis());
-            t2.join(PARAMETERS.TIMEOUT_NORMAL.toMillis());
+            t1.rejoin(PARAMETERS.TIMEOUT_NORMAL.toMillis());
+            t2.rejoin(PARAMETERS.TIMEOUT_NORMAL.toMillis());
 
             assertThat(t1.isAlive()).isFalse();
             assertThat(t2.isAlive()).isFalse();

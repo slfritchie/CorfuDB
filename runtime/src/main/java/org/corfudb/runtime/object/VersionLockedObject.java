@@ -13,6 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.*;
 
+import static org.corfudb.util.CoopScheduler.sched;
+
 /**
  * The VersionLockedObject maintains a versioned object which is
  * backed by an ISMRStream, and is optionally backed by an additional
@@ -142,7 +144,7 @@ public class VersionLockedObject<T> {
                         Function<T, R> accessFunction) {
         // First, we try to do an optimistic read on the object, in case it
         // meets the conditions for direct access.
-        long ts = lock.tryOptimisticRead();
+        sched(); long ts = lock.tryOptimisticRead();
         if (ts != 0) {
             if (directAccessCheckFunction.apply(this)) {
                 log.trace("Access [{}] Direct (optimistic-read) access at {}", this, getVersionUnsafe());
@@ -157,9 +159,9 @@ public class VersionLockedObject<T> {
         // updated.
         try {
             // Attempt an upgrade
-            ts = lock.tryConvertToWriteLock(ts);
+            sched(); ts = lock.tryConvertToWriteLock(ts);
             // Upgrade failed, try conversion again
-            if (ts == 0) { ts = lock.writeLock(); }
+            if (ts == 0) { sched(); ts = lock.writeLock(); }
             // Check if direct access is possible (unlikely).
             if (directAccessCheckFunction.apply(this)) {
                 log.trace("Access [{}] Direct (writelock) access at {}", this, getVersionUnsafe());
@@ -175,6 +177,7 @@ public class VersionLockedObject<T> {
             // And perform the access
         } finally {
             lock.unlock(ts);
+            sched();
         }
     }
 
@@ -187,11 +190,12 @@ public class VersionLockedObject<T> {
     public <R> R update(Function<VersionLockedObject<T>, R> updateFunction) {
         long ts = 0;
         try {
-            ts = lock.writeLock();
+            sched(); ts = lock.writeLock();
             log.trace("Update[{}] (writelock)", this);
             return updateFunction.apply(this);
         } finally {
             lock.unlock(ts);
+            sched();
         }
     }
 
@@ -217,7 +221,7 @@ public class VersionLockedObject<T> {
      * @param globalAddress     The global address to set the pointer to
      */
     public void seek(long globalAddress) {
-        smrStream.seek(globalAddress);
+        sched(); smrStream.seek(globalAddress);
     }
 
     /** Bring the object to the requested version, rolling back or syncing
@@ -282,13 +286,13 @@ public class VersionLockedObject<T> {
      */
     public long logUpdate(SMREntry entry, boolean saveUpcall) {
         return smrStream.append(entry, t -> {
-            if (saveUpcall) {
-                pendingUpcalls.add(t.getToken());
+            sched(); if (saveUpcall) {
+                sched(); pendingUpcalls.add(t.getToken());
             }
             return true;
         }, t -> {
-            if (saveUpcall) {
-                pendingUpcalls.remove(t.getToken());
+            sched(); if (saveUpcall) {
+                sched(); pendingUpcalls.remove(t.getToken());
             }
             return true;
         });
@@ -303,7 +307,7 @@ public class VersionLockedObject<T> {
      * to this object permanent.
      */
     public void optimisticCommitUnsafe() {
-        optimisticStream = null;
+        sched(); optimisticStream = null;
     }
 
     /** Check whether or not this object was modified by this thread.

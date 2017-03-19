@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.corfudb.runtime.view.ObjectsView.TRANSACTION_STREAM_ID;
+import static org.corfudb.util.CoopScheduler.sched;
 
 /** A Corfu optimistic transaction context.
  *
@@ -85,7 +86,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
         // Next, we sync the object, which will bring the object
         // to the correct version, reflecting any optimistic
         // updates.
-        return proxy.getUnderlyingObject().access(
+        sched(); return proxy.getUnderlyingObject().access(
                 o -> (writeSet.get(proxy.getStreamID()) == null && // No updates
                         o.getVersionUnsafe() == getSnapshotTimestamp() && // And at the correct timestamp
                         !o.isOptimisticallyModifiedUnsafe()),
@@ -129,10 +130,10 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
         // if we have a result, return it.
         SMREntry wrapper = getWriteSetEntryList(proxy.getStreamID()).get((int)timestamp);
         if (wrapper != null && wrapper.isHaveUpcallResult()){
-            return wrapper.getUpcallResult();
+            sched(); return wrapper.getUpcallResult();
         }
         // Otherwise, we need to sync the object
-        return proxy.getUnderlyingObject().update(o -> {
+        sched(); return proxy.getUnderlyingObject().update(o -> {
             setAsOptimisticStream(o);
             log.trace("Upcall[{}] {} Sync'd", this,  timestamp);
             o.syncObjectUnsafe(getSnapshotTimestamp());
@@ -148,6 +149,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
     }
 
     <T> void setAsOptimisticStream(VersionLockedObject<T> object) {
+        // NOTE: don't sched() here, our caller is always in locked context
         if (object.getOptimisticStreamUnsafe() == null ||
                 !object.getOptimisticStreamUnsafe()
                         .isStreamForThisTransaction()) {
@@ -177,7 +179,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
         addToWriteSet(proxy, updateEntry, conflictObjects);
 
         // Return the "address" of the update; used for retrieving results from operations via getUpcallRestult.
-        return writeSet.get(proxy.getStreamID()).getValue().size() - 1;
+        sched(); return writeSet.get(proxy.getStreamID()).getValue().size() - 1;
     }
 
     /**
@@ -188,6 +190,8 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      */
     @SuppressWarnings("unchecked")
     public void addTransaction(AbstractTransactionalContext tc) {
+        sched(); // NOTE: MultipleNonOverlappingTest workloads do not reach here.
+
         log.trace("Merge[{}] adding {}", this, tc);
         // merge the conflict maps
         mergeReadSetInto(tc.getReadSet());
@@ -209,6 +213,8 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
     @Override
     @SuppressWarnings("unchecked")
     public long commitTransaction() throws TransactionAbortedException {
+        sched(); // NOTE: MultipleNonOverlappingTest workloads do not reach here.
+
         if (TransactionalContext.isInNestedTransaction()) {
             getParentContext().addTransaction(this);
             commitAddress = AbstractTransactionalContext.FOLDED_ADDRESS;
@@ -276,10 +282,18 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
         // First, get the committed entry
         // in order to get the backpointers
         // and the underlying SMREntries.
+
+        sched(); // NOTE: MultipleNonOverlappingTest workloads can reach here but also never run the lambda
+                 //       inside of updateAllProxies() call.
+        // NOTE: We can call sched() here and not observe deadlocks, so we're probably not being called
+        // in a locked scenario.  But if the lambda below is calling *Unsafe functions without
+        // being locked, then that's bad, right?
+
         ILogData committedEntry = this.builder.getRuntime()
                 .getAddressSpaceView().read(commitAddress);
 
         updateAllProxies(x -> {
+            System.err.printf("O8a"); sched();
             log.trace("Commit[{}] Committing {}", this,  x);
             // Commit all the optimistic updates
             x.getUnderlyingObject().optimisticCommitUnsafe();
@@ -340,6 +354,10 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      * @return  The root context.
      */
     private OptimisticTransactionalContext getRootContext() {
+        // NOTE: We cannot call sched() here, because it's possible for VersionLockedObject
+        //       to get its lock, call update()'s lambda that needs the current snapshot,
+        //       and we get here.  {sigh}  So, this is effectively an *Unsafe function
+        //       from the point of view of VersionLockedObject??
         AbstractTransactionalContext atc = TransactionalContext.getRootContext();
         if (atc != null && !(atc instanceof OptimisticTransactionalContext)) {
             throw new RuntimeException("Attempted to nest two different transactional context types");
@@ -354,6 +372,10 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      */
     @Override
     public synchronized long obtainSnapshotTimestamp() {
+        // NOTE: We cannot call sched() here, because it's possible for VersionLockedObject
+        //       to get its lock, call update()'s lambda that needs the current snapshot,
+        //       and we get here.  {sigh}  So, this is effectively an *Unsafe function
+        //       from the point of view of VersionLockedObject??
         final AbstractTransactionalContext atc = getRootContext();
         if (atc != null && atc != this) {
             // If we're in a nested transaction, the first read timestamp

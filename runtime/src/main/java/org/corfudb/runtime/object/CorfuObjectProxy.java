@@ -118,7 +118,7 @@ public class CorfuObjectProxy<P> {
             log.trace("TX Method: {}, Affected streams: {}", method.getName(), affectedStreams);
             TXLambdaReferenceEntry tlre = new TXLambdaReferenceEntry(method, obj,
                     arguments, Serializers.JSON);
-            // if the TX returns something, we need to join on a completable future.
+            // if the TX returns something, we need to rejoin on a completable future.
             if (!method.getReturnType().getName().equals("void")) {
                 CompletableFuture cf = new CompletableFuture();
                 long txAddr = runtime.getStreamsView().acquireAndWrite(affectedStreams, tlre, t -> {
