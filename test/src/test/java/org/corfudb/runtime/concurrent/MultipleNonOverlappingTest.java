@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractObjectTest;
 import org.corfudb.runtime.object.transactions.TransactionType;
+import org.corfudb.util.CoopScheduler;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,6 +35,7 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
      *   4) Repeat the above steps FINAL_SUM number of times.
      */
     @Test
+    @SuppressWarnings("checkstyle:magicnumber")
     public void testStress() throws Exception {
 
         String mapName = "testMapA";
@@ -42,21 +44,48 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
         final int VAL = 1;
 
         // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of THREAD_NUM.
-        final int OBJECT_NUM = 20;
-        final int THREAD_NUM = 5;
+        // QQQ final int OBJECT_NUM = 20;
+        // QQQ final int THREAD_NUM = 5;
+        final int OBJECT_NUM = 2;
+        final int THREAD_NUM = 2;
 
         final int FINAL_SUM = OBJECT_NUM;
         final int STEP = OBJECT_NUM / THREAD_NUM;
 
+        int[] schedule = new int[] {1,1,0,2,1,0,4,3};
+        CoopScheduler.reset(schedule.length + 4);
+        CoopScheduler.setSchedule(schedule);
+        System.err.printf("\nschedule = {");
+        for (int i = 0; i < schedule.length; i++) {
+            System.err.printf("%d,", schedule[i]);
+        }
+        System.err.printf("}\n");
+
         // test all objects advance in lock-step to FINAL_SUM
         for (int i = 0; i < FINAL_SUM; i++) {
-
             for (int j = 0; j < OBJECT_NUM; j += STEP) {
+                System.err.printf("i %d j %d FINAL_SUM %d OBJECT_SUM %d timeout %s\n", i, j, FINAL_SUM, OBJECT_NUM, PARAMETERS.TIMEOUT_NORMAL.toString());
                 NonOverlappingWriter n = new NonOverlappingWriter(i + 1, j, j + STEP, VAL);
-                scheduleConcurrently(t -> { n.dowork();});
-                executeScheduled(THREAD_NUM, PARAMETERS.TIMEOUT_NORMAL);
-            }
+                scheduleConcurrently(t -> {
+                    int tnum = CoopScheduler.registerThread();
+                    if (tnum < 0) {
+                        System.err.printf("Thread registration failed, exiting");
+                        System.exit(1);
+                    }
+                    System.err.printf("Registered %d\n", tnum);
 
+                    try {
+                        n.dowork();
+                    } catch (Exception e) {
+                        System.err.printf("Oops, exception %s in dowork()\n", e.toString());
+                        throw e;
+                    }
+
+                    System.err.printf("Done %d\n", tnum);
+                    CoopScheduler.threadDone();
+                });
+            }
+            executeScheduled(THREAD_NUM, PARAMETERS.TIMEOUT_NORMAL);
         }
 
         Assert.assertEquals(testMap.size(), FINAL_SUM);
@@ -70,7 +99,7 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
      * Same as above, but two maps, not advancing at the same pace
      * @throws Exception
      */
-    @Test
+    /*********QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ @Test */
     public void testStress2() throws Exception {
 
         String mapName1 = "testMapA";
@@ -159,25 +188,25 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
          */
         private void simpleCreateImpl(long idx, long val) {
 
-            TXBegin();
+            System.err.printf("SCI%da,",idx); TXBegin();
 
-            if (!testMap1.containsKey(idx)) {
-                if (expectedSum - 1 > 0)
+            System.err.printf("SCI%db,",idx); if (!testMap1.containsKey(idx)) {
+                System.err.printf("SCI%dc,",idx); if (expectedSum - 1 > 0)
                     log.debug("OBJ FAIL {} doesn't exist expected={}",
                             idx, expectedSum);
                 log.debug("OBJ {} PUT {}", idx, val);
-                testMap1.put(idx, val);
+                System.err.printf("SCI%dd,",idx); testMap1.put(idx, val);System.err.printf("SCI%dd2,",idx);
             } else {
                 log.debug("OBJ {} GET", idx);
-                Long value = testMap1.get(idx);
-                if (value != (expectedSum - 1))
+                System.err.printf("SCI%de,",idx); Long value = testMap1.get(idx);
+                System.err.printf("SCI%df,",idx); if (value != (expectedSum - 1))
                     log.debug("OBJ FAIL {} value={} expected={}", idx, value,
                             expectedSum - 1);
                 log.debug("OBJ {} PUT {}+{}", idx, value, val);
-                testMap1.put(idx, value + val);
+                System.err.printf("SCI%dg,",idx); testMap1.put(idx, value + val);
             }
 
-            TXEnd();
+            System.err.printf("SCI%dh,",idx); TXEnd();System.err.printf("SCI%di,",idx);
         }
 
         /**

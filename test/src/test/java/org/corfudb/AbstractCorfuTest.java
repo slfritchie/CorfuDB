@@ -3,6 +3,7 @@ package org.corfudb;
 import org.assertj.core.api.AbstractObjectAssert;
 import org.assertj.core.api.AbstractThrowableAssert;
 import org.corfudb.test.DisabledOnTravis;
+import org.corfudb.util.CoopScheduler;
 import org.fusesource.jansi.Ansi;
 import org.junit.After;
 import org.junit.Before;
@@ -337,8 +338,10 @@ public class AbstractCorfuTest {
      * @param timeUnit       The timeunit to wait.
      * @throws Exception
      */
+    @SuppressWarnings("checkstyle:magicnumber")
     public void executeScheduled(int maxConcurrency, long timeout, TimeUnit timeUnit)
             throws Exception {
+        System.err.printf("executeScheduled 0, queue len = %d\n", scheduledThreads.size());
         AtomicLong threadNum = new AtomicLong();
         ExecutorService service = Executors.newFixedThreadPool(maxConcurrency, new ThreadFactory() {
             @Override
@@ -348,9 +351,16 @@ public class AbstractCorfuTest {
                 return t;
             }
         });
-        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, timeUnit);
+        System.err.printf("executeScheduled 1 %d %s, maxConcurrency %d, items %d\n", timeout, timeUnit.toString(), maxConcurrency, scheduledThreads.size());
+        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, 100, TimeUnit.MILLISECONDS); // QQQ timeUnit);
+        System.err.printf("executeScheduled 2\n");
         scheduledThreads.clear();
+        System.err.printf("executeScheduled 3\n");
         service.shutdown();
+
+        System.err.printf("QQQ Call coop scheduler with %d threads!\n", maxConcurrency);
+        CoopScheduler.runScheduler(maxConcurrency);
+        System.err.printf("QQQ FIXME coop scheduler finished\n");
 
         try {
             service.awaitTermination(timeout, timeUnit);
