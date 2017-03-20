@@ -352,13 +352,13 @@ public class AbstractCorfuTest {
             }
         });
         System.err.printf("executeScheduled 1 %d %s, maxConcurrency %d, items %d\n", timeout, timeUnit.toString(), maxConcurrency, scheduledThreads.size());
-        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, 100, TimeUnit.MILLISECONDS); // QQQ timeUnit);
+        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, TimeUnit.MILLISECONDS); // QQQ timeUnit);
         System.err.printf("executeScheduled 2\n");
         scheduledThreads.clear();
         System.err.printf("executeScheduled 3\n");
         service.shutdown();
 
-        System.err.printf("QQQ Call coop scheduler with %d threads!\n", maxConcurrency);
+        System.err.printf("QQQ Call coop scheduler with %d threads, invalid for small thread pool sizes\n", maxConcurrency);
         CoopScheduler.runScheduler(maxConcurrency);
         System.err.printf("QQQ FIXME coop scheduler finished\n");
 
@@ -373,6 +373,7 @@ public class AbstractCorfuTest {
                 assertThat(f.isDone()).
                     as("Ensure that all scheduled threads are completed")
                         .isTrue();
+                assertThat(f.isCancelled()).isFalse();
                 f.get();
             }
         } catch (ExecutionException ee) {

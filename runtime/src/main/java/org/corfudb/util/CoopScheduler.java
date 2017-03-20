@@ -153,7 +153,6 @@ public class CoopScheduler {
             for (int i = 0; i < schedule.length; i++) {
                 t = schedule[i];
                 if (! ready[t] || done[t]) { continue; }
-                System.err.printf("SCHED: %d ready\n", t);
                 synchronized (centralReady) {
                     while (go[t] != 0) {
                         try {centralReady.wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
@@ -161,14 +160,12 @@ public class CoopScheduler {
                     go[t] = 1;
                     centralReady.notifyAll();
                 }
-                System.err.printf("SCHED: %d notified\n", t);
 
                 synchronized (centralReady) {
                     while (!done[t] && go[t] != 0) {
                         try {centralReady.wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                 }
-                System.err.printf("SCHED: %d gave back\n", t);
             }
         }
     }
