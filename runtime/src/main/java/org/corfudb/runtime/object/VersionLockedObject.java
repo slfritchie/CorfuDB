@@ -236,7 +236,7 @@ public class VersionLockedObject<T> {
                 final WriteSetSMRStream currentOptimisticStream =
                         optimisticStream;
                 // If we are too far ahead, roll back to the past
-                sched(); if (getVersionUnsafe() > timestamp) {
+                if (getVersionUnsafe() > timestamp) {
                     try {
                         sched(); rollbackObjectUnsafe(timestamp);
                     } catch (NoRollbackException nre) {
@@ -244,34 +244,34 @@ public class VersionLockedObject<T> {
                     }
                 }
                 // Now sync the regular log
-                sched(); syncStreamUnsafe(smrStream, timestamp);
+                syncStreamUnsafe(smrStream, timestamp);
                 // It's possible that due to reset,
                 // the optimistic stream is no longer
                 // present. Restore it.
-                sched(); optimisticStream = currentOptimisticStream;
+                optimisticStream = currentOptimisticStream;
             }
-            sched(); syncStreamUnsafe(optimisticStream, Address.OPTIMISTIC);
+            syncStreamUnsafe(optimisticStream, Address.OPTIMISTIC);
         } else {
             // If there is an optimistic stream for another
             // transaction, remove it by rolling it back first
             if (this.optimisticStream != null) {
-                sched(); optimisticRollbackUnsafe();
+                optimisticRollbackUnsafe();
                 this.optimisticStream = null;
             }
             // If we are too far ahead, roll back to the past
-            sched(); if (getVersionUnsafe() > timestamp) {
+            if (getVersionUnsafe() > timestamp) {
                 try {
-                    sched(); rollbackObjectUnsafe(timestamp);
+                    rollbackObjectUnsafe(timestamp);
                     // Rollback successfully got us to the right
                     // version, we're done.
-                    sched(); if (getVersionUnsafe() == timestamp) {
-                        sched(); return;
+                    if (getVersionUnsafe() == timestamp) {
+                        return;
                     }
                 } catch (NoRollbackException nre) {
-                    sched(); resetUnsafe();
+                    resetUnsafe();
                 }
             }
-            sched(); syncStreamUnsafe(smrStream, timestamp);
+            syncStreamUnsafe(smrStream, timestamp);
         }
     }
 
@@ -413,33 +413,33 @@ public class VersionLockedObject<T> {
                 entry.getEntry() != null ? entry.getEntry().getGlobalAddress() : "OPT",
                 entry.getSMRArguments());
 
-        sched(); ICorfuSMRUpcallTarget<T> target = upcallTargetMap.get(entry.getSMRMethod());
+        ICorfuSMRUpcallTarget<T> target = upcallTargetMap.get(entry.getSMRMethod());
         if (target == null) {
-            sched(); throw new RuntimeException("Unknown upcall " + entry.getSMRMethod());
+            throw new RuntimeException("Unknown upcall " + entry.getSMRMethod());
         }
 
         // No undo record is present
-        sched(); if (!entry.isUndoable()) {
+        if (!entry.isUndoable()) {
             // Can we generate an undo record?
-            sched(); IUndoRecordFunction<T> undoRecordTarget =
+            IUndoRecordFunction<T> undoRecordTarget =
                     undoRecordFunctionMap
                             .get(entry.getSMRMethod());
             if (undoRecordTarget != null) {
                 // calculate the undo record
-                sched(); entry.setUndoRecord(undoRecordTarget
+                entry.setUndoRecord(undoRecordTarget
                         .getUndoRecord(object, entry.getSMRArguments()));
             } else if (resetSet.contains(entry.getSMRMethod())) {
                 // This entry actually resets the object. So here
                 // we can safely get a new instance, and add the
                 // previous instance to the undo log.
-                sched(); entry.setUndoRecord(object);
+                entry.setUndoRecord(object);
                 object = newObjectFn.get();
             }
         }
 
         // now invoke the upcall
-        sched(); Object ret = target.upcall(object, entry.getSMRArguments());
-        sched(); return ret;
+        Object ret = target.upcall(object, entry.getSMRArguments());
+        return ret;
     }
 
     /** Roll back the given stream by applying undo records in reverse order
@@ -494,24 +494,24 @@ public class VersionLockedObject<T> {
         log.trace("Sync[{}] {}", this, (timestamp == Address.OPTIMISTIC)
                 ? "Optimistic" : "to " + timestamp);
         long syncTo = (timestamp == Address.OPTIMISTIC) ? Address.MAX : timestamp;
-        sched(); stream.remainingUpTo(syncTo)
+        stream.remainingUpTo(syncTo)
                 .stream()
                 .forEachOrdered(entry -> {
                     try {
-                        sched(); Object res = applyUpdateUnsafe(entry);
+                        Object res = applyUpdateUnsafe(entry);
                         if (timestamp == Address.OPTIMISTIC) {
-                            sched(); entry.setUpcallResult(res);
+                            entry.setUpcallResult(res);
                         }
                         else if (pendingUpcalls.contains(entry.getEntry().getGlobalAddress())) {
                             log.debug("Sync[{}] Upcall Result {}", entry.getEntry().getGlobalAddress());
-                            sched(); upcallResults.put(entry.getEntry().getGlobalAddress(), res == null ?
+                            upcallResults.put(entry.getEntry().getGlobalAddress(), res == null ?
                                     NullValue.NULL_VALUE : res);
                             pendingUpcalls.remove(entry.getEntry().getGlobalAddress());
                         }
-                        sched(); entry.setUpcallResult(res);
+                        entry.setUpcallResult(res);
                     } catch (Exception e) {
                         log.error("Sync[{}] Error: Couldn't execute upcall due to {}", this, e);
-                        sched(); throw new RuntimeException(e);
+                        throw new RuntimeException(e);
                     }
                 });
     }
