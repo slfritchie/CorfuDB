@@ -1,6 +1,7 @@
 package org.corfudb.runtime.concurrent;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.math.RandomUtils;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractObjectTest;
 import org.corfudb.runtime.object.transactions.TransactionType;
@@ -15,6 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class MultipleNonOverlappingTest extends AbstractObjectTest {
+
+    private String mapName1;
+    private String mapName2;
 
     /**
      * High level:
@@ -37,43 +41,58 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     @Test
     @SuppressWarnings("checkstyle:magicnumber")
     public void testStress() throws Exception {
+        int max_threads = 5;
+        for (int iters = 0; iters < 100; iters++) {
+            // int[] schedule = new int[] {1,1,0,2,1,0,4,3};
+            int[] schedule = new int[100];
+            for (int i = 0; i < schedule.length; i++) {
+                if (RandomUtils.nextInt(10) == 0) {
+                    int winner = RandomUtils.nextInt(max_threads + 1);
+                    int repeats = RandomUtils.nextInt(40);
+                    while (i < schedule.length && repeats-- > 0) {
+                        schedule[i++] = winner;
+                    }
+                } else {
+                    schedule[i] = RandomUtils.nextInt(max_threads + 1); // Returns 0 .. (arg-1)
+                }
+            }
+            System.err.printf("\nschedule = {");
+            for (int i = 0; i < schedule.length; i++) {
+                System.err.printf("%d,", schedule[i]);
+            }
+            System.err.printf("}\n");
 
-        String mapName = "testMapA";
-        Map<Long, Long> testMap = instantiateCorfuObject(SMRMap.class, mapName);
+            testStressInner(iters, schedule);
+        }
+    }
+
+    @SuppressWarnings("checkstyle:magicnumber")
+    public void testStressInner(int version, int[] schedule) throws Exception {
+        mapName1 = "testMapA" + version;
+        Map<Long, Long> testMap = instantiateCorfuObject(SMRMap.class, mapName1);
 
         final int VAL = 1;
 
         // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of THREAD_NUM.
-        // QQQ final int OBJECT_NUM = 20;
-        // QQQ final int THREAD_NUM = 5;
-        final int OBJECT_NUM = 2;
-        final int THREAD_NUM = 2;
+        final int OBJECT_NUM = 20;
+        final int THREAD_NUM = 5;
 
         final int FINAL_SUM = OBJECT_NUM;
         final int STEP = OBJECT_NUM / THREAD_NUM;
 
-        int[] schedule = new int[] {1,1,0,2,1,0,4,3};
-        CoopScheduler.reset(schedule.length + 4);
-        CoopScheduler.setSchedule(schedule);
-        System.err.printf("\nschedule = {");
-        for (int i = 0; i < schedule.length; i++) {
-            System.err.printf("%d,", schedule[i]);
-        }
-        System.err.printf("}\n");
-
         // test all objects advance in lock-step to FINAL_SUM
         for (int i = 0; i < FINAL_SUM; i++) {
             for (int j = 0; j < OBJECT_NUM; j += STEP) {
-                System.err.printf("i %d j %d FINAL_SUM %d OBJECT_SUM %d timeout %s\n", i, j, FINAL_SUM, OBJECT_NUM, PARAMETERS.TIMEOUT_NORMAL.toString());
+                // System.err.printf("i %d j %d FINAL_SUM %d OBJECT_SUM %d timeout %s\n", i, j, FINAL_SUM, OBJECT_NUM, PARAMETERS.TIMEOUT_NORMAL.toString());
                 NonOverlappingWriter n = new NonOverlappingWriter(i + 1, j, j + STEP, VAL);
                 scheduleConcurrently(t -> {
                     int tnum = CoopScheduler.registerThread();
                     if (tnum < 0) {
-                        System.err.printf("Thread registration failed, exiting");
-                        System.exit(1);
+                        System.err.printf("Thread registration failed\n");
+                        // System.exit(1);
+                    } else {
+                        // System.err.printf("Registered %d\n", tnum);
                     }
-                    System.err.printf("Registered %d\n", tnum);
-
                     try {
                         n.dowork();
                     } catch (Exception e) {
@@ -81,11 +100,22 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
                         throw e;
                     }
 
-                    System.err.printf("Done %d\n", tnum);
+                    // System.err.printf("Done %d\n", tnum);
                     CoopScheduler.threadDone();
                 });
             }
+            CoopScheduler.reset(10);
+            CoopScheduler.setSchedule(schedule);
+            Thread coop = new Thread(() -> {
+                // System.err.printf("QQQ coop scheduler(%d initial threads)\n", THREAD_NUM);
+                CoopScheduler.runScheduler(THREAD_NUM);
+                // System.err.printf("QQQ coop scheduler finished\n");
+            });
+            coop.start();
             executeScheduled(THREAD_NUM, PARAMETERS.TIMEOUT_NORMAL);
+            // System.err.printf("QQQ coop scheduler before join\n");
+            coop.join();
+            // System.err.printf("QQQ coop scheduler after join\n");
         }
 
         Assert.assertEquals(testMap.size(), FINAL_SUM);
@@ -102,9 +132,9 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     /*********QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ @Test */
     public void testStress2() throws Exception {
 
-        String mapName1 = "testMapA";
+        mapName1 = "testMapA";
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
-        String mapName2 = "testMapB";
+        mapName2 = "testMapB";
         Map<Long, Long> testMap2 = instantiateCorfuObject(SMRMap.class, mapName2);
 
 
@@ -143,10 +173,7 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
 
 
     public class NonOverlappingWriter {
-
-        String mapName1 = "testMapA";
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
-        String mapName2 = "testMapB";
         Map<Long, Long> testMap2 = instantiateCorfuObject(SMRMap.class, mapName2);
 
 
@@ -188,25 +215,26 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
          */
         private void simpleCreateImpl(long idx, long val) {
 
-            System.err.printf("SCI%da,",idx); TXBegin();
+            TXBegin();
 
-            System.err.printf("SCI%db,",idx); if (!testMap1.containsKey(idx)) {
-                System.err.printf("SCI%dc,",idx); if (expectedSum - 1 > 0)
+            if (!testMap1.containsKey(idx)) {
+                if (expectedSum - 1 > 0)
                     log.debug("OBJ FAIL {} doesn't exist expected={}",
                             idx, expectedSum);
                 log.debug("OBJ {} PUT {}", idx, val);
-                System.err.printf("SCI%dd,",idx); testMap1.put(idx, val);System.err.printf("SCI%dd2,",idx);
+                testMap1.put(idx, val);
             } else {
                 log.debug("OBJ {} GET", idx);
-                System.err.printf("SCI%de,",idx); Long value = testMap1.get(idx);
-                System.err.printf("SCI%df,",idx); if (value != (expectedSum - 1))
+                Long value = testMap1.get(idx);
+                if (value != (expectedSum - 1))
                     log.debug("OBJ FAIL {} value={} expected={}", idx, value,
                             expectedSum - 1);
                 log.debug("OBJ {} PUT {}+{}", idx, value, val);
-                System.err.printf("SCI%dg,",idx); testMap1.put(idx, value + val);
+                testMap1.put(idx, value + val);
             }
 
-            System.err.printf("SCI%dh,",idx); TXEnd();System.err.printf("SCI%di,",idx);
+            TXEnd();
+
         }
 
         /**

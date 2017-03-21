@@ -37,16 +37,16 @@ public class CoopScheduler {
     public static int registerThread() {
         synchronized (centralReady) {
             if (centralStopped == true) {
-                System.err.printf("Central scheduler has stopped scheduling, TODO");
+                System.err.printf("Central scheduler has stopped scheduling, TODO\n");
                 return -1;
             }
             if (threadMap.get() >= 0) {
-                System.err.printf("Thread already registered, TODO");
+                System.err.printf("Thread already registered, TODO\n");
                 return -1;
             }
             int t = numThreads.getAndIncrement();
             if (t >= maxThreads) {
-                System.err.printf("Too many threads, TODO");
+                System.err.printf("Too many threads, TODO\n");
                 return -1;
             }
             threadMap.set(t);
@@ -60,9 +60,14 @@ public class CoopScheduler {
     }
 
     public static void threadDone(int thread) {
-        done[thread] = true;
-        synchronized (centralReady) {
-            centralReady.notifyAll();
+        try {
+            done[thread] = true;
+            synchronized (centralReady) {
+                centralReady.notifyAll();
+            }
+        } catch (Exception e) {
+            System.err.printf("ERROR: threadDone() exception %s\n", e.toString());
+            return;
         }
     }
 
@@ -99,17 +104,22 @@ public class CoopScheduler {
         System.err.printf("}\n"); ******/
     }
 
+    private static int schedErrors = 0;
     public static void sched() {
         try {
             sched(threadMap.get());
         } catch (Exception e) {
-            System.err.printf("ERROR: sched() exception %s\n", e.toString());
+            if (schedErrors++ < 3) {
+                System.err.printf("ERROR: sched() exception %s\n", e.toString());
+            } else if (schedErrors < 5) {
+                System.err.printf("sched() exception warnings suppressed\n");
+            }
             return;
         }
     }
 
     public static void sched(int t) {
-        System.err.printf("s%d,\n", t);
+        // if (t >= 0) { System.err.printf("s%d,\n", t); }
         if (done[t]) {
             System.err.printf("ERROR: thread has called threadDone()!\n");
             return;
@@ -141,6 +151,7 @@ public class CoopScheduler {
         while (! someReady(numStartingThreads)) {
             try { Thread.sleep(1); } catch (Exception e) {}
         }
+        // System.err.printf("SCHED: entering main loop\n");
         while (true) {
             if (allDone()) {
                 synchronized (centralReady) {

@@ -341,7 +341,6 @@ public class AbstractCorfuTest {
     @SuppressWarnings("checkstyle:magicnumber")
     public void executeScheduled(int maxConcurrency, long timeout, TimeUnit timeUnit)
             throws Exception {
-        System.err.printf("executeScheduled 0, queue len = %d\n", scheduledThreads.size());
         AtomicLong threadNum = new AtomicLong();
         ExecutorService service = Executors.newFixedThreadPool(maxConcurrency, new ThreadFactory() {
             @Override
@@ -351,16 +350,10 @@ public class AbstractCorfuTest {
                 return t;
             }
         });
-        System.err.printf("executeScheduled 1 %d %s, maxConcurrency %d, items %d\n", timeout, timeUnit.toString(), maxConcurrency, scheduledThreads.size());
-        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, TimeUnit.MILLISECONDS); // QQQ timeUnit);
-        System.err.printf("executeScheduled 2\n");
-        scheduledThreads.clear();
-        System.err.printf("executeScheduled 3\n");
-        service.shutdown();
 
-        System.err.printf("QQQ Call coop scheduler with %d threads, invalid for small thread pool sizes\n", maxConcurrency);
-        CoopScheduler.runScheduler(maxConcurrency);
-        System.err.printf("QQQ FIXME coop scheduler finished\n");
+        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, TimeUnit.MILLISECONDS); // QQQ timeUnit);
+        scheduledThreads.clear();
+        service.shutdown();
 
         try {
             service.awaitTermination(timeout, timeUnit);
