@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.corfudb.runtime.view.ObjectsView.TRANSACTION_STREAM_ID;
+import static org.corfudb.util.CoopScheduler.sched;
 
 /** A write-after-write transactional context.
  *
@@ -40,9 +41,8 @@ public class WriteAfterWriteTransactionalContext
     @Override
     public long commitTransaction() throws TransactionAbortedException {
 
-
         // If the transaction is nested, fold the transaction.
-        if (TransactionalContext.isInNestedTransaction()) {
+        sched(); if (TransactionalContext.isInNestedTransaction()) {
             getParentContext().addTransaction(this);
             commitAddress = AbstractTransactionalContext.FOLDED_ADDRESS;
             return commitAddress;
@@ -66,7 +66,7 @@ public class WriteAfterWriteTransactionalContext
         // Now we obtain a conditional address from the sequencer.
         // This step currently happens all at once, and we get an
         // address of -1L if it is rejected.
-        long address = this.builder.runtime.getStreamsView()
+        sched(); long address = this.builder.runtime.getStreamsView()
                 .acquireAndWrite(
 
                         // a set of stream-IDs that contains the affected streams
@@ -93,15 +93,15 @@ public class WriteAfterWriteTransactionalContext
         if (address == -1L) {
             log.debug("Transaction aborted due to sequencer rejecting request");
             abortTransaction();
-            throw new TransactionAbortedException();
+            sched(); throw new TransactionAbortedException();
         }
 
         completionFuture.complete(true);
         commitAddress = address;
 
-        tryCommitAllProxies();
+        sched(); tryCommitAllProxies();
 
-        return address;
+        sched(); return address;
     }
 
     @Override
