@@ -1,7 +1,6 @@
 package org.corfudb.runtime.concurrent;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.math.RandomUtils;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractObjectTest;
 import org.corfudb.runtime.object.transactions.TransactionType;
@@ -9,10 +8,10 @@ import org.corfudb.util.CoopScheduler;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+
+import static org.corfudb.util.CoopScheduler.makeSchedule;
+import static org.corfudb.util.CoopScheduler.printSchedule;
 
 @Slf4j
 public class MultipleNonOverlappingTest extends AbstractObjectTest {
@@ -39,59 +38,39 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
      *   4) Repeat the above steps FINAL_SUM number of times.
      */
     @Test
-    @SuppressWarnings("checkstyle:magicnumber")
     public void testStress() throws Exception {
-        int max_threads = 5;
-        for (int iters = 0; iters < 100; iters++) {
-            // int[] schedule = new int[] {1,1,0,2,1,0,4,3};
-            int[] schedule = new int[100];
-            for (int i = 0; i < schedule.length; i++) {
-                if (RandomUtils.nextInt(10) == 0) {
-                    int winner = RandomUtils.nextInt(max_threads + 1);
-                    int repeats = RandomUtils.nextInt(40);
-                    while (i < schedule.length && repeats-- > 0) {
-                        schedule[i++] = winner;
-                    }
-                } else {
-                    schedule[i] = RandomUtils.nextInt(max_threads + 1); // Returns 0 .. (arg-1)
-                }
-            }
-            System.err.printf("\nschedule = {");
-            for (int i = 0; i < schedule.length; i++) {
-                System.err.printf("%d,", schedule[i]);
-            }
-            System.err.printf("}\n");
+        final int maxThreads = 5;
+        final int schedLength = 100;
+        final int numIters = 25;
 
-            testStressInner(iters, schedule);
+        for (int i = 0; i < numIters; i++) {
+            int[] schedule = makeSchedule(maxThreads, schedLength);
+            printSchedule(schedule);
+            testStressInner(maxThreads, i, schedule);
         }
     }
 
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void testStressInner(int version, int[] schedule) throws Exception {
+    public void testStressInner(int threadNum, int version, int[] schedule) throws Exception {
         mapName1 = "testMapA" + version;
         Map<Long, Long> testMap = instantiateCorfuObject(SMRMap.class, mapName1);
 
         final int VAL = 1;
 
-        // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of THREAD_NUM.
+        // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of threadNum.
         final int OBJECT_NUM = 20;
-        final int THREAD_NUM = 5;
 
         final int FINAL_SUM = OBJECT_NUM;
-        final int STEP = OBJECT_NUM / THREAD_NUM;
+        final int STEP = OBJECT_NUM / threadNum;
 
         // test all objects advance in lock-step to FINAL_SUM
         for (int i = 0; i < FINAL_SUM; i++) {
             for (int j = 0; j < OBJECT_NUM; j += STEP) {
-                // System.err.printf("i %d j %d FINAL_SUM %d OBJECT_SUM %d timeout %s\n", i, j, FINAL_SUM, OBJECT_NUM, PARAMETERS.TIMEOUT_NORMAL.toString());
                 NonOverlappingWriter n = new NonOverlappingWriter(i + 1, j, j + STEP, VAL);
                 scheduleConcurrently(t -> {
                     int tnum = CoopScheduler.registerThread();
                     if (tnum < 0) {
                         System.err.printf("Thread registration failed\n");
-                        // System.exit(1);
-                    } else {
-                        // System.err.printf("Registered %d\n", tnum);
+                        System.exit(1);
                     }
                     try {
                         n.dowork();
@@ -99,23 +78,16 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
                         System.err.printf("Oops, exception %s in dowork()\n", e.toString());
                         throw e;
                     }
-
                     // System.err.printf("Done %d\n", tnum);
                     CoopScheduler.threadDone();
                 });
             }
-            CoopScheduler.reset(10);
+            CoopScheduler.reset(threadNum);
             CoopScheduler.setSchedule(schedule);
-            Thread coop = new Thread(() -> {
-                // System.err.printf("QQQ coop scheduler(%d initial threads)\n", THREAD_NUM);
-                CoopScheduler.runScheduler(THREAD_NUM);
-                // System.err.printf("QQQ coop scheduler finished\n");
-            });
+            Thread coop = new Thread(() -> CoopScheduler.runScheduler(threadNum) );
             coop.start();
-            executeScheduled(THREAD_NUM, PARAMETERS.TIMEOUT_NORMAL);
-            // System.err.printf("QQQ coop scheduler before join\n");
+            executeScheduled(threadNum, PARAMETERS.TIMEOUT_NORMAL);
             coop.join();
-            // System.err.printf("QQQ coop scheduler after join\n");
         }
 
         Assert.assertEquals(testMap.size(), FINAL_SUM);
@@ -129,34 +101,62 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
      * Same as above, but two maps, not advancing at the same pace
      * @throws Exception
      */
-    /*********QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ @Test */
+     @Test
+
     public void testStress2() throws Exception {
+         final int maxThreads = 5;
+         final int schedLength = 100;
+         final int numIters = 20;
 
-        mapName1 = "testMapA";
+         for (int i = 0; i < numIters; i++) {
+            int[] schedule = makeSchedule(maxThreads, schedLength);
+            printSchedule(schedule);
+            testStress2Inner(maxThreads, i, schedule);
+        }
+    }
+
+    public void testStress2Inner(int threadNum, int version, int[] schedule) throws Exception {
+        mapName1 = "testMapA" + version;
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
-        mapName2 = "testMapB";
+        mapName2 = "testMapB" + version;
         Map<Long, Long> testMap2 = instantiateCorfuObject(SMRMap.class, mapName2);
-
 
         final int VAL = 1;
 
-        // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of THREAD_NUM.
+        // You can fine tune the below parameters. OBJECT_NUM has to be a multiple of threadNum.
         final int OBJECT_NUM = 20;
-        final int THREAD_NUM = 5;
 
         final int FINAL_SUM1 = OBJECT_NUM;
         final int FINAL_SUM2 = OBJECT_NUM/2+1;
-        final int STEP = OBJECT_NUM / THREAD_NUM;
+        final int STEP = OBJECT_NUM / threadNum;
 
         // test all objects advance in lock-step to FINAL_SUM
         for (int i = 0; i < FINAL_SUM1; i++) {
 
             for (int j = 0; j < OBJECT_NUM; j += STEP) {
                 NonOverlappingWriter n = new NonOverlappingWriter(i + 1, j, j + STEP, VAL);
-                scheduleConcurrently(t -> { n.dowork2();});
-                executeScheduled(THREAD_NUM, PARAMETERS.TIMEOUT_NORMAL);
+                    scheduleConcurrently(t -> {
+                        int tnum = CoopScheduler.registerThread();
+                        if (tnum < 0) {
+                            System.err.printf("Thread registration failed\n");
+                            System.exit(1);
+                        }
+                        try {
+                            n.dowork2();
+                        } catch (Exception e) {
+                            System.err.printf("Oops, exception %s in dowork()\n", e.toString());
+                            throw e;
+                        }
+                        // System.err.printf("Done %d\n", tnum);
+                        CoopScheduler.threadDone();
+                    });
             }
-
+            CoopScheduler.reset(threadNum);
+            CoopScheduler.setSchedule(schedule);
+            Thread coop = new Thread(() -> CoopScheduler.runScheduler(threadNum) );
+            coop.start();
+            executeScheduled(threadNum, PARAMETERS.TIMEOUT_NORMAL);
+            coop.join();
         }
 
         Assert.assertEquals(testMap2.size(), FINAL_SUM1);

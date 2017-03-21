@@ -1,5 +1,7 @@
 package org.corfudb.util;
 
+import org.apache.commons.lang.math.RandomUtils;
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -147,6 +149,7 @@ public class CoopScheduler {
 
     public static void runScheduler(int numStartingThreads) {
         int t;
+        int given = 0;
 
         while (! someReady(numStartingThreads)) {
             try { Thread.sleep(1); } catch (Exception e) {}
@@ -170,6 +173,7 @@ public class CoopScheduler {
                     }
                     go[t] = 1;
                     centralReady.notifyAll();
+                    given++;
                 }
 
                 synchronized (centralReady) {
@@ -179,6 +183,7 @@ public class CoopScheduler {
                 }
             }
         }
+        // System.err.printf("GIVEN = %d,", given);
     }
 
     private static boolean someReady(int maxThr) {
@@ -228,4 +233,34 @@ public class CoopScheduler {
         }
         return true;
     }
+
+    public static int[] makeSchedule(int maxThreads, int length) {
+        int[] schedule = new int[length];
+        final int winnerProb = 10;
+        final int winnerMaxLen = 40;
+
+        for (int i = 0; i < schedule.length; i++) {
+            // Sometimes create an unfair schedule for a lucky winner thread.
+            if (RandomUtils.nextInt(winnerProb) == 0) {
+                int winner = RandomUtils.nextInt(maxThreads);
+                int repeats = RandomUtils.nextInt(winnerMaxLen);
+                while (i < schedule.length && repeats-- > 0) {
+                    schedule[i++] = winner;
+                }
+            } else {
+                schedule[i] = RandomUtils.nextInt(maxThreads);
+            }
+        }
+        return schedule;
+    }
+
+    public static void printSchedule(int[] schedule) {
+        System.err.printf("schedule = {");
+        for (int i = 0; i < schedule.length; i++) {
+            System.err.printf("%d,", schedule[i]);
+        }
+        System.err.printf("}\n");
+    }
+
+
 }
