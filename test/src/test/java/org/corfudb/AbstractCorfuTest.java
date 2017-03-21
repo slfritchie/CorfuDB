@@ -3,7 +3,6 @@ package org.corfudb;
 import org.assertj.core.api.AbstractObjectAssert;
 import org.assertj.core.api.AbstractThrowableAssert;
 import org.corfudb.test.DisabledOnTravis;
-import org.corfudb.util.CoopScheduler;
 import org.fusesource.jansi.Ansi;
 import org.junit.After;
 import org.junit.Before;
@@ -338,7 +337,6 @@ public class AbstractCorfuTest {
      * @param timeUnit       The timeunit to wait.
      * @throws Exception
      */
-    @SuppressWarnings("checkstyle:magicnumber")
     public void executeScheduled(int maxConcurrency, long timeout, TimeUnit timeUnit)
             throws Exception {
         AtomicLong threadNum = new AtomicLong();
@@ -350,8 +348,7 @@ public class AbstractCorfuTest {
                 return t;
             }
         });
-
-        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, TimeUnit.MILLISECONDS); // QQQ timeUnit);
+        List<Future<Object>> finishedSet = service.invokeAll(scheduledThreads, timeout, timeUnit);
         scheduledThreads.clear();
         service.shutdown();
 
@@ -366,7 +363,6 @@ public class AbstractCorfuTest {
                 assertThat(f.isDone()).
                     as("Ensure that all scheduled threads are completed")
                         .isTrue();
-                assertThat(f.isCancelled()).isFalse();
                 f.get();
             }
         } catch (ExecutionException ee) {

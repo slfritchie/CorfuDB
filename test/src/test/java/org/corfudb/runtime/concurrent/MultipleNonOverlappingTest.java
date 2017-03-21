@@ -41,7 +41,7 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     public void testStress() throws Exception {
         final int maxThreads = 5;
         final int schedLength = 100;
-        final int numIters = 25;
+        final int numIters = 200;
 
         for (int i = 0; i < numIters; i++) {
             int[] schedule = makeSchedule(maxThreads, schedLength);
@@ -106,7 +106,7 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     public void testStress2() throws Exception {
          final int maxThreads = 5;
          final int schedLength = 100;
-         final int numIters = 20;
+         final int numIters = 200;
 
          for (int i = 0; i < numIters; i++) {
             int[] schedule = makeSchedule(maxThreads, schedLength);
