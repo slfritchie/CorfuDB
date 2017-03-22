@@ -236,12 +236,14 @@ public class CoopScheduler {
 
     public static int[] makeSchedule(int maxThreads, int length) {
         int[] schedule = new int[length];
+        final int winnerThisTime = 10;
+        boolean winnerPossible = RandomUtils.nextInt(100) < 10;
         final int winnerProb = 10;
         final int winnerMaxLen = 40;
 
         for (int i = 0; i < schedule.length; i++) {
             // Sometimes create an unfair schedule for a lucky winner thread.
-            if (RandomUtils.nextInt(winnerProb) == 0) {
+            if (winnerPossible && RandomUtils.nextInt(winnerProb) == 0) {
                 int winner = RandomUtils.nextInt(maxThreads);
                 int repeats = RandomUtils.nextInt(winnerMaxLen);
                 while (i < schedule.length && repeats-- > 0) {
