@@ -354,11 +354,15 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      * @return  The root context.
      */
     private OptimisticTransactionalContext getRootContext() {
+        // NOTE: We cannot call sched() here, because it's possible for VersionLockedObject
+        //       to get its lock, call update()'s lambda that needs the current snapshot,
+        //       and we get here.  {sigh}  So, this is effectively an *Unsafe function
+        //       from the point of view of VersionLockedObject??
         AbstractTransactionalContext atc = TransactionalContext.getRootContext();
         if (atc != null && !(atc instanceof OptimisticTransactionalContext)) {
             throw new RuntimeException("Attempted to nest two different transactional context types");
         }
-        sched(); return (OptimisticTransactionalContext)atc;
+        return (OptimisticTransactionalContext)atc;
     }
 
     /**
@@ -368,15 +372,19 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      */
     @Override
     public synchronized long obtainSnapshotTimestamp() {
+        // NOTE: We cannot call sched() here, because it's possible for VersionLockedObject
+        //       to get its lock, call update()'s lambda that needs the current snapshot,
+        //       and we get here.  {sigh}  So, this is effectively an *Unsafe function
+        //       from the point of view of VersionLockedObject??
         final AbstractTransactionalContext atc = getRootContext();
         if (atc != null && atc != this) {
             // If we're in a nested transaction, the first read timestamp
             // needs to come from the root.
-            sched(); return atc.getSnapshotTimestamp();
+            return atc.getSnapshotTimestamp();
         } else {
             // Otherwise, fetch a read token from the sequencer the linearize
             // ourselves against.
-            sched(); long currentTail = builder.runtime
+            long currentTail = builder.runtime
                     .getSequencerView().nextToken(Collections.emptySet(), 0).getToken();
             log.trace("SnapshotTimestamp[{}] {}", this, currentTail);
             return currentTail;
