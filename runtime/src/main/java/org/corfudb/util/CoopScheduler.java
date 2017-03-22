@@ -8,8 +8,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class CoopScheduler {
 
     static int maxThreads = -1;
-    static AtomicInteger numThreads;
+    static int numThreads;
     static public ThreadLocal<Integer> threadMap;
+    static HashSet<Integer> thrSet;
     static boolean centralStopped;
     static final Object centralReady = new Object();
     static boolean ready[];
@@ -21,8 +22,9 @@ public class CoopScheduler {
 
     public static void reset(int maxT) {
         maxThreads = maxT;
-        numThreads = new AtomicInteger(0);
+        numThreads = 0;
         threadMap = ThreadLocal.withInitial(() -> -1);
+        thrSet = new HashSet<>();
         centralStopped = false;
         ready = new boolean[maxThreads];
         done = new boolean[maxThreads];
@@ -37,6 +39,10 @@ public class CoopScheduler {
     }
 
     public static int registerThread() {
+        return registerThread(-1);
+    }
+
+    public static int registerThread(int t) {
         synchronized (centralReady) {
             if (centralStopped == true) {
                 System.err.printf("Central scheduler has stopped scheduling, TODO\n");
@@ -46,12 +52,24 @@ public class CoopScheduler {
                 System.err.printf("Thread already registered, TODO\n");
                 return -1;
             }
-            int t = numThreads.getAndIncrement();
+            if (t < 0) {
+                t = numThreads++;
+            } else {
+                // Caller asked for a specific number.  Let's avoid duplicates.
+                if (thrSet.contains(t)) {
+                    System.err.printf("Thread id %d already in use, TODO\n", t);
+                    return -1;
+                }
+                if (t >= numThreads) {
+                    numThreads = t + 1;
+                }
+            }
             if (t >= maxThreads) {
                 System.err.printf("Too many threads, TODO\n");
                 return -1;
             }
             threadMap.set(t);
+            thrSet.add(t);
             // Don't set ready[t] here.  Instead, do it near top of sched().
             return t;
         }
@@ -196,8 +214,7 @@ public class CoopScheduler {
     }
 
     private static boolean allDone() {
-        int numThr = numThreads.get();
-        for (int i = 0; i < numThr; i++) {
+        for (int i = 0; i < numThreads; i++) {
             if (ready[i] && ! done[i]) {
                 return false;
             }
@@ -256,12 +273,17 @@ public class CoopScheduler {
         return schedule;
     }
 
-    public static void printSchedule(int[] schedule) {
-        System.err.printf("schedule = {");
+    public static String formatSchedule(int[] schedule) {
+        String s = new String("{");
         for (int i = 0; i < schedule.length; i++) {
-            System.err.printf("%d,", schedule[i]);
+            s += ((i == 0) ? "" : ",") + schedule[i];
         }
-        System.err.printf("}\n");
+        s += "}";
+        return s;
+    }
+
+    public static void printSchedule(int[] schedule) {
+        System.err.printf("schedule = %s\n", formatSchedule(schedule));
     }
 
 

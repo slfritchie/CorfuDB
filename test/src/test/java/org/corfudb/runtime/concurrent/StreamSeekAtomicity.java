@@ -16,9 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.corfudb.util.CoopScheduler.makeSchedule;
-import static org.corfudb.util.CoopScheduler.printSchedule;
-import static org.corfudb.util.CoopScheduler.sched;
+import static org.corfudb.util.CoopScheduler.*;
 
 /**
  * Created by dmalkhi on 3/17/17.
@@ -70,7 +68,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
                 // on first iteration, wait for all to start;
                 // other iterations will proceed right away
                 l1.await();
-                if (txCnt == 0) { coopRegisterThread(useCoopSched); }
+                if (txCnt == 0) { coopRegisterThread(useCoopSched, 0); }
 
                 // generate optimistic mutation
                 sched();
@@ -83,18 +81,20 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
             // signal done
             commitDone.set(true);
 
-            Assert.assertEquals((long)(txCnt-1), (long) testMap1.get(1L));
+            String failMsg = useCoopSched ? ("schedule was: " + formatSchedule(schedule) + "\n") : "";
+            Assert.assertEquals(failMsg, (long)(txCnt-1), (long) testMap1.get(1L));
             coopThreadDone(useCoopSched);
         });
 
         // thread that keeps affecting optimistic-rollback of the above thread
         scheduleConcurrently(t -> {
+
             TXBegin();
             testMap1.get(1L);
 
             // signal that transaction has started and obtained a snapshot
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 1);
 
             // keep accessing the snapshot, causing optimistic rollback
 
@@ -107,9 +107,10 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
 
         // thread that keeps syncing with the tail of log
         scheduleConcurrently(t -> {
+
             // signal that thread has started
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 2);
 
             // keep updating the in-memory proxy from the log
             while (!commitDone.get() ){
@@ -170,7 +171,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
                 // on first iteration, wait for all to start;
                 // other iterations will proceed right away
                 l1.await();
-                if (txCnt == 0) { coopRegisterThread(useCoopSched); }
+                if (txCnt == 0) { coopRegisterThread(useCoopSched, 0); }
 
                 // generate optimistic mutation
                 testMap1.put(1L, (long)txCnt);
@@ -183,8 +184,9 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
             // signal done
             commitDone.set(true);
 
-            Assert.assertEquals((long)(txCnt-1), (long) testMap1.get(1L));
-            Assert.assertEquals((long)( (txCnt-1) % 2 == 0 ? (txCnt-1) : txCnt-2), (long) testMap2.get(1L));
+            String failMsg = useCoopSched ? ("schedule was: " + formatSchedule(schedule) + "\n") : "";
+            Assert.assertEquals(failMsg, (long)(txCnt-1), (long) testMap1.get(1L));
+            Assert.assertEquals(failMsg, (long)( (txCnt-1) % 2 == 0 ? (txCnt-1) : txCnt-2), (long) testMap2.get(1L));
             coopThreadDone(useCoopSched);
         });
 
@@ -195,7 +197,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
 
             // signal that transaction has started and obtained a snapshot
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 1);
 
             // keep accessing the snapshot, causing optimistic rollback
 
@@ -212,7 +214,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
         scheduleConcurrently(t -> {
             // signal that thread has started
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 2);
 
             // keep updating the in-memory proxy from the log
             while (!commitDone.get() ){
@@ -274,7 +276,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
                 // on first iteration, wait for all to start;
                 // other iterations will proceed right away
                 l1.await();
-                if (txCnt == 0) { coopRegisterThread(useCoopSched); }
+                if (txCnt == 0) { coopRegisterThread(useCoopSched, 0); }
 
                 // generate optimistic mutation
                 sched();
@@ -291,8 +293,9 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
             // signal done
             commitDone.set(true);
 
-            Assert.assertEquals((long)(txCnt-1), (long) testMap1.get(1L));
-            Assert.assertEquals((long)( (txCnt-1) % 2 == 0 ? (txCnt-1) : txCnt-2), (long) testMap2.get(1L));
+            String failMsg = useCoopSched ? ("schedule was: " + formatSchedule(schedule) + "\n") : "";
+            Assert.assertEquals(failMsg, (long)(txCnt-1), (long) testMap1.get(1L));
+            Assert.assertEquals(failMsg, (long)( (txCnt-1) % 2 == 0 ? (txCnt-1) : txCnt-2), (long) testMap2.get(1L));
             coopThreadDone(useCoopSched);
         });
 
@@ -305,7 +308,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
 
             // signal that transaction has started and obtained a snapshot
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 1);
 
             // keep accessing the snapshot, causing optimistic rollback
 
@@ -322,7 +325,7 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
         scheduleConcurrently(t -> {
             // signal that thread has started
             l1.countDown();
-            coopRegisterThread(useCoopSched);
+            coopRegisterThread(useCoopSched, 2);
 
             // keep updating the in-memory proxy from the log
             while (!commitDone.get() ){
@@ -339,9 +342,9 @@ public class StreamSeekAtomicity extends AbstractObjectTest  {
         coopJoinScheduler(coop);
     }
 
-    private static void coopRegisterThread(boolean useCoopSched) {
+    private static void coopRegisterThread(boolean useCoopSched, int thrId) {
         if (useCoopSched) {
-            CoopScheduler.registerThread();
+            CoopScheduler.registerThread(thrId);
         }
     }
 

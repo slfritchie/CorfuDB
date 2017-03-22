@@ -10,8 +10,8 @@ import org.junit.Test;
 
 import java.util.Map;
 
+import static org.corfudb.util.CoopScheduler.formatSchedule;
 import static org.corfudb.util.CoopScheduler.makeSchedule;
-import static org.corfudb.util.CoopScheduler.printSchedule;
 
 @Slf4j
 public class MultipleNonOverlappingTest extends AbstractObjectTest {
@@ -41,11 +41,11 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     public void testStress() throws Exception {
         final int maxThreads = 5;
         final int schedLength = 100;
-        final int numIters = 200;
+        final int runMillis = 4000;
+        long start = System.currentTimeMillis();
 
-        for (int i = 0; i < numIters; i++) {
+        for (int i = 0; System.currentTimeMillis() - start < runMillis; i++) {
             int[] schedule = makeSchedule(maxThreads, schedLength);
-            printSchedule(schedule);
             testStressInner(maxThreads, i, schedule);
         }
     }
@@ -90,9 +90,10 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
             coop.join();
         }
 
-        Assert.assertEquals(testMap.size(), FINAL_SUM);
+        String failMsg = "schedule was: " + formatSchedule(schedule) + "\n";
+        Assert.assertEquals(failMsg, testMap.size(), FINAL_SUM);
         for (Long value : testMap.values()) {
-            Assert.assertEquals((long) FINAL_SUM, (long) value);
+            Assert.assertEquals(failMsg, (long) FINAL_SUM, (long) value);
         }
 
     }
@@ -106,11 +107,11 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
     public void testStress2() throws Exception {
          final int maxThreads = 5;
          final int schedLength = 100;
-         final int numIters = 200;
+         final int runMillis = 4000;
+         long start = System.currentTimeMillis();
 
-         for (int i = 0; i < numIters; i++) {
+         for (int i = 0; System.currentTimeMillis() - start < runMillis; i++) {
             int[] schedule = makeSchedule(maxThreads, schedLength);
-            printSchedule(schedule);
             testStress2Inner(maxThreads, i, schedule);
         }
     }
@@ -135,8 +136,9 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
 
             for (int j = 0; j < OBJECT_NUM; j += STEP) {
                 NonOverlappingWriter n = new NonOverlappingWriter(i + 1, j, j + STEP, VAL);
+                final int thrId = j / STEP;
                     scheduleConcurrently(t -> {
-                        int tnum = CoopScheduler.registerThread();
+                        int tnum = CoopScheduler.registerThread(thrId);
                         if (tnum < 0) {
                             System.err.printf("Thread registration failed\n");
                             System.exit(1);
@@ -159,14 +161,15 @@ public class MultipleNonOverlappingTest extends AbstractObjectTest {
             coop.join();
         }
 
-        Assert.assertEquals(testMap2.size(), FINAL_SUM1);
+        String failMsg = "schedule was: " + formatSchedule(schedule) + "\n";
+        Assert.assertEquals(failMsg, testMap2.size(), FINAL_SUM1);
         for (long i = 0; i < OBJECT_NUM; i++) {
             log.debug("final testmap1.get({}) = {}", i, testMap1.get(i));
             log.debug("final testmap2.get({}) = {}", i, testMap2.get(i));
             if (i % 2 == 0)
-                Assert.assertEquals((long)testMap2.get(i), (long) FINAL_SUM2);
+                Assert.assertEquals(failMsg, (long)testMap2.get(i), (long) FINAL_SUM2);
             else
-                Assert.assertEquals((long)testMap2.get(i), (long) FINAL_SUM1);
+                Assert.assertEquals(failMsg, (long)testMap2.get(i), (long) FINAL_SUM1);
         }
 
     }
