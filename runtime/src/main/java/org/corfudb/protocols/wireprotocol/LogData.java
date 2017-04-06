@@ -19,7 +19,7 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
     public static final LogData HOLE = new LogData(DataType.HOLE);
 
     @Getter
-    final DataType type;
+    DataType type;
 
     @Getter
     byte[] data;
@@ -88,11 +88,11 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
     }
 
     @Getter
-    final EnumMap<LogUnitMetadataType, Object> metadataMap;
+    EnumMap<LogUnitMetadataType, Object> metadataMap;
 
     public LogData(ByteBuf buf) {
         type = ICorfuPayload.fromBuffer(buf, DataType.class);
-        if (type == DataType.DATA) {
+        if (type == DataType.DATA || type == DataType.CHECKPOINT) {
             data = ICorfuPayload.fromBuffer(buf, byte[].class);
         } else {
             data = null;
@@ -113,17 +113,26 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
     }
 
     public LogData(final Object object) {
-        this.type = DataType.DATA;
+        commonLogData(DataType.DATA, object);
+    }
+
+    public LogData(DataType type, final Object object) {
+        if (object instanceof ByteBuf) {
+            this.type = type;
+            this.data = byteArrayFromBuf((ByteBuf) object);
+            this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
+        } else {
+            commonLogData(type, object);
+        }
+    }
+
+    public void commonLogData(DataType type, final Object object) {
+        this.type = type;
         this.data = null;
         this.payload.set(object);
         if (object instanceof LogEntry) {
             ((LogEntry) object).setEntry(this);
         }
-        this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
-    }
-    public LogData(final DataType type, final ByteBuf buf) {
-        this.type = type;
-        this.data = byteArrayFromBuf(buf);
         this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
     }
 
@@ -147,7 +156,7 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
 
     void doSerializeInternal(ByteBuf buf) {
         ICorfuPayload.serialize(buf, type);
-        if (type == DataType.DATA) {
+        if (type == DataType.DATA || type == DataType.CHECKPOINT) {
             if (data == null) {
                 int lengthIndex = buf.writerIndex();
                 buf.writeInt(0);
