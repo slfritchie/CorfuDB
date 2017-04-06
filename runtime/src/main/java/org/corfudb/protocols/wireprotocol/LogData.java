@@ -92,7 +92,7 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
 
     public LogData(ByteBuf buf) {
         type = ICorfuPayload.fromBuffer(buf, DataType.class);
-        if (type == DataType.DATA) {
+        if (type == DataType.DATA || type == DataType.CHECKPOINT) {
             data = ICorfuPayload.fromBuffer(buf, byte[].class);
         } else {
             data = null;
@@ -159,6 +159,8 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
             } else {
                 ICorfuPayload.serialize(buf, data);
             }
+        } else if (type == DataType.CHECKPOINT) {
+            ICorfuPayload.serialize(buf, data);
         }
         if (type.isMetadataAware()) {
             ICorfuPayload.serialize(buf, metadataMap);

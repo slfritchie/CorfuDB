@@ -6,6 +6,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.wireprotocol.DataType;
 import org.corfudb.protocols.wireprotocol.ILogData;
 import org.corfudb.protocols.wireprotocol.IToken;
@@ -105,6 +106,30 @@ public class AddressSpaceView extends AbstractView {
             l.getReplicationMode(token.getTokenValue())
                         .getReplicationProtocol(runtime)
                         .write(l, ld);
+
+            /******
+        // Insert this append to our local cache.
+        if (!runtime.isCacheDisabled()) {
+            InMemoryLogData ld;
+            if (data instanceof CheckpointEntry) {
+                ld = new InMemoryLogData(DataType.CHECKPOINT, data);
+                CheckpointEntry cp = (CheckpointEntry) data;
+                if (cp.getSmrEntries() != null) {
+                    // FIXME same reason as FIXME below
+                    for (int i = 0; i < cp.getSmrEntries().length; i++) {
+                        cp.getSmrEntries()[i].setRuntime(runtime);
+                        cp.getSmrEntries()[i].setEntry(ld);
+                    }
+                }
+            } else {
+                ld = new InMemoryLogData(DataType.DATA, data);
+            }
+
+            ld.setGlobalAddress(address);
+            ld.setBackpointerMap(backpointerMap);
+            ld.setStreams(stream);
+            ld.setLogicalAddresses(streamAddresses);
+            ***** Introduce SMRMap state in-stream checkpoint writer */
 
             return null;
          });

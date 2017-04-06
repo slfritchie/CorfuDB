@@ -7,6 +7,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
 import lombok.Setter;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.LogEntry;
 import org.corfudb.protocols.wireprotocol.*;
 import org.corfudb.runtime.CorfuRuntime;
@@ -14,6 +15,7 @@ import org.corfudb.runtime.exceptions.*;
 import org.corfudb.util.serializer.Serializers;
 
 import java.lang.invoke.MethodHandles;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -213,7 +215,12 @@ public class LogUnitClient implements IClient {
         Timer.Context context = getTimerContext("writeObject");
         ByteBuf payload = Unpooled.buffer();
         Serializers.CORFU.serialize(writeObject, payload);
-        WriteRequest wr = new WriteRequest(WriteMode.NORMAL, null, payload);
+        WriteRequest wr;
+        if (writeObject instanceof CheckpointEntry) {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.CHECKPOINT, null, payload);
+        } else {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.DATA,null, payload);
+        }
         wr.setRank(rank);
         wr.setBackpointerMap(backpointerMap);
         wr.setGlobalAddress(address);
@@ -251,6 +258,19 @@ public class LogUnitClient implements IClient {
      */
     public CompletableFuture<Boolean> write(ILogData payload) {
         return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(new WriteRequest(payload)));
+    }
+
+    public CompletableFuture<Boolean> writeCheckpoint(long address, Set<UUID> streams, IMetadata.DataRank rank,
+                                                      CheckpointEntry cpEntry, Map<UUID, Long> backpointerMap) {
+        Timer.Context context = getTimerContext("writeCheckpoint");
+        ByteBuf payload = Unpooled.buffer();
+        Serializers.CORFU.serialize(cpEntry, payload);
+        WriteRequest wr = new WriteRequest(WriteMode.NORMAL, DataType.CHECKPOINT, null, payload);
+        wr.setRank(rank);
+        wr.setBackpointerMap(backpointerMap);
+        wr.setGlobalAddress(address);
+        CompletableFuture<Boolean> cf = router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(wr));
+        return cf.thenApply(x -> { context.stop(); return x; });
     }
 
     /**

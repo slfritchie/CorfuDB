@@ -1,5 +1,8 @@
 package org.corfudb.runtime.object;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.ISMRConsumable;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.protocols.wireprotocol.DataType;
@@ -9,6 +12,8 @@ import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.view.Address;
 import org.corfudb.runtime.view.stream.IStreamView;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
@@ -43,9 +48,25 @@ public class StreamViewSMRAdapter implements ISMRStream {
 
     public List<SMREntry> remainingUpTo(long maxGlobal) {
         return streamView.remainingUpTo(maxGlobal).stream()
-                .filter(m -> m.getType() == DataType.DATA)
-                .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable)
-                .map(logData -> ((ISMRConsumable)logData.getPayload(runtime)).getSMRUpdates(streamView.getID()))
+                .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
+                .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)
+                .map(logData -> {
+                    if (logData.getType() == DataType.DATA) {
+                        return ((ISMRConsumable) logData.getPayload(runtime)).getSMRUpdates(streamView.getID());
+                    } else {
+                        // We are a CHECKPOINT record.
+                        // Pull ISMRConsumable thingies out of bulk.
+                        CheckpointEntry cp = (CheckpointEntry) logData.getPayload(runtime);
+                        // TODO If housekeeping requires access to metadata in this record, do it here
+                        if (cp.getSmrEntries() != null && cp.getSmrEntries().length > 0) {
+                            List<SMREntry> consumables = new ArrayList<>();
+                            Collections.addAll(consumables, cp.getSmrEntries());
+                            return consumables;
+                        } else {
+                            return (List<SMREntry>) Collections.EMPTY_LIST;
+                        }
+                    }
+                } )
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
