@@ -11,6 +11,8 @@ import org.corfudb.protocols.wireprotocol.TokenResponse;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.LogUnitClient;
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.collections.SMRMap$CORFUSMR;
+import org.corfudb.runtime.object.*;
 import org.corfudb.runtime.view.AbstractViewTest;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
@@ -40,7 +42,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
     /** First smoke test, steps:
      *
      * 1. Put a couple of keys into an SMRMap "m"
-     * 2. Write a checkpoint (3 records totoal) into "m"'s stream.
+     * 2. Write a checkpoint (3 records total) into "m"'s stream.
      *    The SMREntry records in the checkpoint will *not* match
      *    the keys written by step #1.
      * 3. Put a 3rd key into "m".
