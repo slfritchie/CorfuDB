@@ -22,11 +22,12 @@ if [ 1 ]; then
                 (
                     cd $SNAPSHOT_DIR
                     for file in *.jar* *.pom*; do
-                        mv -v $i `echo $i | sed 's/-[0-9]*/-SNAPSHOT/'`
+                        mv -v $file `echo $file | sed 's/-[0-9]*/-SNAPSHOT/'`
                     done
                 )
-                echo DBG: contents of $SNAPSHOT_DIR
+                echo DBG: result
                 ls -al .
+                ls -al *-*
             )
         done
         cd $HOME
