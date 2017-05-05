@@ -163,6 +163,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefixFirst + Integer.toString(i), i);
         }
+
         writeCheckpointRecords(streamId, checkpointAuthor, checkpointId,
                 new Object[]{new Object[]{key8, key8Val}, new Object[]{key7, key7Val}},
                 () -> { for (int i = 0; i < numKeys; i++) { m.put(keyPrefixMiddle1 + Integer.toString(i), i); } },
@@ -213,7 +214,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             throws Exception {
         LogUnitClient logClient = r.getLayoutView().getLayout()
                 .getLogUnitClient(0, 0);
-        final byte emptyBulk[] = new byte[0];
         Map<String, String> mdKV = new HashMap<>();
         mdKV.put("Start time", "Miller time(tm)");
 
@@ -224,7 +224,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             Map<UUID, Long> bpMap1 = tokResp1.getBackpointerMap();
             mdKV.put("CP record #", "1 (for those keeping score)");
             CheckpointEntry cp1 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
-                    checkpointAuthor, checkpointId, mdKV, emptyBulk);
+                    checkpointAuthor, checkpointId, mdKV, null);
             boolean ok1 = logClient.writeCheckpoint(addr1, Collections.singleton(streamId), null, cp1, bpMap1).get();
             assertThat(ok1).isTrue();
         }
@@ -239,17 +239,15 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             Map<UUID, Long> bpMap2 = tokResp2.getBackpointerMap();
             mdKV.put("More metadata", "Hello, world!");
             mdKV.put("CP record #", "2");
-            ByteBuf bulk2 = PooledByteBufAllocator.DEFAULT.buffer();
-            bulk2.writeShort(objects.length); // 2 SMREntry records to follow
-            for (int i = 0; i < objects.length; i++) {
-                SMREntry smrEntryA = new SMREntry("put", (Object[]) objects[i], Serializers.JSON);
-                ByteBuf smrEntryABuf = PooledByteBufAllocator.DEFAULT.buffer();
-                smrEntryA.serialize(smrEntryABuf);
-                bulk2.writeInt(smrEntryABuf.readableBytes());
-                bulk2.writeBytes(smrEntryABuf);
+            SMREntry[] smrEntries = null;
+            if (objects != null) {
+                smrEntries = new SMREntry[objects.length];
+                for (int i = 0; i < objects.length; i++) {
+                    smrEntries[i] = new SMREntry("put", (Object[]) objects[i], Serializers.JSON);
+                }
             }
             CheckpointEntry cp2 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
-                    checkpointAuthor, checkpointId, mdKV, bulk2);
+                    checkpointAuthor, checkpointId, mdKV, smrEntries);
             boolean ok2 = logClient.writeCheckpoint(addr2, Collections.singleton(streamId), null, cp2, bpMap2).get();
             assertThat(ok2).isTrue();
         }
@@ -264,7 +262,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             Map<UUID, Long> bpMap3 = tokResp3.getBackpointerMap();
             mdKV.put("CP record #", "3");
             CheckpointEntry cp3 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
-                    checkpointAuthor, checkpointId, mdKV, emptyBulk);
+                    checkpointAuthor, checkpointId, mdKV, null);
             boolean ok3 = logClient.writeCheckpoint(addr3, Collections.singleton(streamId), null, cp3, bpMap3).get();
             assertThat(ok3).isTrue();
         }

@@ -1,8 +1,13 @@
 package org.corfudb.protocols.logprotocol;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import lombok.*;
+import org.corfudb.protocols.wireprotocol.DataType;
+import org.corfudb.protocols.wireprotocol.LogData;
 import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.view.Address;
+import org.corfudb.util.serializer.Serializers;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -57,33 +62,16 @@ public class CheckpointEntry extends LogEntry {
     @Getter
     Map<String, String> dict;
     @Getter
-    byte[] bulk;
+    SMREntry[] smrEntries;
 
     public CheckpointEntry(CheckpointEntryType type, String authorID, UUID checkpointID,
-                           Map<String,String> dict, ByteBuf bulk) {
+                           Map<String,String> dict, SMREntry[] smrEntries) {
         super(LogEntryType.CHECKPOINT);
-        if (bulk == null) {
-            constructorCommon(type, authorID, checkpointID, dict, null);
-        } else {
-            byte[] bulkBytes = new byte[bulk.readableBytes()];
-            bulk.getBytes(0, bulkBytes);
-            constructorCommon(type, authorID, checkpointID, dict, bulkBytes);
-        }
-    }
-
-    public CheckpointEntry(CheckpointEntryType type, String authorID, UUID checkpointID,
-                           Map<String,String> dict, byte[] bulk) {
-        super(LogEntryType.CHECKPOINT);
-        constructorCommon(type, authorID, checkpointID, dict, bulk);
-    }
-
-    private void constructorCommon(CheckpointEntryType type, String authorID, UUID checkpointID,
-                                   Map<String,String> dict, byte[] bulk) {
         this.cpType = type;
         this.checkpointID = checkpointID;
         this.checkpointAuthorID = authorID;
         this.dict = dict;
-        this.bulk = bulk;
+        this.smrEntries = smrEntries;
     }
 
     static final Map<Byte, CheckpointEntryType> typeMap =
@@ -111,9 +99,24 @@ public class CheckpointEntry extends LogEntry {
             String v = deserializeString(b);
             dict.put(k, v);
         }
-        int bulkLen = b.readInt();
-        bulk = new byte[bulkLen];
-        b.readBytes(bulk, 0, bulkLen);
+        smrEntries = null;
+        int items = b.readShort();
+        if (items > 0) {
+            smrEntries = new SMREntry[items];
+            for (int i = 0; i < items; i++) {
+                int len = b.readInt();
+                ByteBuf rBuf = PooledByteBufAllocator.DEFAULT.buffer();
+                b.readBytes(rBuf, len);
+                SMREntry e = (SMREntry) SMREntry.deserialize(rBuf, runtime);
+                // VersionLockedObject::syncStreamUnsafe checks this entry's
+                // global log address for upcall management.  Checkpoint data
+                // doesn't leave any trace in those upcall results, but we
+                // need a stub of LogData to avoid crashing upcall management.
+                LogData l = new LogData(DataType.CHECKPOINT);
+                e.setEntry(l);
+                smrEntries[i] = e;
+            }
+        }
     }
 
     @Override
@@ -131,8 +134,17 @@ public class CheckpointEntry extends LogEntry {
                         serializeString(x.getValue(), b);
                     });
         }
-        b.writeInt(bulk == null ? 0 : bulk.length);
-        if (bulk != null) { b.writeBytes(bulk); }
+        if (smrEntries != null) {
+            b.writeShort(smrEntries.length);
+            for (int i = 0; i < smrEntries.length; i++) {
+                ByteBuf smrEntryABuf = PooledByteBufAllocator.DEFAULT.buffer();
+                smrEntries[i].serialize(smrEntryABuf);
+                b.writeInt(smrEntryABuf.readableBytes());
+                b.writeBytes(smrEntryABuf);
+            }
+        } else {
+            b.writeShort(0);
+        }
     }
 
     private String deserializeString(ByteBuf b) {

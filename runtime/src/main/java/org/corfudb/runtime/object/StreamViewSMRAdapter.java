@@ -57,22 +57,9 @@ public class StreamViewSMRAdapter implements ISMRStream {
                         // Pull ISMRConsumable thingies out of bulk.
                         CheckpointEntry cp = (CheckpointEntry) logData.getPayload(runtime);
                         // TODO If housekeeping requires access to metadata in this record, do it here
-                        byte[] bulk = cp.getBulk();
-                        if (bulk != null && bulk.length > 0) {
-                            // Convert our bytes[] to ByteBuf to be able to deconstruct using readShort(), etc.
-                            ByteBuf bulkBuf = PooledByteBufAllocator.DEFAULT.buffer();
-                            bulkBuf.writeBytes(cp.getBulk());
-
+                        if (cp.getSmrEntries() != null && cp.getSmrEntries().length > 0) {
                             List<SMREntry> consumables = new ArrayList<>();
-                            int items = bulkBuf.readShort();
-                            for (int i = 0; i < items; i++) {
-                                int len = bulkBuf.readInt();
-                                ByteBuf rBuf = PooledByteBufAllocator.DEFAULT.buffer();
-                                bulkBuf.readBytes(rBuf, len);
-                                SMREntry e = (SMREntry) SMREntry.deserialize(rBuf, runtime);
-                                e.setEntry(logData);
-                                consumables.add(e);
-                            }
+                            Collections.addAll(consumables, cp.getSmrEntries());
                             return consumables;
                         } else {
                             return (List<SMREntry>) Collections.EMPTY_LIST;
