@@ -8,12 +8,14 @@ import io.netty.buffer.PooledByteBufAllocator;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.protocols.wireprotocol.TokenResponse;
+import org.corfudb.runtime.CheckpointWriter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.LogUnitClient;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.collections.SMRMap$CORFUSMR;
 import org.corfudb.runtime.object.*;
 import org.corfudb.runtime.view.AbstractViewTest;
+import org.corfudb.runtime.view.stream.BackpointerStreamView;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
@@ -189,6 +191,29 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         setRuntime();
         Map<String, Integer> m3 = instantiateMap(streamName);
         testAssertions.accept(m3);
+    }
+
+    @Test
+    @SuppressWarnings("checkstyle:magicnumber")
+    public void checkpointWriterTest() throws Exception {
+        final String streamName = "mystream2";
+        final UUID streamId = CorfuRuntime.getStreamID(streamName);
+        final String keyPrefix = "a-prefix";
+        final int numKeys = 5;
+        final String author = "Me, myself, and I";
+
+        Map<String, Integer> m = instantiateMap(streamName);
+        for (int i = 0; i < numKeys; i++) {
+            m.put(keyPrefix + Integer.toString(i), i);
+        }
+        CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
+        cpw.startCheckpoint();
+        cpw.writeObjectState();
+        long endAddress = cpw.finishCheckpoint();
+
+        setRuntime();
+        Map<String, Integer> m2 = instantiateMap(streamName);
+        System.err.printf("m2[%s%d] = %d\n", keyPrefix, 0, m2.get(keyPrefix + Integer.toString(0)));
     }
 
     private Map<String,Integer> instantiateMap(String streamName) {

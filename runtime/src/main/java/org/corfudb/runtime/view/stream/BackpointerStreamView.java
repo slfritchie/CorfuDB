@@ -12,6 +12,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.lang.Long.max;
+
 /** A view of a stream implemented with backpointers.
  *
  * In this implementation, all addresses are global (log) addresses.
@@ -361,6 +363,9 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                     Collections.reverse(context.readCpList);
                     // This is first attempt to play log, so break now to
                     // skip fillFromResolved() stuff which we know doesn't apply.
+                    // TODO altering min & max Res needed?
+                    context.minResolution = currentRead;  // Remember where the checkpoint start was
+                    context.maxResolution = max(context.minResolution, context.maxResolution);
                     return true;
                 }
             }

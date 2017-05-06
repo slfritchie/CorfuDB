@@ -2,6 +2,7 @@ package org.corfudb.runtime.view;
 
 import io.netty.buffer.ByteBufAllocator;
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.LogEntry;
 import org.corfudb.protocols.wireprotocol.DataType;
 import org.corfudb.protocols.wireprotocol.LogData;
@@ -58,7 +59,14 @@ public class ChainReplicationView extends AbstractReplicationView {
                      new AutoCloseableByteBuf(ByteBufAllocator.DEFAULT.directBuffer())) {
             Serializers.CORFU.serialize(data, b);
 
-            LogData ld = new LogData(DataType.DATA, b);
+            LogData ld;
+            if (data instanceof CheckpointEntry) {
+                System.err.printf("write CHECKPOINT at %s\n", streamAddresses);
+                ld = new LogData(DataType.CHECKPOINT, b);
+            } else {
+                System.err.printf("write DATA at %s\n", streamAddresses);
+                ld = new LogData(DataType.DATA, b);
+            }
             ld.setBackpointerMap(backpointerMap);
             ld.setStreams(stream);
             ld.setGlobalAddress(address);
