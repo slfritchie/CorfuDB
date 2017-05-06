@@ -123,6 +123,14 @@ public class AddressSpaceView extends AbstractView {
             if (data instanceof CheckpointEntry) {
                 System.err.printf("inmemory write CHECKPOINT at %s\n", streamAddresses);
                 ld = new InMemoryLogData(DataType.CHECKPOINT, data);
+                CheckpointEntry cp = (CheckpointEntry) data;
+                if (cp.getSmrEntries() != null) {
+                    // FIXME same reason as FIXME below
+                    for (int i = 0; i < cp.getSmrEntries().length; i++) {
+                        cp.getSmrEntries()[i].setRuntime(runtime);
+                        cp.getSmrEntries()[i].setEntry(ld);
+                    }
+                }
             } else {
                 System.err.printf("inmemory write DATA at %s\n", streamAddresses);
                 ld = new InMemoryLogData(DataType.DATA, data);
