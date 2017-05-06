@@ -205,6 +205,8 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         Map<String, Integer> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefix + Integer.toString(i), i);
+            System.err.printf("m[%s%d] = %d\n", keyPrefix, i, m.get(keyPrefix + Integer.toString(i)));
+
         }
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.startCheckpoint();

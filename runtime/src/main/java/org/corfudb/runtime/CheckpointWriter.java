@@ -55,8 +55,8 @@ public class CheckpointWriter {
 
         map.keySet().stream().forEach(k -> {
             // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
-            ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
-            entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
+            entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
+            ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
             CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                     author, checkpointID, mdKV, entries);
             long pos = sv.append(cp, null, null);

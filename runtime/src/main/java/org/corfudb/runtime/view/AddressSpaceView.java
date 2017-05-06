@@ -12,6 +12,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.LogEntry;
 import org.corfudb.protocols.wireprotocol.DataType;
 import org.corfudb.protocols.wireprotocol.ILogData;
@@ -118,7 +119,15 @@ public class AddressSpaceView extends AbstractView {
 
         // Insert this append to our local cache.
         if (!runtime.isCacheDisabled()) {
-            InMemoryLogData ld = new InMemoryLogData(DataType.DATA, data);
+            InMemoryLogData ld;
+            if (data instanceof CheckpointEntry) {
+                System.err.printf("inmemory write CHECKPOINT at %s\n", streamAddresses);
+                ld = new InMemoryLogData(DataType.CHECKPOINT, data);
+            } else {
+                System.err.printf("inmemory write DATA at %s\n", streamAddresses);
+                ld = new InMemoryLogData(DataType.DATA, data);
+            }
+
             ld.setGlobalAddress(address);
             ld.setBackpointerMap(backpointerMap);
             ld.setStreams(stream);

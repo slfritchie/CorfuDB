@@ -203,7 +203,12 @@ public class LogUnitClient implements IClient {
         Timer.Context context = getTimerContext("writeObject");
         ByteBuf payload = ByteBufAllocator.DEFAULT.buffer();
         Serializers.CORFU.serialize(writeObject, payload);
-        WriteRequest wr = new WriteRequest(WriteMode.NORMAL, null, payload);
+        WriteRequest wr;
+        if (writeObject instanceof CheckpointEntry) {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.CHECKPOINT, null, payload);
+        } else {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.DATA,null, payload);
+        }
         wr.setStreams(streams);
         wr.setRank(rank);
         wr.setBackpointerMap(backpointerMap);
