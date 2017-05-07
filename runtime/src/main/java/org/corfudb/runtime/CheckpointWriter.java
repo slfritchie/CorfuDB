@@ -1,5 +1,6 @@
 package org.corfudb.runtime;
 
+import com.google.common.collect.ImmutableMap;
 import lombok.Getter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
@@ -47,8 +48,10 @@ public class CheckpointWriter {
         AbstractTransactionalContext context = TransactionalContext.getCurrentContext();
         long txBeginGlobalAddress = context.getSnapshotTimestamp();
 
-        mdKV.put(CheckpointEntry.START_TIME, startTime.toString());
-        mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(txBeginGlobalAddress));
+        this.mdKV.put(CheckpointEntry.START_TIME, startTime.toString());
+        this.mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(txBeginGlobalAddress));
+
+        ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                 author, checkpointID, mdKV, null);
         startAddress = sv.append(cp, null, null);
@@ -57,8 +60,9 @@ public class CheckpointWriter {
     }
 
     public void writeObjectState() {
-        SMREntry entries[] = new SMREntry[1];
+        ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         map.keySet().stream().forEach(k -> {
+            SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
             // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
             entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
             ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
