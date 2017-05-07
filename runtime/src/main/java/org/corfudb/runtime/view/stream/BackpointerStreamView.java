@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.lang.Long.max;
 
@@ -164,6 +165,7 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
     @Override
     protected boolean fillReadQueue(final long maxGlobal,
                                  final QueuedStreamContext context) {
+        System.err.printf("fillReadQueue: top maxGlobal %d\n", maxGlobal);
         // considerCheckpoint: Use context.globalPointer as a signal of caller's intent:
         // if globalPointer == -1, then the caller needs to replay the stream from the
         // beginning because the caller has never read anything from the stream before.
@@ -230,8 +232,11 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
         // maxGlobalAddress, we insert it into the read queue.
         long currentRead = latestToken;
 
+        System.err.printf("fillReadQueue: before while, currentRead %d globalPointer %d\n", currentRead, context.globalPointer);
         while (currentRead > context.globalPointer &&
                 currentRead != Address.NEVER_READ) {
+            System.err.printf("fillReadQueue: while top, currentRead %d globalPointer %d\n", currentRead, context.globalPointer);
+            System.err.printf("fillReadQueue: while top, minResolution %d maxResolution %d\n", context.minResolution, context.maxResolution);
             log.trace("Read_Fill_Queue[{}] Read {}", this, currentRead);
             // Read the entry in question.
             ILogData currentEntry =
@@ -335,9 +340,10 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                 currentRead = currentRead - 1L;
             }
         }
+        System.err.printf("fillReadQueue: after while, minResolution %d maxResolution %d\n", context.minResolution, context.maxResolution);
 
         log.debug("Read_Fill_Queue[{}] Filled queue with {}", this, context.readQueue);
-        System.err.printf("******* Read_Fill_Queue[%s] Filled queue with %s readCpList %s\n", this, context.readQueue, context.readCpList);
+        System.err.printf("******* Read_Fill_Queue[%s] Filled queue with %s readCpList ", this, context.readQueue); context.readCpList.forEach(x -> System.err.printf("%d,", x.getLogEntry(runtime).getEntry().getGlobalAddress())); System.err.printf("\n");
         return ! context.readCpList.isEmpty() || !context.readQueue.isEmpty();
     }
 
@@ -362,6 +368,8 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                     cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
             if (considerCheckpoint) {
                 context.readCpList.add(currentEntry);
+                System.err.printf("examine: addr %d currentEntry %s\n", currentEntry.getGlobalAddress(), currentEntry);
+                System.err.printf("examine: addr %d cpEntry %s\n", currentEntry.getGlobalAddress(), cpEntry);
                 context.checkpointSuccessNumEntries++;
                 context.checkpointSuccessEstBytes += currentEntry.getSizeEstimate();
                 if (cpEntry.getCpType().equals(CheckpointEntry.CheckpointEntryType.START)) {

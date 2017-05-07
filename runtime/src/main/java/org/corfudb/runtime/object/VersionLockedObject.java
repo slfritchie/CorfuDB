@@ -503,6 +503,8 @@ public class VersionLockedObject<T> {
     protected void syncStreamUnsafe(ISMRStream stream, long timestamp) {
         log.trace("Sync[{}] {}", this, (timestamp == Address.OPTIMISTIC)
                 ? "Optimistic" : "to " + timestamp);
+        System.err.printf("Sync[%s] %s\n", this, (timestamp == Address.OPTIMISTIC)
+                ? "Optimistic" : "to " + timestamp);
         long syncTo = (timestamp == Address.OPTIMISTIC) ? Address.MAX : timestamp;
         stream.remainingUpTo(syncTo)
                 .stream()
@@ -510,14 +512,17 @@ public class VersionLockedObject<T> {
                     try {
                         Object res = applyUpdateUnsafe(entry);
                         if (timestamp == Address.OPTIMISTIC) {
+                            System.err.printf("Sync[%s] OPTIMISTIC Upcall Result %s\n", this, entry.getEntry().getGlobalAddress());
                             entry.setUpcallResult(res);
                         }
                         else if (pendingUpcalls.contains(entry.getEntry().getGlobalAddress())) {
-                            log.debug("Sync[{}] Upcall Result {}", entry.getEntry().getGlobalAddress());
+                            log.debug("Sync[{}] Upcall Result {}", this, entry.getEntry().getGlobalAddress());
+                            System.err.printf("Sync[%s] Upcall Result %s\n", this, entry.getEntry().getGlobalAddress());
                             upcallResults.put(entry.getEntry().getGlobalAddress(), res == null ?
                                     NullValue.NULL_VALUE : res);
                             pendingUpcalls.remove(entry.getEntry().getGlobalAddress());
                         }
+                        System.err.printf("Sync[%s] AFTERAFTER Upcall Result %s entry %s\n", this, entry.getEntry().getGlobalAddress(), entry);
                         entry.setUpcallResult(res);
                     } catch (Exception e) {
                         log.error("Sync[{}] Error: Couldn't execute upcall due to {}", this, e);

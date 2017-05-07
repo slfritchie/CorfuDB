@@ -46,6 +46,7 @@ public class StreamViewSMRAdapter implements ISMRStream {
     }
 
     public List<SMREntry> remainingUpTo(long maxGlobal) {
+        System.err.printf("## DBG: remainingUpTo: maxGlobal %d", maxGlobal);
         return streamView.remainingUpTo(maxGlobal).stream()
                 .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
                 .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)
@@ -56,12 +57,18 @@ public class StreamViewSMRAdapter implements ISMRStream {
                         // We are a CHECKPOINT record.
                         // Pull ISMRConsumable thingies out of bulk.
                         CheckpointEntry cp = (CheckpointEntry) logData.getPayload(runtime);
+                        System.err.printf("### DBG: remainingUpTo: logData addr %d\n", logData.getGlobalAddress());
                         // TODO If housekeeping requires access to metadata in this record, do it here
                         if (cp.getSmrEntries() != null && cp.getSmrEntries().length > 0) {
+                            System.err.printf("### DBG: remainingUpTo: %d SMREntries\n", cp.getSmrEntries().length);
+                            if (cp.getSmrEntries().length > 0) {
+                                System.err.printf("### DBG: remainingUpTo: addr %d SMREntry %s\n", cp.getSmrEntries()[0].getEntry().getGlobalAddress(), cp.getSmrEntries()[0]);
+                            }
                             List<SMREntry> consumables = new ArrayList<>();
                             Collections.addAll(consumables, cp.getSmrEntries());
                             return consumables;
                         } else {
+                            System.err.printf("### DBG: remainingUpTo: %d SMREntries\n", 0);
                             return (List<SMREntry>) Collections.EMPTY_LIST;
                         }
                     }

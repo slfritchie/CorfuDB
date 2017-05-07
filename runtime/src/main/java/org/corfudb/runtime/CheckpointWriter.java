@@ -58,7 +58,6 @@ public class CheckpointWriter {
 
     public void writeObjectState() {
         SMREntry entries[] = new SMREntry[1];
-
         map.keySet().stream().forEach(k -> {
             // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
             entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);

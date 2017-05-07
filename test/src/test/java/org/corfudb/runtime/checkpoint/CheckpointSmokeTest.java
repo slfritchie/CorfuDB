@@ -218,10 +218,21 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         long endAddress = cpw.finishCheckpoint();
         System.err.printf("m = %s\n", m.toString());
 
+        /****
+        Thread t = new Thread(() -> {try { setRuntime(); } catch (Exception e) {System.err.printf("\n\n\nWHOA\n\n\n");} Map<String, Long> mt = instantiateMap(streamName); System.err.printf("mt = %s\n", mt.toString());});
+        t.run();
+        t.join();
+         ****/
+
+        System.err.printf("r = %s\n", r);
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
-        System.err.printf("m2[%s%d] = %d\n", keyPrefix, 0, m2.get(keyPrefix + Integer.toString(0)));
+        System.err.printf("r = %s\n", r);
         System.err.printf("m2 = %s\n", m2.toString());
+        for (int i = 0; i < numKeys; i++) {
+            assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
+                    .isEqualTo(i + 77);
+        }
     }
 
     private Map<String, Long> instantiateMap(String streamName) {
