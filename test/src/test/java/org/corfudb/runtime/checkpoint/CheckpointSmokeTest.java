@@ -69,21 +69,21 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         final String streamName = "mystream";
         final UUID streamId = CorfuRuntime.getStreamID(streamName);
         final String key1 = "key1";
-        final int key1Val = 42;
+        final long key1Val = 42;
         final String key2 = "key2";
-        final int key2Val = 4242;
+        final long key2Val = 4242;
         final String key3 = "key3";
-        final int key3Val = 4343;
+        final long key3Val = 4343;
 
         final String key7 = "key7";
-        final int key7Val = 7777;
+        final long key7Val = 7777;
         final String key8 = "key8";
-        final int key8Val = 88;
+        final long key8Val = 88;
         final UUID checkpointId = UUID.randomUUID();
         final String checkpointAuthor = "Hey, it's me!";
 
         // Put keys 1 & 2 into m
-        Map<String, Integer> m = instantiateMap(streamName);
+        Map<String, Long> m = instantiateMap(streamName);
         m.put(key1, key1Val);
         m.put(key2, key2Val);
 
@@ -98,15 +98,17 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         assertThat(m.get(key3)).isEqualTo(key3Val);
         assertThat(m.get(key7)).isNull();
         assertThat(m.get(key8)).isNull();
+        System.err.printf("m = %s\n", m.toString());
 
         // Make a new runtime & map, then look for expected bad behavior
         setRuntime();
-        Map<String, Integer> m2 = instantiateMap(streamName);
+        Map<String, Long> m2 = instantiateMap(streamName);
         assertThat(m2.get(key1)).isNull();
         assertThat(m2.get(key2)).isNull();
         assertThat(m2.get(key3)).isEqualTo(key3Val);
         assertThat(m2.get(key7)).isEqualTo(key7Val);
         assertThat(m2.get(key8)).isEqualTo(key8Val);
+        System.err.printf("m2 = %s\n", m2.toString());
     }
 
     /** Second smoke test, steps:
@@ -147,10 +149,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         final String keyPrefixLast = "last";
         final int numKeys = 4;
         final String key7 = "key7";
-        final int key7Val = 7777;
+        final long key7Val = 7777;
         final String key8 = "key8";
-        final int key8Val = 88;
-        Consumer<Map<String,Integer>> testAssertions = (map) -> {
+        final long key8Val = 88;
+        Consumer<Map<String, Long>> testAssertions = (map) -> {
             for (int i = 0; i < numKeys; i++) {
                 assertThat(map.get(keyPrefixFirst + Integer.toString(i))).isNull();
                 assertThat(map.get(keyPrefixMiddle1 + Integer.toString(i))).isEqualTo(i);
@@ -161,23 +163,25 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             assertThat(map.get(key8)).isEqualTo(key8Val);
         };
 
-        Map<String, Integer> m = instantiateMap(streamName);
+        Map<String, Long> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
-            m.put(keyPrefixFirst + Integer.toString(i), i);
+            m.put(keyPrefixFirst + Integer.toString(i), (long) i);
         }
 
         writeCheckpointRecords(streamId, checkpointAuthor, checkpointId,
                 new Object[]{new Object[]{key8, key8Val}, new Object[]{key7, key7Val}},
-                () -> { for (int i = 0; i < numKeys; i++) { m.put(keyPrefixMiddle1 + Integer.toString(i), i); } },
-                () -> { for (int i = 0; i < numKeys; i++) { m.put(keyPrefixMiddle2 + Integer.toString(i), i); } },
+                () -> { for (int i = 0; i < numKeys; i++) { m.put(keyPrefixMiddle1 + Integer.toString(i), (long) i); } },
+                () -> { for (int i = 0; i < numKeys; i++) { m.put(keyPrefixMiddle2 + Integer.toString(i), (long) i); } },
                 true, true, true);
         for (int i = 0; i < numKeys; i++) {
-            m.put(keyPrefixLast + Integer.toString(i), i);
+            m.put(keyPrefixLast + Integer.toString(i), (long) i);
         }
+        System.err.printf("m = %s\n", m.toString());
 
         setRuntime();
-        Map<String, Integer> m2 = instantiateMap(streamName);
+        Map<String, Long> m2 = instantiateMap(streamName);
         testAssertions.accept(m2);
+        System.err.printf("m2 = %s\n", m2.toString());
 
         // Write incomplete checkpoint (no END record) with key7 and key8 values
         // different than testAssertions() expects.  The incomplete CP should
@@ -189,40 +193,42 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                 () -> {}, () -> {}, true, true, false);
 
         setRuntime();
-        Map<String, Integer> m3 = instantiateMap(streamName);
+        Map<String, Long> m3 = instantiateMap(streamName);
         testAssertions.accept(m3);
+        System.err.printf("m3 = %s\n", m3.toString());
     }
 
     @Test
     @SuppressWarnings("checkstyle:magicnumber")
     public void checkpointWriterTest() throws Exception {
-        final String streamName = "mystream2";
+        final String streamName = "mystream3";
         final UUID streamId = CorfuRuntime.getStreamID(streamName);
         final String keyPrefix = "a-prefix";
         final int numKeys = 5;
         final String author = "Me, myself, and I";
 
-        Map<String, Integer> m = instantiateMap(streamName);
+        Map<String, Long> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
-            m.put(keyPrefix + Integer.toString(i), i);
+            m.put(keyPrefix + Integer.toString(i), (long) i);
             System.err.printf("m[%s%d] = %d\n", keyPrefix, i, m.get(keyPrefix + Integer.toString(i)));
-
         }
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.startCheckpoint();
         cpw.writeObjectState();
         long endAddress = cpw.finishCheckpoint();
+        System.err.printf("m = %s\n", m.toString());
 
         setRuntime();
-        Map<String, Integer> m2 = instantiateMap(streamName);
+        Map<String, Long> m2 = instantiateMap(streamName);
         System.err.printf("m2[%s%d] = %d\n", keyPrefix, 0, m2.get(keyPrefix + Integer.toString(0)));
+        System.err.printf("m2 = %s\n", m2.toString());
     }
 
-    private Map<String,Integer> instantiateMap(String streamName) {
+    private Map<String, Long> instantiateMap(String streamName) {
         return r.getObjectsView()
                 .build()
                 .setStreamName(streamName)
-                .setTypeToken(new TypeToken<SMRMap<String, Integer>>() {})
+                .setTypeToken(new TypeToken<SMRMap<String, Long>>() {})
                 .open();
     }
 
@@ -242,7 +248,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         LogUnitClient logClient = r.getLayoutView().getLayout()
                 .getLogUnitClient(0, 0);
         Map<String, String> mdKV = new HashMap<>();
-        mdKV.put("Start time", "Miller time(tm)");
+        mdKV.put(CheckpointEntry.START_TIME, "The perfect time");
 
         // Write cp #1 of 3
         if (write1) {
@@ -250,6 +256,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             long addr1 = tokResp1.getToken();
             Map<UUID, Long> bpMap1 = tokResp1.getBackpointerMap();
             mdKV.put("CP record #", "1 (for those keeping score)");
+            mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(addr1));
             CheckpointEntry cp1 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                     checkpointAuthor, checkpointId, mdKV, null);
             boolean ok1 = logClient.writeCheckpoint(addr1, Collections.singleton(streamId), null, cp1, bpMap1).get();

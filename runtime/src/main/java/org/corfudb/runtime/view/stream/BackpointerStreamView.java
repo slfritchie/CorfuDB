@@ -299,13 +299,21 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
             if (currentEntry.containsStream(context.id)) {
                 if (currentEntry.getType() == DataType.CHECKPOINT) {
                     CheckpointEntry cpEntry = (CheckpointEntry) currentEntry.getPayload(runtime);
-                    if (examineCheckpointRecord(context, currentEntry, cpEntry,
-                            considerCheckpoint, currentRead)) {
-                        break;
-                    }
+                    examineCheckpointRecord(context, currentEntry, cpEntry,
+                            considerCheckpoint, currentRead);
                 } else {
                     context.readQueue.add(currentRead);
                 }
+            }
+
+            // If we've reached the beginning of a successful checkpoint
+            // that the caller wants us to us, then we're done here.
+            if (considerCheckpoint && currentRead <= context.checkpointSuccessStartAddr) {
+                log.trace("Read_Fill_Queue[{}]: currentRead {} checkpointSuccessStartAddr {}",
+                        this, currentRead, context.checkpointSuccessStartAddr);
+                System.err.printf("DBG: Read_Fill_Queue[%s]: currentRead %d checkpointSuccessStartAddr %d\n",
+                        this, currentRead, context.checkpointSuccessStartAddr);
+                break;
             }
 
             // If everything left is available in the resolved
@@ -329,12 +337,13 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
         }
 
         log.debug("Read_Fill_Queue[{}] Filled queue with {}", this, context.readQueue);
+        System.err.printf("******* Read_Fill_Queue[%s] Filled queue with %s readCpList %s\n", this, context.readQueue, context.readCpList);
         return ! context.readCpList.isEmpty() || !context.readQueue.isEmpty();
     }
 
-    private boolean examineCheckpointRecord(final QueuedStreamContext context,
-                                            ILogData currentEntry, CheckpointEntry cpEntry,
-                                            boolean considerCheckpoint, long currentRead) {
+    private void examineCheckpointRecord(final QueuedStreamContext context,
+                                         ILogData currentEntry, CheckpointEntry cpEntry,
+                                         boolean considerCheckpoint, long currentRead) {
         if (context.checkpointSuccessID == null &&
                 cpEntry.getCpType().equals(CheckpointEntry.CheckpointEntryType.END)) {
             log.trace("Checkpoint: address {} found END, id {} author {}",
@@ -356,17 +365,23 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                 context.checkpointSuccessNumEntries++;
                 context.checkpointSuccessEstBytes += currentEntry.getSizeEstimate();
                 if (cpEntry.getCpType().equals(CheckpointEntry.CheckpointEntryType.START)) {
-                    log.trace("Checkpoint: halting backpointer fill at address {} type {} id {} author {}",
-                            currentRead, cpEntry.getCpType(),
-                            cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
-                    context.checkpointSuccessStartAddr = currentRead;
+                    long cpStartAddr;
+                    if (cpEntry.getDict().get(CheckpointEntry.START_LOG_ADDRESS) != null) {
+                        System.err.printf("DBG: dict val for %s is %s, currentRead is %d\n",
+                                CheckpointEntry.START_LOG_ADDRESS, cpEntry.getDict().get(CheckpointEntry.START_LOG_ADDRESS), currentRead);
+                        cpStartAddr = Long.decode(cpEntry.getDict().get(CheckpointEntry.START_LOG_ADDRESS));
+                    } else {
+                        System.err.printf("***** TODO: dict doesn't contain %s, using %d instead\n",
+                                CheckpointEntry.START_LOG_ADDRESS, currentRead);
+                        cpStartAddr = currentRead;
+                    }
+                    context.checkpointSuccessStartAddr = cpStartAddr;
                     Collections.reverse(context.readCpList);
-                    // This is first attempt to play log, so break now to
-                    // skip fillFromResolved() stuff which we know doesn't apply.
-                    // TODO altering min & max Res needed?
-                    context.minResolution = currentRead;  // Remember where the checkpoint start was
-                    context.maxResolution = max(context.minResolution, context.maxResolution);
-                    return true;
+                    System.err.printf("DBG: readCpList size = %d\n", context.readCpList.size());
+                    log.trace("Checkpoint: halt backpointer fill at address {} type {} id {} author {}",
+                            cpStartAddr, cpEntry.getCpType(),
+                            cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
+                    return;
                 }
             }
         } else {
@@ -374,6 +389,5 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                     currentRead, cpEntry.getCpType(),
                     cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
         }
-        return false;
     }
 }

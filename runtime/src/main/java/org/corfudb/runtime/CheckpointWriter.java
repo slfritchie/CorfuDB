@@ -4,6 +4,10 @@ import lombok.Getter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.object.ICorfuSMR;
+import org.corfudb.runtime.object.ICorfuSMRProxy;
+import org.corfudb.runtime.object.transactions.AbstractTransactionalContext;
+import org.corfudb.runtime.object.transactions.TransactionalContext;
 import org.corfudb.runtime.view.stream.BackpointerStreamView;
 import org.corfudb.util.serializer.Serializers;
 
@@ -38,19 +42,21 @@ public class CheckpointWriter {
     }
 
     public long startCheckpoint() {
+        rt.getObjectsView().TXBegin();
         startTime = LocalDateTime.now();
-        mdKV.put("Start time", startTime.toString());
+        AbstractTransactionalContext context = TransactionalContext.getCurrentContext();
+        long txBeginGlobalAddress = context.getSnapshotTimestamp();
+
+        mdKV.put(CheckpointEntry.START_TIME, startTime.toString());
+        mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(txBeginGlobalAddress));
         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                 author, checkpointID, mdKV, null);
         startAddress = sv.append(cp, null, null);
-        System.err.printf("DBG: startAddress was %d\n", endAddress);
+        System.err.printf("DBG: START's address %d, txBeginGlobalAddress %d\n", startAddress, txBeginGlobalAddress);
         return startAddress;
     }
 
     public void writeObjectState() {
-        // TODO: We need to sync/reconcile/wrestle the log offset at TXBegin
-        // and the log address assigned by startCheckpoint().
-        rt.getObjectsView().TXBegin();
         SMREntry entries[] = new SMREntry[1];
 
         map.keySet().stream().forEach(k -> {
@@ -68,19 +74,25 @@ public class CheckpointWriter {
     }
 
     public long finishCheckpoint() {
-        startTime = LocalDateTime.now();
-        mdKV.put("End time", startTime.toString());
+        LocalDateTime endTime = LocalDateTime.now();
+        mdKV.put(CheckpointEntry.END_TIME, endTime.toString());
         numEntries++;
-        // TODO: numBytes += mumbleMumble
+        numBytes++;
+        mdKV.put(CheckpointEntry.ENTRY_COUNT, Long.toString(numEntries));
+        mdKV.put(CheckpointEntry.BYTE_COUNT, Long.toString(numBytes));
 
-        mdKV.put("Entry count", Long.toString(numEntries));
-        mdKV.put("Byte count", Long.toString(numBytes));
-        mdKV.put("Start address", Long.toString(startAddress));
-
-        CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
-                author, checkpointID, mdKV, null);
-        endAddress = sv.append(cp, null, null);
-        System.err.printf("DBG: endAddress was %d\n", endAddress);
-        return endAddress;
+        try {
+            CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
+                    author, checkpointID, mdKV, null);
+            endAddress = sv.append(cp, null, null);
+            System.err.printf("DBG: END's address %d\n", endAddress);
+            return endAddress;
+        } finally {
+            try {
+                rt.getObjectsView().TXEnd();
+            } catch (Exception e) {
+                // nothing to do
+            }
+        }
     }
 }

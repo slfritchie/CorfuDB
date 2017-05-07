@@ -23,6 +23,12 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 public class CheckpointEntry extends LogEntry {
 
+    public static String START_TIME = "Start time";
+    public static String END_TIME = "End time";
+    public static String START_LOG_ADDRESS = "Start log address";
+    public static String ENTRY_COUNT = "Entry count";
+    public static String BYTE_COUNT = "Byte count";
+
     public static void dump(ByteBuf b) {
         byte[] bulk = new byte[b.readableBytes()];
         b.readBytes(bulk, 0, b.readableBytes() - 1);
