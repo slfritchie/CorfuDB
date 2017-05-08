@@ -14,24 +14,42 @@ import org.corfudb.util.serializer.Serializers;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
-/** Log history checkpoint writer for SMRMaps, to be generalized to
- *  all SMR objects.
+/** Checkpoint writer for SMRMaps: take a snapshot of the
+ *  object via TXBegin(), then dump the frozen object's
+ *  state into CheckpointEntry records into the object's
+ *  stream.
+ *
+ * TODO: Generalize to all SMR objects.
  */
 public class CheckpointWriter {
-    private CorfuRuntime rt;
+    /** Metadata to be stored in the CP's 'dict' map.
+     */
     private UUID streamID;
     private String author;
-    private SMRMap map;
     @Getter
     private UUID checkpointID;
-    BackpointerStreamView sv;
-    Map<String, String> mdKV = new HashMap<>();
     private LocalDateTime startTime;
     private long startAddress, endAddress;
     private long numEntries = 0, numBytes = 0;
+    Map<String, String> mdKV = new HashMap<>();
+
+    /** Local ref to the object's runtime.
+     */
+    private CorfuRuntime rt;
+
+    /** Local ref to the stream's view.
+     */
+    BackpointerStreamView sv;
+
+    /** Local ref to the object that we're dumping.
+     *  TODO: generalize to all SMR objects.
+     */
+    private SMRMap map;
 
     public CheckpointWriter(CorfuRuntime rt, UUID streamID, String author, SMRMap map) {
         this.rt = rt;
@@ -42,6 +60,10 @@ public class CheckpointWriter {
         sv = new BackpointerStreamView(rt, streamID);
     }
 
+    /** Append a checkpoint START record to this object's stream.
+     *
+     * @return Global log address of the START record.
+     */
     public long startCheckpoint() {
         rt.getObjectsView().TXBegin();
         startTime = LocalDateTime.now();

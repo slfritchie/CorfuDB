@@ -17,39 +17,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Created by sfritchie on 4/6/17.
+ * Object & serialization methods for in-stream checkpoint
+ * summarization of SMR object state.
  */
 @ToString(callSuper = true)
 @NoArgsConstructor
 public class CheckpointEntry extends LogEntry {
 
-    public static String START_TIME = "Start time";
-    public static String END_TIME = "End time";
-    public static String START_LOG_ADDRESS = "Start log address";
-    public static String ENTRY_COUNT = "Entry count";
-    public static String BYTE_COUNT = "Byte count";
-
-    public static void dump(ByteBuf b) {
-        byte[] bulk = new byte[b.readableBytes()];
-        b.readBytes(bulk, 0, b.readableBytes() - 1);
-        dump(bulk);
-    }
-
-    public static void dump(byte[] bulk) {
-        if (bulk != null) {
-            System.err.printf("Bulk(%d): ", bulk.length);
-            for (int i = 0; i < bulk.length; i++) {
-                System.err.printf("%d,", bulk[i]);
-            }
-            System.err.printf("\n");
-        }
-    }
-
     @RequiredArgsConstructor
     public enum CheckpointEntryType {
         START(1),           // Mandatory: 1st record in checkpoint
         CONTINUATION(2),    // Optional: 2nd through (n-1)th record
-        END(3);             // Mandatory: for successful checkpoint
+        END(3);             // Mandatory: final record checkpoint
 
         public final int type;
 
@@ -58,16 +37,44 @@ public class CheckpointEntry extends LogEntry {
         }
     };
 
+    /**
+     * Constants for use as keys in our 'dict' map.
+     */
+    public static String START_TIME = "Start time";
+    public static String END_TIME = "End time";
+    public static String START_LOG_ADDRESS = "Start log address";
+    public static String ENTRY_COUNT = "Entry count";
+    public static String BYTE_COUNT = "Byte count";
+
+    /** Type of entry
+     */
     @Getter
     CheckpointEntryType cpType;
+
+    /**
+     * Unique identifier for this checkpoint.  All entries
+     * for the same checkpoint state must use the same ID.
+     */
     @Getter
-    UUID checkpointID;  // Unique identifier for this checkpoint
+    UUID checkpointID;
+
+    /** Author/cause/trigger of this checkpoint
+     */
     @Getter
-    String checkpointAuthorID;  // TODO: UUID instead?
+    String checkpointAuthorID;
+
+    /** Map of checkpoint metadata, see key constants above
+     */
     @Getter
     Map<String, String> dict;
+
+    /** Optional: array of SMREntry objects that contains
+     *  SMR object state of the stream that we're checkpointing.
+     *  May be present in any CheckpointEntryType, but typically
+     *  used by CONTINUATION entries.
+     */
     @Getter
-    SMREntry[] smrEntries;
+    SMREntry[] smrEntries = null;
 
     public CheckpointEntry(CheckpointEntryType type, String authorID, UUID checkpointID,
                            Map<String,String> dict, SMREntry[] smrEntries) {
@@ -88,6 +95,8 @@ public class CheckpointEntry extends LogEntry {
      * should initialize their contents based on the buffer.
      *
      * @param b The remaining buffer.
+     * @param rt The CorfuRuntime used by the SMR object.
+     * @return A CheckpointEntry.
      */
     @Override
     void deserializeBuffer(ByteBuf b, CorfuRuntime rt) {
@@ -124,6 +133,11 @@ public class CheckpointEntry extends LogEntry {
         }
     }
 
+    /**
+     * Serialize the given LogEntry into a given byte buffer.
+     *
+     * @param b The buffer to serialize into.
+     */
     @Override
     public void serialize(ByteBuf b) {
         super.serialize(b);
@@ -152,6 +166,11 @@ public class CheckpointEntry extends LogEntry {
         }
     }
 
+    /** Helper function to deserialize a String.
+     *
+     * @param b
+     * @return A String.
+     */
     private String deserializeString(ByteBuf b) {
         short len = b.readShort();
         byte bytes[] = new byte[len];
@@ -159,8 +178,40 @@ public class CheckpointEntry extends LogEntry {
         return new String(bytes);
     }
 
+    /** Helper function to serialize a String.
+     *
+     * @param b
+     */
     private void serializeString(String s, ByteBuf b) {
         b.writeShort(s.length());
         b.writeBytes(s.getBytes());
+    }
+
+    /**
+     * Hex dump readable contents of ByteBuf to stdout.
+     *
+     * @param b ByteBuf with readable bytes available.
+     */
+    public static void dump(ByteBuf b) {
+        byte[] bulk = new byte[b.readableBytes()];
+        int oldReaderIndex = b.readerIndex();
+        b.readBytes(bulk, 0, b.readableBytes() - 1);
+        b.readerIndex(oldReaderIndex);
+        dump(bulk);
+    }
+
+    /**
+     * Hex dump contents of byte[] to stdout.
+     *
+     * @param bulk Bytes.
+     */
+    public static void dump(byte[] bulk) {
+        if (bulk != null) {
+            System.out.printf("Bulk(%d): ", bulk.length);
+            for (int i = 0; i < bulk.length; i++) {
+                System.out.printf("%x,", bulk[i]);
+            }
+            System.out.printf("\n");
+        }
     }
 }

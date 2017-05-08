@@ -214,6 +214,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
+        System.err.printf("m2 = %s\n", m2.toString());
         for (int i = 0; i < numKeys; i++) {
             assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
                     .isEqualTo(i + 77);
