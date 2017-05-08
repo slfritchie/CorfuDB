@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * access() method. Likewise, if a Corfu object's method is a Mutator or Accessor-Mutator, it invokes the
  * proxy's logUpdate() method.
  *
- * Within transactional context, these methods invoke the transactionalContext accessor/mutator helper.
+ * Within transactional context, these methods invoke the transactionalContext accessor/valueMutator helper.
  *
  * For example, OptimisticTransactionalContext.access() is responsible for
  * sync'ing the proxy state to the snapshot version, and then doing the access.

@@ -2,9 +2,6 @@ package org.corfudb.runtime.checkpoint;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.reflect.TypeToken;
-import com.google.common.util.concurrent.Runnables;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.protocols.wireprotocol.TokenResponse;
@@ -12,17 +9,13 @@ import org.corfudb.runtime.CheckpointWriter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.LogUnitClient;
 import org.corfudb.runtime.collections.SMRMap;
-import org.corfudb.runtime.collections.SMRMap$CORFUSMR;
-import org.corfudb.runtime.object.*;
 import org.corfudb.runtime.view.AbstractViewTest;
-import org.corfudb.runtime.view.stream.BackpointerStreamView;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 /**
  * Basic smoke tests for checkpoint-in-stream PoC.
@@ -218,7 +211,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Set up CP writer.  Add fudgeFactor to all CP data,
         // also used for assertion checks later.
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
-        cpw.setMutator((l) -> (Long) l + fudgeFactor);
+        cpw.setValueMutator((l) -> (Long) l + fudgeFactor);
 
         // Write all CP data.
         long startAddress = cpw.startCheckpoint();

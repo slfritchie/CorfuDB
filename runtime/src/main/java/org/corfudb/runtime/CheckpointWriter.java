@@ -6,8 +6,6 @@ import lombok.Setter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.collections.SMRMap;
-import org.corfudb.runtime.object.ICorfuSMR;
-import org.corfudb.runtime.object.ICorfuSMRProxy;
 import org.corfudb.runtime.object.transactions.AbstractTransactionalContext;
 import org.corfudb.runtime.object.transactions.TransactionalContext;
 import org.corfudb.runtime.view.stream.BackpointerStreamView;
@@ -16,8 +14,6 @@ import org.corfudb.util.serializer.Serializers;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 /** Checkpoint writer for SMRMaps: take a snapshot of the
  *  object via TXBegin(), then dump the frozen object's
@@ -37,9 +33,20 @@ public class CheckpointWriter {
     private long startAddress, endAddress;
     private long numEntries = 0, numBytes = 0;
     Map<String, String> mdKV = new HashMap<>();
+
+    /** Mutator lambda to change map key.  Typically used for
+     *  testing but could also be used for type conversion, etc.
+     */
     @Getter
     @Setter
-    Function<Object,Object> mutator = (x) -> x;
+    Function<Object,Object> keyMutator = (x) -> x;
+
+    /** Mutator lambda to change map value.  Typically used for
+     *  testing but could also be used for type conversion, etc.
+     */
+    @Getter
+    @Setter
+    Function<Object,Object> valueMutator = (x) -> x;
 
     /** Local ref to the object's runtime.
      */
@@ -95,13 +102,15 @@ public class CheckpointWriter {
         List<Long> continuationAddresses = new ArrayList<Long>();
         map.keySet().stream().forEach(k -> {
             SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
-            entries[0] = new SMREntry("put", (Object[]) new Object[]{k, mutator.apply(map.get(k)) }, Serializers.JSON);
+            entries[0] = new SMREntry("put",
+                    (Object[]) new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
+                    Serializers.JSON);
             CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                     author, checkpointID, mdKV, entries);
             long pos = sv.append(cp, null, null);
             continuationAddresses.add(pos);
             numEntries++;
-            // numBytes is an estimate.  TODO: get real serialization size available, somehow.
+            // TODO: get real serialization size available, somehow.
             numBytes += 50;
         });
         rt.getObjectsView().TXAbort();
