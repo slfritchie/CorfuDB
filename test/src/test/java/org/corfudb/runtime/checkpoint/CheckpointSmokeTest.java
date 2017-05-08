@@ -212,17 +212,18 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // also used for assertion checks later.
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.setValueMutator((l) -> (Long) l + fudgeFactor);
+        cpw.setBatchSize(4);
 
         // Write all CP data.
         long startAddress = cpw.startCheckpoint();
         List<Long> continuationAddrs = cpw.writeObjectState();
         long endAddress = cpw.finishCheckpoint();
+        /* System.err.printf("DBG: wrote %d CP records\n", 1 + continuationAddrs.size() + 1); */
 
         // Instantiate new runtime & map.  All map entries (except 'just one more')
         // should have fudgeFactor added.
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
-        /* System.err.printf("m2 = %s\n", m2.toString()); */
         for (int i = 0; i < numKeys; i++) {
             assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
                     .isEqualTo(i + fudgeFactor);

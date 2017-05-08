@@ -49,6 +49,12 @@ public class CheckpointWriter {
     @Setter
     Function<Object,Object> valueMutator = (x) -> x;
 
+    /** Batch size: number of SMREntry in a single CONTINUATION.
+     */
+    @Getter
+    @Setter
+    private int batchSize = 50;
+
     /** Local ref to the object's runtime.
      */
     private CorfuRuntime rt;
@@ -93,7 +99,16 @@ public class CheckpointWriter {
 
     /** Append zero or more CONTINUATION records to this
      *  object's stream.  Each will contain a fraction of
-     *  the state of the object that we're checkpointing.
+     *  the state of the object that we're checkpointing
+     *  (up to batchSize items at a time).
+     *
+     *  The Iterators class appears to preserve the laziness
+     *  of Stream processing; we don't wish to use more
+     *  memory than strictly necessary to generate the
+     *  checkpoint.  NOTE: It would be even more useful if
+     *  the map had a lazy iterator: the eagerness of
+     *  map.keySet().stream() is not ideal, but at least
+     *  it should be much smaller than the entire map.
      *
      * @return Stream of global log addresses of the
      * CONTINUATION records written.
@@ -101,26 +116,29 @@ public class CheckpointWriter {
     public List<Long> writeObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         List<Long> continuationAddresses = new ArrayList<>();
-        List<CheckpointEntry> acc = new ArrayList<>();
-        List<CheckpointEntry> accFinal;
 
-        Iterators.partition(map.keySet().stream().map(k -> {
-            // Alloc new array each time to avoid mutation races
-            SMREntry entries[] = new SMREntry[1];
-            entries[0] = new SMREntry("put",
-                    new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
-                    Serializers.JSON);
-            CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
-                    author, checkpointID, mdKV, entries);
-            return cp;
-            /*********
-            long pos = sv.append(cp, null, null);
-            continuationAddresses.add(pos);
-            numEntries++;
-            // TODO: get real serialization size available, somehow.
-            numBytes += 50;
-             **********/
-        }).iterator(), 2).forEachRemaining(x -> System.err.printf("x = %s\n", x));
+        Iterators.partition(map.keySet().stream()
+            .map(k -> {
+                return new SMREntry("put",
+                        new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
+                        Serializers.JSON);
+        }).iterator(), batchSize)
+            .forEachRemaining(entries -> {
+                // Convert Object[] to SMREntry[], combined with byte count.
+                // java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Lorg.corfudb.protocols.logprotocol.SMREntry;
+                int numEntries = ((List) entries).size();
+                SMREntry e[] = new SMREntry[numEntries];
+                for (int i = 0; i < numEntries; i++) {
+                    e[i] = (SMREntry) ((List) entries).get(i);
+                    // TODO: get real serialization size available, somehow.
+                    numBytes += 50;
+                }
+                CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
+                        author, checkpointID, mdKV, e);
+                long pos = sv.append(cp, null, null);
+                continuationAddresses.add(pos);
+                numEntries++;
+            });
         rt.getObjectsView().TXAbort();
         return continuationAddresses;
     }
