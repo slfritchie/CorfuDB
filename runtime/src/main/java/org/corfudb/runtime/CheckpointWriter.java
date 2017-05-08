@@ -77,6 +77,20 @@ public class CheckpointWriter {
         sv = new BackpointerStreamView(rt, streamID);
     }
 
+    /** Static method for all steps necessary to append checkpoint
+     *  data for an SMRMap into its own stream.
+     */
+
+    public static List<Long> appendCheckpoint(CorfuRuntime rt, UUID streamID, String author, SMRMap map) {
+        List<Long> addrs = new ArrayList<>();
+        CheckpointWriter cpw = new CheckpointWriter(rt, streamID, author, map);
+
+        addrs.add(cpw.startCheckpoint());
+        addrs.addAll(cpw.appendObjectState());
+        addrs.add(cpw.finishCheckpoint());
+        return addrs;
+    }
+
     /** Append a checkpoint START record to this object's stream.
      *
      * @return Global log address of the START record.
@@ -113,7 +127,7 @@ public class CheckpointWriter {
      * @return Stream of global log addresses of the
      * CONTINUATION records written.
      */
-    public List<Long> writeObjectState() {
+    public List<Long> appendObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         List<Long> continuationAddresses = new ArrayList<>();
 

@@ -202,7 +202,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
          * Current implementation of a CP's log replay will include
          * all CP data plus one DATA entry from the last map mutation
          * plus any other DATA entries that were written concurrently
-         * with the CP.  We will later check the values of the
+         * with the CP.  Later, we check the values of the
          * keyPrefix keys, and we wish to observe the CHECKPOINT
          * version of those keys, not DATA.
          */
@@ -216,7 +216,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
         // Write all CP data.
         long startAddress = cpw.startCheckpoint();
-        List<Long> continuationAddrs = cpw.writeObjectState();
+        List<Long> continuationAddrs = cpw.appendObjectState();
         long endAddress = cpw.finishCheckpoint();
         /* System.err.printf("DBG: wrote %d CP records\n", 1 + continuationAddrs.size() + 1); */
 
