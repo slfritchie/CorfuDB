@@ -99,11 +99,12 @@ public class CheckpointWriter {
      */
     public List<Long> writeObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
-        List<Long> continuationAddresses = new ArrayList<Long>();
+        List<Long> continuationAddresses = new ArrayList<>();
         map.keySet().stream().forEach(k -> {
-            SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
+            // Alloc new array each time to avoid mutation races
+            SMREntry entries[] = new SMREntry[1];
             entries[0] = new SMREntry("put",
-                    (Object[]) new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
+                    new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
                     Serializers.JSON);
             CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                     author, checkpointID, mdKV, entries);
