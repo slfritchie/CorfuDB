@@ -49,8 +49,7 @@ public class CheckpointEntry extends LogEntry {
     public enum CheckpointEntryType {
         START(1),           // Mandatory: 1st record in checkpoint
         CONTINUATION(2),    // Optional: 2nd through (n-1)th record
-        END(3),             // Mandatory: for successful checkpoint
-        FAIL(4);            // Optional: external party declares this checkpoint has failed
+        END(3);             // Mandatory: for successful checkpoint
 
         public final int type;
 
