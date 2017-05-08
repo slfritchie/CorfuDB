@@ -2,6 +2,7 @@ package org.corfudb.runtime;
 
 import com.google.common.collect.ImmutableMap;
 import lombok.Getter;
+import lombok.Setter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.collections.SMRMap;
@@ -13,10 +14,9 @@ import org.corfudb.runtime.view.stream.BackpointerStreamView;
 import org.corfudb.util.serializer.Serializers;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /** Checkpoint writer for SMRMaps: take a snapshot of the
@@ -37,6 +37,9 @@ public class CheckpointWriter {
     private long startAddress, endAddress;
     private long numEntries = 0, numBytes = 0;
     Map<String, String> mdKV = new HashMap<>();
+    @Getter
+    @Setter
+    Function<Object,Object> mutator = (x) -> x;
 
     /** Local ref to the object's runtime.
      */
@@ -87,38 +90,20 @@ public class CheckpointWriter {
      * @return Stream of global log addresses of the
      * CONTINUATION records written.
      */
-    public Stream<Long> writeObjectState() {
+    public List<Long> writeObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
-        Stream<Long> continuationAddresses =
-                map.keySet().stream().map(k -> {
-                    SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
-                    // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
-                    entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
-                    ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
-                    CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
-                            author, checkpointID, mdKV, entries);
-                    long pos = sv.append(cp, null, null);
-                    System.err.printf("*#*# wrote CONTINUATION at %d\n", pos);
-                    numEntries++;
-                    // numBytes is an estimate.  TODO: get real serialization size available, somehow.
-                    numBytes += 50;
-                    return pos;
-                });
-        // WOW, this stream processing is lazy!  If I uncomment
-        // this forEach calculations, then I see output that is
-        // interspersed with the printf() inside the map above.
-        // System.err.printf("where = "); continuationAddresses.forEach(pos -> { System.err.printf("%d,", pos); }); System.err.printf("\n");
-        /****
-        where = *#*# wrote CONTINUATION at 7
-        7,*#*# wrote CONTINUATION at 8
-        8,*#*# wrote CONTINUATION at 9
-        9,*#*# wrote CONTINUATION at 10
-        10,*#*# wrote CONTINUATION at 11
-        11,*#*# wrote CONTINUATION at 12
-        12,
-         ****/
-        System.err.printf("continuation count = %d", continuationAddresses.count());
-
+        List<Long> continuationAddresses = new ArrayList<Long>();
+        map.keySet().stream().forEach(k -> {
+            SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
+            entries[0] = new SMREntry("put", (Object[]) new Object[]{k, mutator.apply(map.get(k)) }, Serializers.JSON);
+            CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
+                    author, checkpointID, mdKV, entries);
+            long pos = sv.append(cp, null, null);
+            continuationAddresses.add(pos);
+            numEntries++;
+            // numBytes is an estimate.  TODO: get real serialization size available, somehow.
+            numBytes += 50;
+        });
         rt.getObjectsView().TXAbort();
         return continuationAddresses;
     }

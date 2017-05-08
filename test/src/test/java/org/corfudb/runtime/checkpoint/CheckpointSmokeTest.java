@@ -199,27 +199,40 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         final String keyPrefix = "a-prefix";
         final int numKeys = 5;
         final String author = "Me, myself, and I";
+        final Long fudgeFactor = 75L;
 
         Map<String, Long> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefix + Integer.toString(i), (long) i);
         }
+        /*
+         * Current implementation of a CP's log replay will include
+         * all CP data plus one DATA entry from the last map mutation
+         * plus any other DATA entries that were written concurrently
+         * with the CP.  We will later check the values of the
+         * keyPrefix keys, and we wish to observe the CHECKPOINT
+         * version of those keys, not DATA.
+         */
         m.put("just one more", 0L);
+
+        // Set up CP writer.  Add fudgeFactor to all CP data,
+        // also used for assertion checks later.
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
-        cpw.startCheckpoint();
-        Stream<Long> cannotUse_alreadyConsumed = cpw.writeObjectState();
-        /******
-        Stream<Long> where = cpw.writeObjectState();
-        System.err.printf("where = "); where.forEach(pos -> { System.err.printf("%d,", pos); }); System.err.printf("\n");
-         ******/
+        cpw.setMutator((l) -> (Long) l + fudgeFactor);
+
+        // Write all CP data.
+        long startAddress = cpw.startCheckpoint();
+        List<Long> continuationAddrs = cpw.writeObjectState();
         long endAddress = cpw.finishCheckpoint();
 
+        // Instantiate new runtime & map.  All map entries (except 'just one more')
+        // should have fudgeFactor added.
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
-        System.err.printf("m2 = %s\n", m2.toString());
+        /* System.err.printf("m2 = %s\n", m2.toString()); */
         for (int i = 0; i < numKeys; i++) {
             assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
-                    .isEqualTo(i + 77);
+                    .isEqualTo(i + fudgeFactor);
         }
     }
 
