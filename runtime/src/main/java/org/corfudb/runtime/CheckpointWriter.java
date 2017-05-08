@@ -60,6 +60,8 @@ public class CheckpointWriter {
     /** BiConsumer to run after every CheckpointEntry is appended
      * to the stream
      */
+    @Getter
+    @Setter
     BiConsumer<CheckpointEntry,Long> postAppendFunc = (cp, l) -> {};
 
     /** Local ref to the object's runtime.
@@ -176,7 +178,7 @@ public class CheckpointWriter {
                 CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                         author, checkpointID, mdKV, e);
                 long pos = sv.append(cp, null, null);
-                postAppendFunc.accept(cp, startAddress);
+                postAppendFunc.accept(cp, pos);
                 continuationAddresses.add(pos);
                 numEntries++;
             });
