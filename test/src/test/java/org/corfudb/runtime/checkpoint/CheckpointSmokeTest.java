@@ -1,6 +1,8 @@
 package org.corfudb.runtime.checkpoint;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.google.common.collect.ImmutableMap;
 import com.google.common.reflect.TypeToken;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.SMREntry;
@@ -184,10 +186,12 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         testAssertions.accept(m3);
     }
 
+    /** Test the CheckpointWriter class, part 1.
+     */
     @Test
     @SuppressWarnings("checkstyle:magicnumber")
     public void checkpointWriterTest() throws Exception {
-        final String streamName = "mystream3";
+        final String streamName = "mystream4";
         final UUID streamId = CorfuRuntime.getStreamID(streamName);
         final String keyPrefix = "a-prefix";
         final int numKeys = 5;
@@ -227,6 +231,79 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         for (int i = 0; i < numKeys; i++) {
             assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
                     .isEqualTo(i + fudgeFactor);
+        }
+    }
+
+    static long middleTracker;
+
+    /** Test the CheckpointWriter class, part 2.
+     */
+    @Test
+    @SuppressWarnings("checkstyle:magicnumber")
+    public void checkpointWriterInterleavedTest() throws Exception {
+        final String streamName = "mystream3";
+        final UUID streamId = CorfuRuntime.getStreamID(streamName);
+        final String keyPrefixFirst = "first";
+        final String keyPrefixMiddle = "middle";
+        final String keyPrefixLast = "last";
+        final int numKeys = 3;
+        final String author = "Me, myself, and I";
+        Map<String,Long> snapshot = new HashMap<>();
+        // We assume that we start at global address 0.
+        List<Map<String,Long>> history = new ArrayList<>();
+
+        // Instantiate map and write first keys
+        Map<String, Long> m = instantiateMap(streamName);
+        for (int i = 0; i < numKeys; i++) {
+            String key = keyPrefixFirst + Integer.toString(i);
+            m.put(key, (long) i);
+            snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
+        }
+
+        // Set up CP writer, with interleaved writes for middle keys
+        middleTracker = -1;
+        CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
+        cpw.setBatchSize(1);
+        cpw.setPostAppendFunc((cp, pos) -> {
+            if (cp.getCpType() == CheckpointEntry.CheckpointEntryType.CONTINUATION) {
+                if (middleTracker < 0) {
+                    middleTracker = 0;
+                }
+                System.err.printf("dbg: Wrote CP %s to pos %d\n", cp.getCpType(), pos);
+                String k = keyPrefixMiddle + Long.toString(middleTracker);
+                System.err.printf("dbg: middle key = %s\n", k);
+                m.put(k, middleTracker);
+                snapshot.put(k, (long) middleTracker); history.add(ImmutableMap.copyOf(snapshot));
+                middleTracker++;
+            } else {
+                // No mutation, be we need to add a history snapshot at this START/END location.
+                System.err.printf("dbg: snapshot copy for %s at %d\n", cp.getCpType(), pos);
+                history.add(ImmutableMap.copyOf(snapshot));
+            }
+        });
+
+        // Write all CP data.
+        long startAddress = cpw.startCheckpoint();
+        List<Long> continuationAddrs = cpw.appendObjectState();
+        long endAddress = cpw.finishCheckpoint();
+        System.err.printf("DBG: wrote %d CP records\n", 1 + continuationAddrs.size() + 1);
+
+        // Write last keys
+        for (int i = 0; i < numKeys; i++) {
+            String key = keyPrefixLast + Integer.toString(i);
+            m.put(key, (long) i);
+            snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
+        }
+        history.stream().forEach(h -> System.err.printf("h = %s\n", h));
+        System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
+
+        // Instantiate new runtime & map.  All map entries (except 'just one more')
+        // should have fudgeFactor added.
+        setRuntime();
+        Map<String, Long> m2 = instantiateMap(streamName);
+        for (int i = 0; i < numKeys; i++) {
+            assertThat(m2.get(keyPrefixFirst + Integer.toString(i))).describedAs("get " +keyPrefixFirst + " " + i)
+                    .isEqualTo(i);
         }
     }
 
