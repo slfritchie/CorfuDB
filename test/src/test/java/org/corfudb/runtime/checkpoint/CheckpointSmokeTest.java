@@ -98,7 +98,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         assertThat(m.get(key3)).isEqualTo(key3Val);
         assertThat(m.get(key7)).isNull();
         assertThat(m.get(key8)).isNull();
-        System.err.printf("m = %s\n", m.toString());
 
         // Make a new runtime & map, then look for expected bad behavior
         setRuntime();
@@ -108,7 +107,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         assertThat(m2.get(key3)).isEqualTo(key3Val);
         assertThat(m2.get(key7)).isEqualTo(key7Val);
         assertThat(m2.get(key8)).isEqualTo(key8Val);
-        System.err.printf("m2 = %s\n", m2.toString());
     }
 
     /** Second smoke test, steps:
@@ -176,12 +174,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefixLast + Integer.toString(i), (long) i);
         }
-        System.err.printf("m = %s\n", m.toString());
 
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
         testAssertions.accept(m2);
-        System.err.printf("m2 = %s\n", m2.toString());
 
         // Write incomplete checkpoint (no END record) with key7 and key8 values
         // different than testAssertions() expects.  The incomplete CP should
@@ -195,7 +191,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         setRuntime();
         Map<String, Long> m3 = instantiateMap(streamName);
         testAssertions.accept(m3);
-        System.err.printf("m3 = %s\n", m3.toString());
     }
 
     @Test
@@ -210,25 +205,15 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         Map<String, Long> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefix + Integer.toString(i), (long) i);
-            System.err.printf("m[%s%d] = %d\n", keyPrefix, i, m.get(keyPrefix + Integer.toString(i)));
         }
+        m.put("just one more", 0L);
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.startCheckpoint();
         cpw.writeObjectState();
         long endAddress = cpw.finishCheckpoint();
-        System.err.printf("m = %s\n", m.toString());
 
-        /****
-        Thread t = new Thread(() -> {try { setRuntime(); } catch (Exception e) {System.err.printf("\n\n\nWHOA\n\n\n");} Map<String, Long> mt = instantiateMap(streamName); System.err.printf("mt = %s\n", mt.toString());});
-        t.run();
-        t.join();
-         ****/
-
-        System.err.printf("r = %s\n", r);
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
-        System.err.printf("r = %s\n", r);
-        System.err.printf("m2 = %s\n", m2.toString());
         for (int i = 0; i < numKeys; i++) {
             assertThat(m2.get(keyPrefix + Integer.toString(i))).describedAs("get " + i)
                     .isEqualTo(i + 77);

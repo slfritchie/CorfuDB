@@ -55,7 +55,6 @@ public class CheckpointWriter {
         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                 author, checkpointID, mdKV, null);
         startAddress = sv.append(cp, null, null);
-        System.err.printf("DBG: START's address %d, txBeginGlobalAddress %d\n", startAddress, txBeginGlobalAddress);
         return startAddress;
     }
 
@@ -71,7 +70,6 @@ public class CheckpointWriter {
             long pos = sv.append(cp, null, null);
             numEntries++;
             // TODO: numBytes += mumbleMumble;
-            System.err.printf("Appended CP at %d (%s %d)\n", pos, k, map.get(k));
         });
         rt.getObjectsView().TXAbort();
     }
@@ -88,7 +86,6 @@ public class CheckpointWriter {
             CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
                     author, checkpointID, mdKV, null);
             endAddress = sv.append(cp, null, null);
-            System.err.printf("DBG: END's address %d\n", endAddress);
             return endAddress;
         } finally {
             try {

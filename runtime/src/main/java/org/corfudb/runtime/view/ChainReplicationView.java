@@ -61,10 +61,8 @@ public class ChainReplicationView extends AbstractReplicationView {
 
             LogData ld;
             if (data instanceof CheckpointEntry) {
-                System.err.printf("write CHECKPOINT at %s\n", streamAddresses);
                 ld = new LogData(DataType.CHECKPOINT, b);
             } else {
-                System.err.printf("write DATA at %s\n", streamAddresses);
                 ld = new LogData(DataType.DATA, b);
             }
             ld.setBackpointerMap(backpointerMap);

@@ -121,7 +121,6 @@ public class CheckpointEntry extends LogEntry {
                 LogData l = new LogData(DataType.CHECKPOINT);
                 e.setEntry(l);
                 smrEntries[i] = e;
-                System.err.printf("--Deserialize: smrEntry %s\n", e);
             }
         }
     }
