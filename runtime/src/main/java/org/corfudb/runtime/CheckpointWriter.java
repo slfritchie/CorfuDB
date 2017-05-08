@@ -80,21 +80,53 @@ public class CheckpointWriter {
         return startAddress;
     }
 
-    public void writeObjectState() {
+    /** Append zero or more CONTINUATION records to this
+     *  object's stream.  Each will contain a fraction of
+     *  the state of the object that we're checkpointing.
+     *
+     * @return Stream of global log addresses of the
+     * CONTINUATION records written.
+     */
+    public Stream<Long> writeObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
-        map.keySet().stream().forEach(k -> {
-            SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
-            // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
-            entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
-            ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
-            CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
-                    author, checkpointID, mdKV, entries);
-            long pos = sv.append(cp, null, null);
-            numEntries++;
-            // TODO: numBytes += mumbleMumble;
-        });
+        Stream<Long> continuationAddresses =
+                map.keySet().stream().map(k -> {
+                    SMREntry entries[] = new SMREntry[1]; // Alloc new array each time to avoid reuse evil
+                    // entries[0] = new SMREntry("put", (Object[]) new Object[]{ k, map.get(k) }, Serializers.JSON);
+                    entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Long) map.get(k)) + 77 }, Serializers.JSON);
+                    ///// entries[0] = new SMREntry("put", (Object[]) new Object[]{k, ((Integer) map.get(k)) + 77 }, Serializers.JSON);
+                    CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
+                            author, checkpointID, mdKV, entries);
+                    long pos = sv.append(cp, null, null);
+                    System.err.printf("*#*# wrote CONTINUATION at %d\n", pos);
+                    numEntries++;
+                    // numBytes is an estimate.  TODO: get real serialization size available, somehow.
+                    numBytes += 50;
+                    return pos;
+                });
+        // WOW, this stream processing is lazy!  If I uncomment
+        // this forEach calculations, then I see output that is
+        // interspersed with the printf() inside the map above.
+        // System.err.printf("where = "); continuationAddresses.forEach(pos -> { System.err.printf("%d,", pos); }); System.err.printf("\n");
+        /****
+        where = *#*# wrote CONTINUATION at 7
+        7,*#*# wrote CONTINUATION at 8
+        8,*#*# wrote CONTINUATION at 9
+        9,*#*# wrote CONTINUATION at 10
+        10,*#*# wrote CONTINUATION at 11
+        11,*#*# wrote CONTINUATION at 12
+        12,
+         ****/
+        System.err.printf("continuation count = %d", continuationAddresses.count());
+
         rt.getObjectsView().TXAbort();
+        return continuationAddresses;
     }
+
+    /** Append a checkpoint END record to this object's stream.
+     *
+     * @return Global log address of the END record.
+     */
 
     public long finishCheckpoint() {
         LocalDateTime endTime = LocalDateTime.now();

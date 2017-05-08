@@ -20,11 +20,9 @@ import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Basic smoke tests for checkpoint-in-stream PoC.
@@ -209,7 +207,11 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         m.put("just one more", 0L);
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.startCheckpoint();
-        cpw.writeObjectState();
+        Stream<Long> cannotUse_alreadyConsumed = cpw.writeObjectState();
+        /******
+        Stream<Long> where = cpw.writeObjectState();
+        System.err.printf("where = "); where.forEach(pos -> { System.err.printf("%d,", pos); }); System.err.printf("\n");
+         ******/
         long endAddress = cpw.finishCheckpoint();
 
         setRuntime();
