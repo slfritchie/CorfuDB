@@ -1,6 +1,7 @@
 package org.corfudb.runtime;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
 import lombok.Getter;
 import lombok.Setter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
@@ -100,7 +101,10 @@ public class CheckpointWriter {
     public List<Long> writeObjectState() {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         List<Long> continuationAddresses = new ArrayList<>();
-        map.keySet().stream().forEach(k -> {
+        List<CheckpointEntry> acc = new ArrayList<>();
+        List<CheckpointEntry> accFinal;
+
+        Iterators.partition(map.keySet().stream().map(k -> {
             // Alloc new array each time to avoid mutation races
             SMREntry entries[] = new SMREntry[1];
             entries[0] = new SMREntry("put",
@@ -108,14 +112,21 @@ public class CheckpointWriter {
                     Serializers.JSON);
             CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                     author, checkpointID, mdKV, entries);
+            return cp;
+            /*********
             long pos = sv.append(cp, null, null);
             continuationAddresses.add(pos);
             numEntries++;
             // TODO: get real serialization size available, somehow.
             numBytes += 50;
-        });
+             **********/
+        }).iterator(), 2).forEachRemaining(x -> System.err.printf("x = %s\n", x));
         rt.getObjectsView().TXAbort();
         return continuationAddresses;
+    }
+
+    public static List<CheckpointEntry> reduceFunc(List<CheckpointEntry> cps) {
+        return cps;
     }
 
     /** Append a checkpoint END record to this object's stream.
