@@ -320,6 +320,16 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
 
         for (int globalAddr = 0; globalAddr < history.size(); globalAddr++) {
+            // Calculate expected results
+            Map<String,Long> expectedHistory;
+            if (globalAddr <= startAddress) {
+                // Detailed history prior to startAddress is lost.
+                // The summary is the only thing available.
+                expectedHistory = history.get((int) startAddress);
+            } else {
+                expectedHistory = history.get(globalAddr);
+            }
+
             // Instantiate new runtime & map.
             setRuntime();
             Map<String, Long> m2 = instantiateMap(streamName);
@@ -330,11 +340,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
             ICorfuSMR goo = (ICorfuSMR) m2;
             System.err.printf("global log addr %d:\n", globalAddr);
-            System.err.printf("h = %s\n", history.get(globalAddr).entrySet());
+            System.err.printf("h = %s\n", expectedHistory.entrySet());
             System.err.printf("m2= %s\n", m2.entrySet());
-            System.err.printf("Hmm getVersion = %d\n", ((ICorfuSMR) m2).getCorfuSMRProxy().getVersion());
             System.err.printf("\n");
-            assertThat(m2.entrySet()).isEqualTo(history.get(globalAddr).entrySet());
+            assertThat(m2.entrySet()).isEqualTo(expectedHistory.entrySet());
             r.getObjectsView().TXAbort();
         }
     }
