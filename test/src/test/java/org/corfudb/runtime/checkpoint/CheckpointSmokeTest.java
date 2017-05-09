@@ -273,12 +273,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         CheckpointWriter cpw = new CheckpointWriter(getRuntime(), streamId, author, (SMRMap) m);
         cpw.setBatchSize(1);
         cpw.setPostAppendFunc((cp, pos) -> {
-            if (cp.getCpType() == CheckpointEntry.CheckpointEntryType.CONTINUATION) {
-                System.err.printf("dbg: Wrote CP %s to pos %d\n", cp.getCpType(), pos);
-                // Save a history snapshot here: we've written a log entry,
-                // but the map hasn't changed.
-                history.add(ImmutableMap.copyOf(snapshot));
+            // No mutation, be we need to add a history snapshot at this START/END location.
+            history.add(ImmutableMap.copyOf(snapshot));
 
+            if (cp.getCpType() == CheckpointEntry.CheckpointEntryType.CONTINUATION) {
                 if (middleTracker < 0) {
                     middleTracker = 0;
                 }
@@ -286,18 +284,12 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                 // This lambda is executing in a Corfu txn that will be
                 // aborted.  We need a new thread to perform this put.
                 Thread t = new Thread(() -> {
-                    System.err.printf("New thread: put key %s\n", k);
                     m.put(k, middleTracker);
                     saveHist.accept(k, middleTracker);
-                    System.err.printf("New thread: put key %s, m = %s\n", k, m);
                 });
                 t.start();
                 try { t.join(); } catch (Exception e) { System.err.printf("BAD: exception %s\n", e); }
                 middleTracker++;
-            } else {
-                // No mutation, be we need to add a history snapshot at this START/END location.
-                System.err.printf("dbg: snapshot copy for %s at %d\n", cp.getCpType(), pos);
-                history.add(ImmutableMap.copyOf(snapshot));
             }
         });
 
@@ -305,7 +297,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         long startAddress = cpw.startCheckpoint();
         List<Long> continuationAddrs = cpw.appendObjectState();
         long endAddress = cpw.finishCheckpoint();
-        System.err.printf("DBG: wrote %d CP records\n", 1 + continuationAddrs.size() + 1);
 
         // Write last keys
         for (int i = 0; i < numKeys; i++) {
@@ -313,11 +304,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             m.put(key, (long) i);
             saveHist.accept(key, (long) i);
         }
-        // history.stream().forEach(h -> System.err.printf("h = %s\n", h));
-        // System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
 
+        // No matter where we take a snapshot of the log, a new
+        // map using that snapshot should equal our history map.
         for (int globalAddr = 0; globalAddr < history.size(); globalAddr++) {
-            // Calculate expected results
             Map<String,Long> expectedHistory;
             if (globalAddr <= startAddress) {
                 // Detailed history prior to startAddress is lost.
@@ -335,10 +325,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                     .setSnapshot(globalAddr)
                     .begin();
 
-            System.err.printf("global log addr %d:\n", globalAddr);
-            System.err.printf("h = %s\n", expectedHistory.entrySet());
-            System.err.printf("m2= %s\n", m2.entrySet());
-            System.err.printf("\n");
             assertThat(m2.entrySet()).isEqualTo(expectedHistory.entrySet());
             r.getObjectsView().TXAbort();
         }

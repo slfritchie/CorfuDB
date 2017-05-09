@@ -382,7 +382,6 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
             long currentTail = builder.runtime
                     .getSequencerView().nextToken(Collections.emptySet(), 0).getToken();
             log.trace("SnapshotTimestamp[{}] {}", this, currentTail);
-            System.err.printf("gaa obtainSnapshotTimestamp -> %d\n", currentTail);
             return currentTail;
         }
     }
