@@ -11,17 +11,14 @@ import org.corfudb.runtime.CheckpointWriter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.LogUnitClient;
 import org.corfudb.runtime.collections.SMRMap;
-import org.corfudb.runtime.object.ICorfuSMR;
-import org.corfudb.runtime.object.transactions.AbstractTransactionalContext;
-import org.corfudb.runtime.object.transactions.OptimisticTransactionalContext;
 import org.corfudb.runtime.object.transactions.TransactionType;
-import org.corfudb.runtime.object.transactions.TransactionalContext;
 import org.corfudb.runtime.view.AbstractViewTest;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -260,10 +257,15 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
         // Instantiate map and write first keys
         Map<String, Long> m = instantiateMap(streamName);
+        BiConsumer<String,Long> saveHist = ((k, v) -> {
+            snapshot.put(k, v);
+            history.add(ImmutableMap.copyOf(snapshot));
+
+        });
         for (int i = 0; i < numKeys; i++) {
             String key = keyPrefixFirst + Integer.toString(i);
             m.put(key, (long) i);
-            snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
+            saveHist.accept(key, (long) i);
         }
 
         // Set up CP writer, with interleaved writes for middle keys
@@ -273,6 +275,10 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         cpw.setPostAppendFunc((cp, pos) -> {
             if (cp.getCpType() == CheckpointEntry.CheckpointEntryType.CONTINUATION) {
                 System.err.printf("dbg: Wrote CP %s to pos %d\n", cp.getCpType(), pos);
+                // Save a history snapshot here: we've written a log entry,
+                // but the map hasn't changed.
+                history.add(ImmutableMap.copyOf(snapshot));
+
                 if (middleTracker < 0) {
                     middleTracker = 0;
                 }
@@ -282,11 +288,11 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                 Thread t = new Thread(() -> {
                     System.err.printf("New thread: put key %s\n", k);
                     m.put(k, middleTracker);
+                    saveHist.accept(k, middleTracker);
                     System.err.printf("New thread: put key %s, m = %s\n", k, m);
                 });
                 t.start();
                 try { t.join(); } catch (Exception e) { System.err.printf("BAD: exception %s\n", e); }
-                snapshot.put(k, (long) middleTracker); history.add(ImmutableMap.copyOf(snapshot));
                 middleTracker++;
             } else {
                 // No mutation, be we need to add a history snapshot at this START/END location.
@@ -305,7 +311,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         for (int i = 0; i < numKeys; i++) {
             String key = keyPrefixLast + Integer.toString(i);
             m.put(key, (long) i);
-            snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
+            saveHist.accept(key, (long) i);
         }
         // history.stream().forEach(h -> System.err.printf("h = %s\n", h));
         // System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
@@ -333,7 +339,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             System.err.printf("h = %s\n", expectedHistory.entrySet());
             System.err.printf("m2= %s\n", m2.entrySet());
             System.err.printf("\n");
-            // TODO put me back! assertThat(m2.entrySet()).isEqualTo(expectedHistory.entrySet());
+            assertThat(m2.entrySet()).isEqualTo(expectedHistory.entrySet());
             r.getObjectsView().TXAbort();
         }
     }
