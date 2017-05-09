@@ -284,7 +284,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                     m.put(k, middleTracker);
                     System.err.printf("New thread: put key %s, m = %s\n", k, m);
                 });
-                t.run();
+                t.start();
                 try { t.join(); } catch (Exception e) { System.err.printf("BAD: exception %s\n", e); }
                 snapshot.put(k, (long) middleTracker); history.add(ImmutableMap.copyOf(snapshot));
                 middleTracker++;
