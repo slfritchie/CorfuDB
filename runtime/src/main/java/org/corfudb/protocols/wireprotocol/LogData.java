@@ -97,7 +97,6 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
 
     public LogData(ByteBuf buf, EnumMap<LogUnitMetadataType, Object> metadataMap) {
         this.type = DataType.DATA;
-System.err.printf("TODO: new LogData const type DATA, needs fix?\n");
         this.data = byteArrayFromBuf(buf);
         this.metadataMap = metadataMap;
     }

@@ -239,7 +239,21 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
     static long middleTracker;
 
-    /** Test the CheckpointWriter class, part 2.
+    /** Test the CheckpointWriter class, part 2.  We write data to a
+     *  map before, during/interleaved with, and after a checkpoint
+     *  has been successfully completed.
+     *
+     *  Our sanity criteria: no matter where in the log, we use a
+     *  snapshot transaction to look at the map at that log
+     *  address ... a new map's contents should match exactly the
+     *  'snapshot' maps inside the 'history' that we created while
+     *  we updated the map.
+     *
+     *  The one exception is for snapshot TXN with an address prior
+     *  to the 'startAddress' of the checkpoint; stream history is
+     *  destroyed (logically, not physically) by the CP, so we have
+     *  to use a different position 'history' for our assertion
+     *  check.
      */
     @Test
     @SuppressWarnings("checkstyle:magicnumber")
@@ -254,14 +268,14 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         Map<String,Long> snapshot = new HashMap<>();
         // We assume that we start at global address 0.
         List<Map<String,Long>> history = new ArrayList<>();
-
-        // Instantiate map and write first keys
-        Map<String, Long> m = instantiateMap(streamName);
+        // Small DRY helper to avoid history tracking errors
         BiConsumer<String,Long> saveHist = ((k, v) -> {
             snapshot.put(k, v);
             history.add(ImmutableMap.copyOf(snapshot));
-
         });
+
+        // Instantiate map and write first keys
+        Map<String, Long> m = instantiateMap(streamName);
         for (int i = 0; i < numKeys; i++) {
             String key = keyPrefixFirst + Integer.toString(i);
             m.put(key, (long) i);
@@ -293,10 +307,14 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             }
         });
 
-        // Write all CP data.
+        // Write all CP data + interleaving middle map updates
         long startAddress = cpw.startCheckpoint();
         List<Long> continuationAddrs = cpw.appendObjectState();
         long endAddress = cpw.finishCheckpoint();
+        // Batch size is 1, so there should be 1 CONTINUATION
+        // entry for each of the numKeys put()s that we wrote
+        // for keyPrefixFirst.
+        assertThat(continuationAddrs.size()).isEqualTo(numKeys);
 
         // Write last keys
         for (int i = 0; i < numKeys; i++) {
