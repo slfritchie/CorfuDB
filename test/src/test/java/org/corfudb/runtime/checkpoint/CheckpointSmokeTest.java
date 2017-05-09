@@ -377,7 +377,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Write cp #1 of 3
         if (write1) {
             TokenResponse tokResp1 = r.getSequencerView().nextToken(Collections.singleton(streamId), 1);
-            long addr1 = tokResp1.getToken();
+            long addr1 = tokResp1.getToken().getTokenValue();
             Map<UUID, Long> bpMap1 = tokResp1.getBackpointerMap();
             mdKV.put("CP record #", "1 (for those keeping score)");
             mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(addr1));
@@ -393,7 +393,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Write cp #2 of 3
         if (write2) {
             TokenResponse tokResp2 = r.getSequencerView().nextToken(Collections.singleton(streamId), 1);
-            long addr2 = tokResp2.getToken();
+            long addr2 = tokResp2.getToken().getTokenValue();
             Map<UUID, Long> bpMap2 = tokResp2.getBackpointerMap();
             mdKV.put("More metadata", "Hello, world!");
             mdKV.put("CP record #", "2");
@@ -416,7 +416,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Write cp #3 of 3
         if (write3) {
             TokenResponse tokResp3 = r.getSequencerView().nextToken(Collections.singleton(streamId), 1);
-            long addr3 = tokResp3.getToken();
+            long addr3 = tokResp3.getToken().getTokenValue();
             Map<UUID, Long> bpMap3 = tokResp3.getBackpointerMap();
             mdKV.put("CP record #", "3");
             CheckpointEntry cp3 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
