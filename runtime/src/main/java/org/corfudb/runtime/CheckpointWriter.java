@@ -153,6 +153,12 @@ public class CheckpointWriter {
      *  map.keySet().stream() is not ideal, but at least
      *  it should be much smaller than the entire map.
      *
+     *  NOTE: The postAppendFunc lambda is executed in the
+     *  current thread context, i.e., inside of a Corfu
+     *  transaction, and that transaction will be *aborted*
+     *  at the end of this function.  Any Corfu data
+     *  modifying ops will be undone by the TXAbort().
+     *
      *  TX side-effect: We call TXAbort().
      *
      * @return Stream of global log addresses of the
