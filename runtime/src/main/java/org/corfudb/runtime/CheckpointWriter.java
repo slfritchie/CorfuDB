@@ -119,6 +119,7 @@ public class CheckpointWriter {
     }
 
     /** Append a checkpoint START record to this object's stream.
+     *  TX side-effect: We call TXBegin().
      *
      * @return Global log address of the START record.
      */
@@ -152,6 +153,8 @@ public class CheckpointWriter {
      *  map.keySet().stream() is not ideal, but at least
      *  it should be much smaller than the entire map.
      *
+     *  TX side-effect: We call TXAbort().
+     *
      * @return Stream of global log addresses of the
      * CONTINUATION records written.
      */
@@ -159,35 +162,34 @@ public class CheckpointWriter {
         ImmutableMap<String,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         List<Long> continuationAddresses = new ArrayList<>();
 
-        Iterators.partition(map.keySet().stream()
-            .map(k -> {
-                return new SMREntry("put",
-                        new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k)) },
-                        Serializers.JSON);
-        }).iterator(), batchSize)
-            .forEachRemaining(entries -> {
-                // Convert Object[] to SMREntry[], combined with byte count.
-                // java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Lorg.corfudb.protocols.logprotocol.SMREntry;
-                int numEntries = ((List) entries).size();
-                SMREntry e[] = new SMREntry[numEntries];
-                for (int i = 0; i < numEntries; i++) {
-                    e[i] = (SMREntry) ((List) entries).get(i);
-                    // TODO: get real serialization size available, somehow.
-                    numBytes += 50;
-                }
-                CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
-                        author, checkpointID, mdKV, e);
-                long pos = sv.append(cp, null, null);
-                postAppendFunc.accept(cp, pos);
-                continuationAddresses.add(pos);
-                numEntries++;
-            });
-        rt.getObjectsView().TXAbort();
+        try {
+            Iterators.partition(map.keySet().stream()
+                    .map(k -> {
+                        return new SMREntry("put",
+                                new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k))},
+                                Serializers.JSON);
+                    }).iterator(), batchSize)
+                    .forEachRemaining(entries -> {
+                        // Convert Object[] to SMREntry[], combined with byte count.
+                        // java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Lorg.corfudb.protocols.logprotocol.SMREntry;
+                        int numEntries = ((List) entries).size();
+                        SMREntry e[] = new SMREntry[numEntries];
+                        for (int i = 0; i < numEntries; i++) {
+                            e[i] = (SMREntry) ((List) entries).get(i);
+                            // TODO: get real serialization size available, somehow.
+                            numBytes += 50;
+                        }
+                        CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
+                                author, checkpointID, mdKV, e);
+                        long pos = sv.append(cp, null, null);
+                        postAppendFunc.accept(cp, pos);
+                        continuationAddresses.add(pos);
+                        numEntries++;
+                    });
+        } finally {
+            rt.getObjectsView().TXAbort();
+        }
         return continuationAddresses;
-    }
-
-    public static List<CheckpointEntry> reduceFunc(List<CheckpointEntry> cps) {
-        return cps;
     }
 
     /** Append a checkpoint END record to this object's stream.
