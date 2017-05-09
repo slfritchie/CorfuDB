@@ -11,6 +11,11 @@ import org.corfudb.runtime.CheckpointWriter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.clients.LogUnitClient;
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.object.ICorfuSMR;
+import org.corfudb.runtime.object.transactions.AbstractTransactionalContext;
+import org.corfudb.runtime.object.transactions.OptimisticTransactionalContext;
+import org.corfudb.runtime.object.transactions.TransactionType;
+import org.corfudb.runtime.object.transactions.TransactionalContext;
 import org.corfudb.runtime.view.AbstractViewTest;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
@@ -202,6 +207,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         for (int i = 0; i < numKeys; i++) {
             m.put(keyPrefix + Integer.toString(i), (long) i);
         }
+
         /*
          * Current implementation of a CP's log replay will include
          * all CP data plus one DATA entry from the last map mutation
@@ -259,6 +265,22 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             m.put(key, (long) i);
             snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
         }
+        for (int globalAddr = 0; globalAddr <= 2; globalAddr++) {
+            // Instantiate new runtime & map.
+            setRuntime();
+            Map<String, Long> m2 = instantiateMap(streamName);
+            r.getObjectsView().TXBuild()
+                    .setType(TransactionType.SNAPSHOT)
+                    .setSnapshot(globalAddr)
+                    .begin();
+
+            ICorfuSMR goo = (ICorfuSMR) m2;
+            System.err.printf("1st time: global log addr %d:\n", globalAddr);
+            System.err.printf("1st time: m2= %s\n", m2.entrySet());
+            System.err.printf("1st time: Hmm getVersion = %d\n", ((ICorfuSMR) m2).getCorfuSMRProxy().getVersion());
+            System.err.printf("\n");
+            r.getObjectsView().TXAbort();
+        }
 
         // Set up CP writer, with interleaved writes for middle keys
         middleTracker = -1;
@@ -294,16 +316,26 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             m.put(key, (long) i);
             snapshot.put(key, (long) i); history.add(ImmutableMap.copyOf(snapshot));
         }
-        history.stream().forEach(h -> System.err.printf("h = %s\n", h));
-        System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
+        // history.stream().forEach(h -> System.err.printf("h = %s\n", h));
+        // System.err.printf("At CP END:\nh = %s\n", history.get((int) endAddress));
 
-        // Instantiate new runtime & map.  All map entries (except 'just one more')
-        // should have fudgeFactor added.
-        setRuntime();
-        Map<String, Long> m2 = instantiateMap(streamName);
-        for (int i = 0; i < numKeys; i++) {
-            assertThat(m2.get(keyPrefixFirst + Integer.toString(i))).describedAs("get " +keyPrefixFirst + " " + i)
-                    .isEqualTo(i);
+        for (int globalAddr = 0; globalAddr < history.size(); globalAddr++) {
+            // Instantiate new runtime & map.
+            setRuntime();
+            Map<String, Long> m2 = instantiateMap(streamName);
+            r.getObjectsView().TXBuild()
+                    .setType(TransactionType.SNAPSHOT)
+                    .setSnapshot(globalAddr)
+                    .begin();
+
+            ICorfuSMR goo = (ICorfuSMR) m2;
+            System.err.printf("global log addr %d:\n", globalAddr);
+            System.err.printf("h = %s\n", history.get(globalAddr).entrySet());
+            System.err.printf("m2= %s\n", m2.entrySet());
+            System.err.printf("Hmm getVersion = %d\n", ((ICorfuSMR) m2).getCorfuSMRProxy().getVersion());
+            System.err.printf("\n");
+            assertThat(m2.entrySet()).isEqualTo(history.get(globalAddr).entrySet());
+            r.getObjectsView().TXAbort();
         }
     }
 
