@@ -64,7 +64,6 @@ public class StreamViewSMRAdapter implements ISMRStream {
     }
 
     public List<SMREntry> remainingUpTo(long maxGlobal) {
-        System.err.printf("StreamViewSMRAdaptor::remainingUpTo\n");
         return streamView.remainingUpTo(maxGlobal).stream()
                 .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
                 .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)
@@ -74,7 +73,6 @@ public class StreamViewSMRAdapter implements ISMRStream {
     }
 
     public List<SMREntry> current() {
-        System.err.printf("StreamViewSMRAdaptor::current\n");
         ILogData data = streamView.current();
         if (data != null) {
             if (data.getType() == DataType.DATA &&
@@ -88,7 +86,6 @@ public class StreamViewSMRAdapter implements ISMRStream {
     }
 
     public List<SMREntry> previous() {
-        System.err.printf("StreamViewSMRAdaptor::previous\n");
         ILogData data = streamView.previous();
         while (Address.isAddress(streamView.getCurrentGlobalPosition())
                 && data != null) {
@@ -122,7 +119,6 @@ public class StreamViewSMRAdapter implements ISMRStream {
 
     @Override
     public Stream<SMREntry> streamUpTo(long maxGlobal) {
-        System.err.printf("StreamViewSMRAdaptor::streamUpTo %d\n", maxGlobal);
         return streamView.streamUpTo(maxGlobal)
                 .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
                 .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)

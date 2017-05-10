@@ -321,8 +321,6 @@ public interface ICorfuPayload<T> {
             buffer.writeLong(rank.getRank());
             buffer.writeLong(rank.getUuid().getMostSignificantBits());
             buffer.writeLong(rank.getUuid().getLeastSignificantBits());
-        } else if (payload instanceof CheckpointEntry) {
-            System.err.printf("TODO fixme, CheckpointEntry serialization games\n");
         }
         else {
             throw new RuntimeException("Unknown class " + payload.getClass()

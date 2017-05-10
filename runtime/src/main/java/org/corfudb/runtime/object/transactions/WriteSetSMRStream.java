@@ -121,7 +121,6 @@ public class WriteSetSMRStream implements ISMRStream {
 
     @Override
     public List<SMREntry> remainingUpTo(long maxGlobal) {
-        System.err.printf("WriteSetSMRStream::remainingUpTo\n");
         // Check for any new contexts
         if (TransactionalContext.getTransactionStack().size() >
                 contexts.size()) {
@@ -215,7 +214,6 @@ public class WriteSetSMRStream implements ISMRStream {
 
     @Override
     public Stream<SMREntry> streamUpTo(long maxGlobal) {
-        System.err.printf("WriteSetSMRStream::streamUpTo\n");
         return remainingUpTo(maxGlobal)
                 .stream();
     }

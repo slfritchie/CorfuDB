@@ -98,9 +98,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Make a new runtime & map, then look for expected bad behavior
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
-        System.err.printf("get(key1)\n");
         assertThat(m2.get(key1)).isNull();
-        System.err.printf("get(key2)\n");
         assertThat(m2.get(key2)).isNull();
         assertThat(m2.get(key3)).isEqualTo(key3Val);
         assertThat(m2.get(key7)).isEqualTo(key7Val);

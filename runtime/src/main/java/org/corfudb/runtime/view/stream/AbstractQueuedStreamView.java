@@ -66,27 +66,23 @@ public abstract class AbstractQueuedStreamView extends
     @Override
     protected ILogData getNextEntry(QueuedStreamContext context,
                                     long maxGlobal) {
-        System.err.printf("AbstractQueuedStreamView::getNextEntry %d context %s\n", maxGlobal, context);
 
         // If we have no entries to read, fill the read queue.
         // Return if the queue is still empty.
         if (context.readQueue.isEmpty() &&
                 !fillReadQueue(maxGlobal, context)) {
-            System.err.printf("    AbstractQueuedStreamView::getNextEntry %d return NULL 1\n", maxGlobal);
             return null;
         }
 
         if (context.readCpList.size() > 0) {
             ILogData ld = context.readCpList.remove(0);
             long thisRead = ld.getGlobalAddress();
-            System.err.printf("    AbstractQueuedStreamView::getNextEntry %d return CP ld @ addr %d\n", maxGlobal, thisRead);
             return ld;
         }
 
         // If the lowest element is greater than maxGlobal, there's nothing
         // to return.
         if (context.readQueue.first() > maxGlobal) {
-            System.err.printf("    AbstractQueuedStreamView::getNextEntry %d return NULL 2\n", maxGlobal);
             return null;
         }
 
@@ -97,7 +93,6 @@ public abstract class AbstractQueuedStreamView extends
             final long thisRead = context.readQueue.pollFirst();
             ILogData ld = read(thisRead);
             if (ld.containsStream(context.id)) {
-                System.err.printf("    AbstractQueuedStreamView::getNextEntry %d return ld @ addr %d\n", maxGlobal, thisRead);
                 addToResolvedQueue(context, thisRead, ld);
                 return ld;
             }
@@ -105,7 +100,6 @@ public abstract class AbstractQueuedStreamView extends
 
         // None of the potential reads ended up being part of this
         // stream, so we return null.
-        System.err.printf("    AbstractQueuedStreamView::getNextEntry %d return NULL 3\n", maxGlobal);
         return null;
     }
 
@@ -118,7 +112,6 @@ public abstract class AbstractQueuedStreamView extends
     @Override
     protected List<ILogData> getNextEntries(QueuedStreamContext context, long maxGlobal,
                                             Function<ILogData, Boolean> contextCheckFn) {
-        System.err.printf("AbstractQueuedStreamView::getNextEntries\n");
         // The list to store read results in
         List<ILogData> readFromCP;
 
