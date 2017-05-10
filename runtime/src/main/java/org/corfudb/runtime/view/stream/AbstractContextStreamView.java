@@ -113,6 +113,7 @@ public abstract class AbstractContextStreamView<T extends AbstractStreamContext>
      */
     @Override
     final public synchronized ILogData nextUpTo(final long maxGlobal) {
+        System.err.printf("AbstractContextStreamView::nextUpTo %d\n", maxGlobal);
         // Don't do anything if we've already exceeded the global
         // pointer.
         if (getCurrentContext().globalPointer > maxGlobal) {
@@ -152,6 +153,7 @@ public abstract class AbstractContextStreamView<T extends AbstractStreamContext>
      */
     @Override
     public final synchronized List<ILogData> remainingUpTo(long maxGlobal) {
+        System.err.printf("AbstractContextStreamView::remainingUpTo\n");
 
         // Pop the context if it has changed.
         if (getCurrentContext().globalPointer >=

@@ -73,7 +73,7 @@ public class CheckpointEntry extends LogEntry {
      *  May be present in any CheckpointEntryType, but typically
      *  used by CONTINUATION entries.
      */
-    @Getter
+    @Getter @Setter
     SMREntry[] smrEntries = null;
 
     public CheckpointEntry(CheckpointEntryType type, String authorID, UUID checkpointID,

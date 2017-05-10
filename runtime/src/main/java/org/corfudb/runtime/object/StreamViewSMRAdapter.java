@@ -46,32 +46,36 @@ public class StreamViewSMRAdapter implements ISMRStream {
         this.streamView = streamView;
     }
 
+    private List<SMREntry> dataAndCheckpointMapper(ILogData logData) {
+        if (logData.getType() == DataType.DATA) {
+            return ((ISMRConsumable) logData.getPayload(runtime)).getSMRUpdates(streamView.getID());
+        } else {
+            // This is a CHECKPOINT record.  Extract the SMREntries, if any.
+            CheckpointEntry cp = (CheckpointEntry) logData.getPayload(runtime);
+            // TODO If housekeeping requires access to metadata in this record, do it here
+            if (cp.getSmrEntries() != null && cp.getSmrEntries().length > 0) {
+                List<SMREntry> consumables = new ArrayList<>();
+                Collections.addAll(consumables, cp.getSmrEntries());
+                cp.setSmrEntries(null); // TODO wise?
+                return consumables;
+            } else {
+                return (List<SMREntry>) Collections.EMPTY_LIST;
+            }
+        }
+    }
+
     public List<SMREntry> remainingUpTo(long maxGlobal) {
+        System.err.printf("StreamViewSMRAdaptor::remainingUpTo\n");
         return streamView.remainingUpTo(maxGlobal).stream()
                 .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
                 .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)
-                .map(logData -> {
-                    if (logData.getType() == DataType.DATA) {
-                        return ((ISMRConsumable) logData.getPayload(runtime)).getSMRUpdates(streamView.getID());
-                    } else {
-                        // We are a CHECKPOINT record.
-                        // Pull ISMRConsumable thingies out of bulk.
-                        CheckpointEntry cp = (CheckpointEntry) logData.getPayload(runtime);
-                        // TODO If housekeeping requires access to metadata in this record, do it here
-                        if (cp.getSmrEntries() != null && cp.getSmrEntries().length > 0) {
-                            List<SMREntry> consumables = new ArrayList<>();
-                            Collections.addAll(consumables, cp.getSmrEntries());
-                            return consumables;
-                        } else {
-                            return (List<SMREntry>) Collections.EMPTY_LIST;
-                        }
-                    }
-                } )
+                .map(this::dataAndCheckpointMapper)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
 
     public List<SMREntry> current() {
+        System.err.printf("StreamViewSMRAdaptor::current\n");
         ILogData data = streamView.current();
         if (data != null) {
             if (data.getType() == DataType.DATA &&
@@ -85,6 +89,7 @@ public class StreamViewSMRAdapter implements ISMRStream {
     }
 
     public List<SMREntry> previous() {
+        System.err.printf("StreamViewSMRAdaptor::previous\n");
         ILogData data = streamView.previous();
         while (Address.isAddress(streamView.getCurrentGlobalPosition())
                 && data != null) {
@@ -118,10 +123,11 @@ public class StreamViewSMRAdapter implements ISMRStream {
 
     @Override
     public Stream<SMREntry> streamUpTo(long maxGlobal) {
+        System.err.printf("StreamViewSMRAdaptor::streamUpTo %d\n", maxGlobal);
         return streamView.streamUpTo(maxGlobal)
-                .filter(m -> m.getType() == DataType.DATA)
-                .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable)
-                .map(logData -> ((ISMRConsumable)logData.getPayload(runtime)).getSMRUpdates(streamView.getID()))
+                .filter(m -> m.getType() == DataType.DATA || m.getType() == DataType.CHECKPOINT)
+                .filter(m -> m.getPayload(runtime) instanceof ISMRConsumable || m.getType() == DataType.CHECKPOINT)
+                .map(this::dataAndCheckpointMapper)
                 .flatMap(List::stream);
     }
 

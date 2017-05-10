@@ -3,6 +3,7 @@ package org.corfudb.protocols.wireprotocol;
 import com.google.common.collect.*;
 import com.google.common.reflect.TypeToken;
 import io.netty.buffer.ByteBuf;
+import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.runtime.view.Layout;
 import org.corfudb.util.JSONUtils;
 
@@ -320,6 +321,8 @@ public interface ICorfuPayload<T> {
             buffer.writeLong(rank.getRank());
             buffer.writeLong(rank.getUuid().getMostSignificantBits());
             buffer.writeLong(rank.getUuid().getLeastSignificantBits());
+        } else if (payload instanceof CheckpointEntry) {
+            System.err.printf("TODO fixme, CheckpointEntry serialization games\n");
         }
         else {
             throw new RuntimeException("Unknown class " + payload.getClass()

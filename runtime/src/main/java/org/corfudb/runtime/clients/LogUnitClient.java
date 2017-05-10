@@ -257,7 +257,20 @@ public class LogUnitClient implements IClient {
      *                  write completes.
      */
     public CompletableFuture<Boolean> write(ILogData payload) {
+        /* TODO fixme: return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(new WriteRequest(payload))); */
+        System.err.printf("TODO -> FIXME LogUnitClient::write\n");
         return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(new WriteRequest(payload)));
+
+        /*****
+        WriteRequest wr;
+        if (payload.getPayload() instanceof CheckpointEntry) {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.CHECKPOINT, null, payload);
+        } else {
+            wr = new WriteRequest(WriteMode.NORMAL, DataType.DATA,null, payload);
+        }
+
+        return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(wr));
+         ******/
     }
 
     public CompletableFuture<Boolean> writeCheckpoint(long address, Set<UUID> streams, IMetadata.DataRank rank,
