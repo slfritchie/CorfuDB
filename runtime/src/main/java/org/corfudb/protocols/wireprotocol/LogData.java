@@ -130,6 +130,12 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
         this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
     }
 
+    public LogData(final DataType type, final ByteBuf buf) {
+        this.type = type;
+        this.data = byteArrayFromBuf(buf);
+        this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
+    }
+
     public byte[] byteArrayFromBuf(final ByteBuf buf) {
         ByteBuf readOnlyCopy = buf.asReadOnly();
         readOnlyCopy.resetReaderIndex();

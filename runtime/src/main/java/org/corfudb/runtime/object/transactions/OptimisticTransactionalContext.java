@@ -1,7 +1,6 @@
 package org.corfudb.runtime.object.transactions;
 
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.logprotocol.ISMRConsumable;
 import org.corfudb.protocols.logprotocol.SMREntry;
@@ -48,6 +47,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
     @Getter
     private final Set<ICorfuSMRProxyInternal> modifiedProxies =
             new HashSet<>();
+
 
     OptimisticTransactionalContext(TransactionBuilder builder) {
         super(builder);

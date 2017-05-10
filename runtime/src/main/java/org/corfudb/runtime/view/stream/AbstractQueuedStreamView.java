@@ -66,7 +66,6 @@ public abstract class AbstractQueuedStreamView extends
     @Override
     protected ILogData getNextEntry(QueuedStreamContext context,
                                     long maxGlobal) {
-
         // If we have no entries to read, fill the read queue.
         // Return if the queue is still empty.
         if (context.readQueue.isEmpty() &&
@@ -74,6 +73,7 @@ public abstract class AbstractQueuedStreamView extends
             return null;
         }
 
+        // Is there is checkpoint data to consume first?
         if (context.readCpList.size() > 0) {
             ILogData ld = context.readCpList.remove(0);
             long thisRead = ld.getGlobalAddress();
