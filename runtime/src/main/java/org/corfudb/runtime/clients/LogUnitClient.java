@@ -7,7 +7,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.Getter;
 import lombok.Setter;
-import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.LogEntry;
 import org.corfudb.protocols.wireprotocol.*;
 import org.corfudb.runtime.CorfuRuntime;
@@ -15,7 +14,6 @@ import org.corfudb.runtime.exceptions.*;
 import org.corfudb.util.serializer.Serializers;
 
 import java.lang.invoke.MethodHandles;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -214,6 +212,7 @@ public class LogUnitClient implements IClient {
                                             Object writeObject, Map<UUID, Long> backpointerMap) {
         Timer.Context context = getTimerContext("writeObject");
         ByteBuf payload = Unpooled.buffer();
+        Serializers.CORFU.serialize(writeObject, payload);
         WriteRequest wr = new WriteRequest(WriteMode.NORMAL, null, payload);
         wr.setRank(rank);
         wr.setBackpointerMap(backpointerMap);
