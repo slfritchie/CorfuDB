@@ -217,8 +217,11 @@ public class logReader {
             case TRIMMED:
                 System.out.println("DataType: TRIMMED");
                 break;
+            case CHECKPOINT:
+                System.out.println("DataType: CHECKPOINT");
+                break;
             default:
-                System.out.println("UNKNOWN DataType");
+                System.out.printf("UNKNOWN DataType %s\n", dt.toString());
                 break;
         }
         if (showBinary) {
