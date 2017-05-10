@@ -59,7 +59,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
      *
      * @throws Exception
      */
-    // TODO SLF scrap this test?? @Test
+    @Test
     @SuppressWarnings("checkstyle:magicnumber")
 	public void smoke1Test() throws Exception {
         final String streamName = "mystream";
@@ -98,7 +98,9 @@ public class CheckpointSmokeTest extends AbstractViewTest {
         // Make a new runtime & map, then look for expected bad behavior
         setRuntime();
         Map<String, Long> m2 = instantiateMap(streamName);
+        System.err.printf("get(key1)\n");
         assertThat(m2.get(key1)).isNull();
+        System.err.printf("get(key2)\n");
         assertThat(m2.get(key2)).isNull();
         assertThat(m2.get(key3)).isEqualTo(key3Val);
         assertThat(m2.get(key7)).isEqualTo(key7Val);
@@ -130,7 +132,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
      * @throws Exception
      */
 
-    // TODO SLF scrap this test?? @Test
+    @Test
     @SuppressWarnings("checkstyle:magicnumber")
     public void smoke2Test() throws Exception {
         final String streamName = "mystream2";
@@ -381,7 +383,7 @@ public class CheckpointSmokeTest extends AbstractViewTest {
             TokenResponse tokResp1 = r.getSequencerView().nextToken(Collections.singleton(streamId), 0);
             long addr1 = tokResp1.getToken().getTokenValue();
             mdKV.put("CP record #", "1 (for those keeping score)");
-            mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(addr1));
+            mdKV.put(CheckpointEntry.START_LOG_ADDRESS, Long.toString(addr1 + 1));
             CheckpointEntry cp1 = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                     checkpointAuthor, checkpointId, mdKV, null);
             sv.append(cp1, null, null);
