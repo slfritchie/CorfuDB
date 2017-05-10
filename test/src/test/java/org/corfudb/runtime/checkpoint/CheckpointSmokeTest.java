@@ -344,7 +344,9 @@ public class CheckpointSmokeTest extends AbstractViewTest {
                     .setSnapshot(globalAddr)
                     .begin();
 
-            assertThat(m2.entrySet()).isEqualTo(expectedHistory.entrySet());
+            assertThat(m2.entrySet())
+                    .describedAs("Snapshot at lobal log address " + globalAddr)
+                    .isEqualTo(expectedHistory.entrySet());
             r.getObjectsView().TXAbort();
         }
     }
