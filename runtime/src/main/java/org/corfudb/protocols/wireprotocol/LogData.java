@@ -117,7 +117,13 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
     }
 
     public LogData(DataType type, final Object object) {
-        commonLogData(type, object);
+        if (object instanceof ByteBuf) {
+            this.type = type;
+            this.data = byteArrayFromBuf((ByteBuf) object);
+            this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
+        } else {
+            commonLogData(type, object);
+        }
     }
 
     public void commonLogData(DataType type, final Object object) {
@@ -127,12 +133,6 @@ public class LogData implements ICorfuPayload<LogData>, IMetadata, ILogData {
         if (object instanceof LogEntry) {
             ((LogEntry) object).setEntry(this);
         }
-        this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
-    }
-
-    public LogData(final DataType type, final ByteBuf buf) {
-        this.type = type;
-        this.data = byteArrayFromBuf(buf);
         this.metadataMap = new EnumMap<>(IMetadata.LogUnitMetadataType.class);
     }
 
