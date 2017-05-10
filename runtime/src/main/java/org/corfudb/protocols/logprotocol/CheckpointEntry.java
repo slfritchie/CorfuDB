@@ -76,6 +76,12 @@ public class CheckpointEntry extends LogEntry {
     @Getter @Setter
     SMREntry[] smrEntries = null;
 
+    /** Byte count of smrEntries in serialized form, zero
+     *  if smrEntries.size() is zero or if value is unknown.
+     */
+    @Getter
+    int smrEntriesBytes = 0;
+
     public CheckpointEntry(CheckpointEntryType type, String authorID, UUID checkpointID,
                            Map<String,String> dict, SMREntry[] smrEntries) {
         super(LogEntryType.CHECKPOINT);
@@ -131,10 +137,14 @@ public class CheckpointEntry extends LogEntry {
                 smrEntries[i] = e;
             }
         }
+        smrEntriesBytes = b.readInt();
     }
 
     /**
      * Serialize the given LogEntry into a given byte buffer.
+     *
+     * NOTE: This method has a side-effect of updating the
+     *       this.smrEntriesBytes field.
      *
      * @param b The buffer to serialize into.
      */
@@ -153,17 +163,22 @@ public class CheckpointEntry extends LogEntry {
                         serializeString(x.getValue(), b);
                     });
         }
+        int byteEnd;
         if (smrEntries != null) {
             b.writeShort(smrEntries.length);
+            int byteStart = b.readableBytes();
             for (int i = 0; i < smrEntries.length; i++) {
                 ByteBuf smrEntryABuf = PooledByteBufAllocator.DEFAULT.buffer();
                 smrEntries[i].serialize(smrEntryABuf);
                 b.writeInt(smrEntryABuf.readableBytes());
                 b.writeBytes(smrEntryABuf);
             }
+            smrEntriesBytes = b.readableBytes() - byteStart;
         } else {
             b.writeShort(0);
+            smrEntriesBytes = 0;
         }
+        b.writeInt(smrEntriesBytes);
     }
 
     /** Helper function to deserialize a String.

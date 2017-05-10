@@ -182,8 +182,6 @@ public class CheckpointWriter {
                         SMREntry e[] = new SMREntry[numEntries];
                         for (int i = 0; i < numEntries; i++) {
                             e[i] = (SMREntry) ((List) entries).get(i);
-                            // TODO: get real serialization size available, somehow.
-                            numBytes += 50;
                         }
                         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                                 author, checkpointID, mdKV, e);
@@ -191,6 +189,9 @@ public class CheckpointWriter {
                         postAppendFunc.accept(cp, pos);
                         continuationAddresses.add(pos);
                         numEntries++;
+                        // CheckpointEntry::serialize() has a side-effect we use
+                        // for an accurate count of serialized bytes of SRMEntries.
+                        numBytes += cp.getSmrEntriesBytes();
                     });
         } finally {
             rt.getObjectsView().TXAbort();
