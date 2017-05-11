@@ -1,6 +1,7 @@
 package org.corfudb.runtime.object;
 
 import io.netty.util.internal.ConcurrentSet;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.exceptions.NoRollbackException;
@@ -66,6 +67,7 @@ public class VersionLockedObject<T> {
     /** The stream view this object is backed by.
      *
      */
+    @Getter
     private final ISMRStream smrStream;
 
     /** The optimistic SMR stream on this object, if any

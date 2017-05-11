@@ -9,6 +9,8 @@ import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractTransactionalContext;
 import org.corfudb.runtime.object.transactions.TransactionalContext;
+import org.corfudb.runtime.view.stream.AbstractContextStreamView;
+import org.corfudb.runtime.view.stream.AbstractQueuedStreamView;
 import org.corfudb.runtime.view.stream.BackpointerStreamView;
 import org.corfudb.util.serializer.Serializers;
 
@@ -124,6 +126,11 @@ public class CheckpointWriter {
      * @return Global log address of the START record.
      */
     public long startCheckpoint() {
+        AbstractContextStreamView<AbstractQueuedStreamView.QueuedStreamContext> yoo = (AbstractContextStreamView<AbstractQueuedStreamView.QueuedStreamContext>) sv;
+        System.err.printf("casted getBaseContext() type = %s\n", yoo.getBaseContext().getClass());
+        System.err.printf("casted getBaseContext() = %s\n", yoo.getBaseContext());
+        System.err.printf("((AbstractQueuedStreamView) sv).getCurrentContextYo() = %s\n", ((AbstractQueuedStreamView) sv).getCurrentContextYo());
+
         rt.getObjectsView().TXBegin();
         startTime = LocalDateTime.now();
         AbstractTransactionalContext context = TransactionalContext.getCurrentContext();

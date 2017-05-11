@@ -45,6 +45,7 @@ public abstract class AbstractContextStreamView<T extends AbstractStreamContext>
      * about a stream copied via copy-on-write entries. Streams which
      * have never been copied have only a single context.
      */
+    @Getter
     final NavigableSet<T> streamContexts;
 
     /** A function which creates a context, given the stream ID and max global.
@@ -52,6 +53,7 @@ public abstract class AbstractContextStreamView<T extends AbstractStreamContext>
     final BiFunction<UUID, Long, T> contextFactory;
 
     /** The base context, which is always preserved. */
+    @Getter
     final T baseContext;
 
     /** Create a new abstract context stream view.
@@ -316,7 +318,7 @@ public abstract class AbstractContextStreamView<T extends AbstractStreamContext>
      * always at least have one element.
      *
      * */
-    protected T getCurrentContext() {
+    public T getCurrentContext() {
         return streamContexts.first();
     }
 

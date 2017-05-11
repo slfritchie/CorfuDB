@@ -2,6 +2,7 @@ package org.corfudb.runtime.object;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import lombok.Getter;
 import org.corfudb.protocols.logprotocol.CheckpointEntry;
 import org.corfudb.protocols.logprotocol.ISMRConsumable;
 import org.corfudb.protocols.logprotocol.SMREntry;
@@ -35,6 +36,7 @@ import java.util.stream.Stream;
 public class StreamViewSMRAdapter implements ISMRStream {
 
     /** The stream view backing this adapter. */
+    @Getter
     final IStreamView streamView;
 
     /** Necessary until the runtime is no longer necessary for deserialization. */

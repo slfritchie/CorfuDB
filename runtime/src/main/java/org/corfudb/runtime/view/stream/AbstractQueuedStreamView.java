@@ -1,5 +1,6 @@
 package org.corfudb.runtime.view.stream;
 
+import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.wireprotocol.DataType;
@@ -33,6 +34,10 @@ public abstract class AbstractQueuedStreamView extends
         AbstractContextStreamView<AbstractQueuedStreamView
                 .QueuedStreamContext> {
 
+    public AbstractQueuedStreamView.QueuedStreamContext getCurrentContextYo() {
+        return getCurrentContext();
+    }
+
     /** Create a new queued stream view.
      *
      * @param streamID  The ID of the stream
@@ -64,7 +69,7 @@ public abstract class AbstractQueuedStreamView extends
      * {@inheritDoc}
      */
     @Override
-    protected ILogData getNextEntry(QueuedStreamContext context,
+    public ILogData getNextEntry(QueuedStreamContext context,
                                     long maxGlobal) {
         // If we have no entries to read, fill the read queue.
         // Return if the queue is still empty.
@@ -110,7 +115,7 @@ public abstract class AbstractQueuedStreamView extends
      * list off there.
      * */
     @Override
-    protected List<ILogData> getNextEntries(QueuedStreamContext context, long maxGlobal,
+    public List<ILogData> getNextEntries(QueuedStreamContext context, long maxGlobal,
                                             Function<ILogData, Boolean> contextCheckFn) {
         // The list to store read results in
         List<ILogData> readFromCP;
@@ -321,7 +326,7 @@ public abstract class AbstractQueuedStreamView extends
      * global addresses to be read from.
      */
     @ToString
-    static class QueuedStreamContext extends AbstractStreamContext {
+    public static class QueuedStreamContext extends AbstractStreamContext {
 
 
         /** A queue of addresses which have already been resolved. */
@@ -341,6 +346,7 @@ public abstract class AbstractQueuedStreamView extends
         /**
          * A priority queue of potential addresses to be read from.
          */
+        @Getter
         final NavigableSet<Long> readQueue
                 = new TreeSet<>();
 
@@ -356,12 +362,18 @@ public abstract class AbstractQueuedStreamView extends
         /** Info on checkpoint we used for initial stream replay,
          *  other checkpoint-related info & stats.  Hodgepodge, clarify.
          */
+        @Getter
         UUID checkpointSuccessID = null;
+        @Getter
         long checkpointSuccessStartAddr = Address.NEVER_READ;
+        @Getter
         long checkpointSuccessEndAddr = Address.NEVER_READ;
+        @Getter
         long checkpointSuccessNumEntries = 0L;
+        @Getter
         long checkpointSuccessEstBytes = 0L;
         // No need to keep track of # of DATA entries, use context.resolvedQueue.size()?
+        @Getter
         long resolvedEstBytes = 0L;
 
         /** Create a new stream context with the given ID and maximum address
@@ -404,5 +416,4 @@ public abstract class AbstractQueuedStreamView extends
             super.seek(globalAddress);
         }
     }
-
 }

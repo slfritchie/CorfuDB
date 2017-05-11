@@ -26,6 +26,10 @@ import static java.lang.Long.max;
  */
 @Slf4j
 public class BackpointerStreamView extends AbstractQueuedStreamView {
+    public NavigableSet<QueuedStreamContext> goo() {
+        // System.err.printf("contexts = %s\n", getStreamContexts());
+        return getStreamContexts();
+    }
 
     /** Create a new backpointer stream view.
      *
@@ -140,7 +144,7 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
     public void close() {}
 
 
-    protected boolean fillFromResolved(final long maxGlobal,
+    public boolean fillFromResolved(final long maxGlobal,
                                        final QueuedStreamContext context) {
         // There's nothing to read if we're already past maxGlobal.
         if (maxGlobal < context.globalPointer) {
@@ -160,8 +164,14 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
      * {@inheritDoc}
      */
     @Override
-    protected boolean fillReadQueue(final long maxGlobal,
+    public boolean fillReadQueue(final long maxGlobal,
                                  final QueuedStreamContext context) {
+        return fillReadQueue(maxGlobal, context, Address.NEVER_READ);
+    }
+
+    public boolean fillReadQueue(final long maxGlobal,
+                                 final QueuedStreamContext context,
+                                 final long overrideLatestTokenValue) {
         log.trace("Read_Fill_Queue[{}] Max: {}, Current: {}, Resolved: {} - {}", this,
                 maxGlobal, context.globalPointer, context.maxResolution, context.minResolution);
 
@@ -208,9 +218,11 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
         // If we don't have a larger token in resolved, or the request was for
         // a linearized read, fetch the token from the sequencer.
         if (latestTokenValue == null || maxGlobal == Address.MAX) {
-            latestTokenValue = runtime.getSequencerView()
-                    .nextToken(Collections.singleton(context.id), 0)
-                    .getToken().getTokenValue();
+            latestTokenValue = (overrideLatestTokenValue != Address.NEVER_READ) ?
+                    overrideLatestTokenValue :
+                    runtime.getSequencerView()
+                            .nextToken(Collections.singleton(context.id), 0)
+                            .getToken().getTokenValue();
         }
 
         // If there is no infomation on the tail of the stream, return, there is nothing to do
