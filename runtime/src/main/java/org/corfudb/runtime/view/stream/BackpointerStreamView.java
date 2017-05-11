@@ -14,8 +14,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.lang.Long.max;
-
 /** A view of a stream implemented with backpointers.
  *
  * In this implementation, all addresses are global (log) addresses.
@@ -303,8 +301,9 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
 
         }
 
+        log.debug("Read_Fill_Queue[{}] Filled CP queue with {}", this, context.readCpQueue);
         log.debug("Read_Fill_Queue[{}] Filled queue with {}", this, context.readQueue);
-        return ! context.readCpList.isEmpty() || !context.readQueue.isEmpty();
+        return ! context.readCpQueue.isEmpty() || !context.readQueue.isEmpty();
     }
 
     private void examineCheckpointRecord(final QueuedStreamContext context,
@@ -327,7 +326,7 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                     currentRead, cpEntry.getCpType(),
                     cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
             if (considerCheckpoint) {
-                context.readCpList.add(currentEntry);
+                context.readCpQueue.add(currentEntry.getGlobalAddress());
                 context.checkpointSuccessNumEntries++;
                 context.checkpointSuccessEstBytes += currentEntry.getSizeEstimate();
                 if (cpEntry.getCpType().equals(CheckpointEntry.CheckpointEntryType.START)) {
@@ -338,7 +337,6 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
                         cpStartAddr = currentRead;
                     }
                     context.checkpointSuccessStartAddr = cpStartAddr;
-                    Collections.reverse(context.readCpList);
                     log.trace("Checkpoint: halt backpointer fill at address {} type {} id {} author {}",
                             cpStartAddr, cpEntry.getCpType(),
                             cpEntry.getCheckpointID(), cpEntry.getCheckpointAuthorID());
