@@ -4,6 +4,7 @@ import io.netty.util.internal.ConcurrentSet;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.exceptions.NoRollbackException;
+import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
 import org.corfudb.util.Utils;
@@ -12,6 +13,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.*;
+
+import static org.corfudb.util.CoopScheduler.sched;
 
 /**
  * The VersionLockedObject maintains a versioned object which is
@@ -519,25 +522,44 @@ public class VersionLockedObject<T> {
         log.trace("Sync[{}] {}", this, (timestamp == Address.OPTIMISTIC)
                 ? "Optimistic" : "to " + timestamp);
         long syncTo = (timestamp == Address.OPTIMISTIC) ? Address.MAX : timestamp;
-        stream.streamUpTo(syncTo)
-                .forEachOrdered(entry -> {
-                    try {
-                        Object res = applyUpdateUnsafe(entry);
-                        if (timestamp == Address.OPTIMISTIC) {
+//        try {
+            stream.streamUpTo(syncTo)
+                    .forEachOrdered(entry -> {
+                        try {
+                            Object res = applyUpdateUnsafe(entry);
+                            if (timestamp == Address.OPTIMISTIC) {
+                                entry.setUpcallResult(res);
+                            } else if (pendingUpcalls.contains(entry.getEntry().getGlobalAddress())) {
+                                log.debug("Sync[{}] Upcall Result {}", this, entry.getEntry().getGlobalAddress());
+                                upcallResults.put(entry.getEntry().getGlobalAddress(), res == null ?
+                                        NullValue.NULL_VALUE : res);
+                                pendingUpcalls.remove(entry.getEntry().getGlobalAddress());
+                            }
                             entry.setUpcallResult(res);
+                        } catch (Exception e) {
+                            log.error("Sync[{}] Error: Couldn't execute upcall due to {}", this, e);
+                            throw new RuntimeException(e);
                         }
-                        else if (pendingUpcalls.contains(entry.getEntry().getGlobalAddress())) {
-                            log.debug("Sync[{}] Upcall Result {}", this, entry.getEntry().getGlobalAddress());
-                            upcallResults.put(entry.getEntry().getGlobalAddress(), res == null ?
-                                    NullValue.NULL_VALUE : res);
-                            pendingUpcalls.remove(entry.getEntry().getGlobalAddress());
-                        }
-                        entry.setUpcallResult(res);
-                    } catch (Exception e) {
-                        log.error("Sync[{}] Error: Couldn't execute upcall due to {}", this, e);
-                        throw new RuntimeException(e);
-                    }
-                });
+                    });
+/*****       } catch (TrimmedException te) {
+            log.trace("Sync[{}] Error: Couldn't execute streamUpTo at timestamp {} due to {}", this, timestamp, te);
+            // Hrm?  throw new RuntimeException(new TrimmedException());
+            throw new TrimmedException(); // use new one to try to get better/different stack trace (DEBUG)
+
+            // Hmmm, broken: throw new RuntimeException(te);
+            /***
+             * Exception in thread "Thread-5" java.lang.RuntimeException: org.corfudb.runtime.exceptions.TrimmedException
+             at org.corfudb.runtime.object.VersionLockedObject.syncStreamUnsafe(VersionLockedObject.java:547)
+             at org.corfudb.runtime.object.VersionLockedObject.syncObjectUnsafe(VersionLockedObject.java:287)
+             at org.corfudb.runtime.object.CorfuCompileProxy.lambda$accessInner$1(CorfuCompileProxy.java:153)
+             at org.corfudb.runtime.object.VersionLockedObject.access(VersionLockedObject.java:187)
+             at org.corfudb.runtime.object.CorfuCompileProxy.accessInner(CorfuCompileProxy.java:151)
+             at org.corfudb.runtime.object.CorfuCompileProxy.access(CorfuCompileProxy.java:127)
+             at org.corfudb.runtime.collections.SMRMap$CORFUSMR.get(SMRMap$CORFUSMR.java:121)
+             */
+
+            // Nope, also broken: infinite loop because timestamp doesn't change: syncStreamUnsafe(stream, timestamp);
+//        }
     }
 
     /** Roll back the optimistic stream, resetting the object if it can not
