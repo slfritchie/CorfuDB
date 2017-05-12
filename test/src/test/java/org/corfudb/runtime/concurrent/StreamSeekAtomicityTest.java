@@ -120,7 +120,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
         });
 
         Thread coop = coopSetScheduleAndRun(useCoopSched, NTHREADS, NTHREADS, schedule);
-        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_NORMAL);
+        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_LONG);
         coopJoinScheduler(coop);
     }
 
@@ -229,7 +229,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
         });
 
         Thread coop = coopSetScheduleAndRun(useCoopSched, NTHREADS, NTHREADS, schedule);
-        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_NORMAL);
+        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_LONG);
         coopJoinScheduler(coop);
     }
 
@@ -339,7 +339,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
         });
 
         Thread coop = coopSetScheduleAndRun(useCoopSched, NTHREADS, NTHREADS, schedule);
-        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_NORMAL);
+        executeScheduled(NTHREADS, PARAMETERS.TIMEOUT_LONG);
         coopJoinScheduler(coop);
     }
 

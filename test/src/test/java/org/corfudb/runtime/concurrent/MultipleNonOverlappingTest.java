@@ -1,12 +1,16 @@
 package org.corfudb.runtime.concurrent;
 
+import com.google.common.reflect.TypeToken;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractTransactionsTest;
 import org.corfudb.util.CoopScheduler;
 import org.junit.Assert;
 import org.junit.Test;
+import org.corfudb.runtime.object.TestClass;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 import static org.corfudb.util.CoopScheduler.formatSchedule;
@@ -325,6 +329,51 @@ public class MultipleNonOverlappingTest extends AbstractTransactionsTest {
                 .setStreamName(name)     // stream name
                 .setType(tClass)        // object class backed by this stream\
                 .open();                // instantiate the object!
+    }
+
+    @Test
+    public void checkCommitNested()  throws Exception {
+        ArrayList<TestClass> objects = new ArrayList<>();
+
+        final int nObjects = 2;
+        for (int i = 0; i < nObjects; i++)
+            objects.add((TestClass) instantiateCorfuObject(
+                    new TypeToken<TestClass>() {
+                    }, "test stream" + i)
+            );
+
+        final int nestingDepth = 8;
+
+        // first, nest empty transactions up to depth 'nestingDepth'
+        for (int nestLevel = 0; nestLevel < nestingDepth; nestLevel++) {
+            TXBegin();
+        }
+
+        // access the object, to cause the TX stack to be copied as
+        // optimistic stream
+        //objects.get(0).get();
+
+
+        // commit some of the nested transactions
+        // each committed TX first invokes mutators only, no accessors
+        for (int nestLevel = 0; nestLevel < nestingDepth/2; nestLevel++) {
+            objects.get(0).set(nestLevel);
+            TXEnd();
+        }
+
+        // then, restablish nested transactions up to the same nesting level
+        // each TX invokes mutators only, no accessors, on the second object
+        for (int nestLevel = 0; nestLevel < nestingDepth/2; nestLevel++) {
+            TXBegin();
+            objects.get(1).set(2*nestLevel);
+        }
+
+        // finally, access the objects
+        assertThat(objects.get(1).get())
+                .isEqualTo((nestingDepth/2-1)*2);
+        assertThat(objects.get(0).get())
+                .isEqualTo(nestingDepth/2-1);
+
     }
 }
 
