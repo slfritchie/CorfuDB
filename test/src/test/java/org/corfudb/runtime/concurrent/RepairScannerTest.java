@@ -40,13 +40,13 @@ public class RepairScannerTest extends AbstractTransactionsTest {
 
         assertThat(rs.getUnknownMap()).isEmpty();
 
-        assertThat(rs.replaceGlobalUnknownMap(bigInterval, lirA)).isFalse();
-        assertThat(rs.addToGlobalUnknownMap(bigInterval, lirA)).isTrue();
-        assertThat(rs.addToGlobalUnknownMap(bigInterval, lirA)).isFalse();
-        assertThat(rs.replaceGlobalUnknownMap(bigInterval, lirA)).isTrue();
+        assertThat(rs.replaceUnknownMap(bigInterval, lirA)).isFalse();
+        assertThat(rs.addToUnknownMap(bigInterval, lirA)).isTrue();
+        assertThat(rs.addToUnknownMap(bigInterval, lirA)).isFalse();
+        assertThat(rs.replaceUnknownMap(bigInterval, lirA)).isTrue();
 
-        assertThat(rs.deleteFromGlobalUnknownMap(bigInterval)).isTrue();
-        assertThat(rs.deleteFromGlobalUnknownMap(bigInterval)).isFalse();
+        assertThat(rs.deleteFromUnknownMap(bigInterval)).isTrue();
+        assertThat(rs.deleteFromUnknownMap(bigInterval)).isFalse();
     }
 
     @Test
@@ -58,10 +58,10 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         Set<String> setB = Collections.singleton("host:1");
 
         assertThat(rs.getHealthyMap()).isEmpty();
-        assertThat(rs.addToGlobalHealthyMap(intervalA, setA)).isTrue();
-        assertThat(rs.addToGlobalHealthyMap(intervalA, setB)).isFalse();
-        assertThat(rs.deleteFromGlobalHealthyMap(intervalA)).isTrue();
-        assertThat(rs.deleteFromGlobalHealthyMap(intervalA)).isFalse();
+        assertThat(rs.addToHealthyMap(intervalA, setA)).isTrue();
+        assertThat(rs.addToHealthyMap(intervalA, setB)).isFalse();
+        assertThat(rs.deleteFromHealthyMap(intervalA)).isTrue();
+        assertThat(rs.deleteFromHealthyMap(intervalA)).isFalse();
     }
 
     @Test
@@ -76,10 +76,10 @@ public class RepairScannerTest extends AbstractTransactionsTest {
                 0);
 
         assertThat(rs.getWorkingMap()).isEmpty();
-        assertThat(rs.addToGlobalWorkingMap(myName, status)).isTrue();
-        assertThat(rs.addToGlobalWorkingMap(myName, status)).isFalse();
-        assertThat(rs.deleteFromGlobalWorkingMap(myName)).isTrue();
-        assertThat(rs.deleteFromGlobalWorkingMap(myName)).isFalse();
+        assertThat(rs.addToWorkingMap(myName, status)).isTrue();
+        assertThat(rs.addToWorkingMap(myName, status)).isFalse();
+        assertThat(rs.deleteFromWorkingMap(myName)).isTrue();
+        assertThat(rs.deleteFromWorkingMap(myName)).isFalse();
     }
 
     @Test
@@ -100,7 +100,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         // Pretend that we look at a layout and see 0-19 using hostA/B/C.
         // We've never seen this interval before, so we add this
         // interval to the unknown map.
-        rs.addToGlobalUnknownMap(globalInterval, unknownState);
+        rs.addToUnknownMap(globalInterval, unknownState);
 
         // Pretend that there are some active workers that
         // have already been started.
@@ -110,7 +110,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         otherActiveWorkers.add(new LongInterval(four, four));
         otherActiveWorkers.add(new LongInterval(eleven, twelve));
         otherActiveWorkers.forEach(i ->
-                rs.addToGlobalWorkingMap("worker" + i.getNormStart().toString(),
+                rs.addToWorkingMap("worker" + i.getNormStart().toString(),
                         new ScannerWorkStatus(LocalDateTime.now(), LocalDateTime.now(), i, 0)));
 
         final int numThreads = 11, onehundred=100, fifty=50;
@@ -124,7 +124,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
             IInterval<Long> found = rs.findIdleInterval();
             // System.err.printf("*** iter %d found = %s\n", i, found);
             if (found != null) {
-                rs.addToGlobalWorkingMap("foo" + found.getNormStart().toString(),
+                rs.addToWorkingMap("foo" + found.getNormStart().toString(),
                         new ScannerWorkStatus(LocalDateTime.now(), LocalDateTime.now(), found, 0));
                 ourIntervals.add(found);
             }
