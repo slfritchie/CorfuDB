@@ -38,7 +38,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         LogIntervalReplicas lirA = new LogIntervalReplicas(
                 Collections.singleton(smallInterval), setA);
 
-        assertThat(rs.getGlobalUnknownMap()).isEmpty();
+        assertThat(rs.getUnknownMap()).isEmpty();
 
         assertThat(rs.replaceGlobalUnknownMap(bigInterval, lirA)).isFalse();
         assertThat(rs.addToGlobalUnknownMap(bigInterval, lirA)).isTrue();
@@ -57,7 +57,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         Set<String> setA = Collections.singleton("host:0");
         Set<String> setB = Collections.singleton("host:1");
 
-        assertThat(rs.getGlobalHealthyMap()).isEmpty();
+        assertThat(rs.getHealthyMap()).isEmpty();
         assertThat(rs.addToGlobalHealthyMap(intervalA, setA)).isTrue();
         assertThat(rs.addToGlobalHealthyMap(intervalA, setB)).isFalse();
         assertThat(rs.deleteFromGlobalHealthyMap(intervalA)).isTrue();
@@ -75,7 +75,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
                 new LongInterval(1L, five),
                 0);
 
-        assertThat(rs.getGlobalWorkingMap()).isEmpty();
+        assertThat(rs.getWorkingMap()).isEmpty();
         assertThat(rs.addToGlobalWorkingMap(myName, status)).isTrue();
         assertThat(rs.addToGlobalWorkingMap(myName, status)).isFalse();
         assertThat(rs.deleteFromGlobalWorkingMap(myName)).isTrue();
@@ -159,7 +159,7 @@ public class RepairScannerTest extends AbstractTransactionsTest {
             ourIntervals.stream()
                     .sorted((a, b) -> random.nextInt(onehundred) < fifty ? -1 : 1)
                     .forEach(i -> {
-                        String workerKey = (String) rs.getGlobalWorkingMap().entrySet().stream()
+                        String workerKey = (String) rs.getWorkingMap().entrySet().stream()
                                 .filter(e -> e.getValue().getInterval().equals(i))
                                 .map(e -> e.getKey())
                                 .toArray()[0];
@@ -176,9 +176,9 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         // their state, anything else that remains in the
         // global working list must be the equivalent to the
         // otherActiveWorkers set.
-        assertThat(rs.getGlobalWorkingMap().values().stream()
+        assertThat(rs.getWorkingMap().values().stream()
         .map(x -> x.getInterval()).collect(Collectors.toSet())).isEqualTo(otherActiveWorkers);
-        // System.err.printf("FINAL unknown map keys: %s\n", rs.getGlobalUnknownMap().keySet());
+        // System.err.printf("FINAL unknown map keys: %s\n", rs.getUnknownMap().keySet());
     }
 
 }
