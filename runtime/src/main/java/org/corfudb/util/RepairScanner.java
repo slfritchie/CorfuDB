@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.view.Layout;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -38,11 +39,13 @@ public class RepairScanner {
     private long batchSize = 2; // TODO: put me back: 5000
 
     // Map<IInterval<Long>, Set<String>>
-    private final String keyGlobalHealthyMap = "Global healthy map";
+    private final String keyHealthyMap = "Healthy map";
     // Map<IInterval<Long>, LogIntervalReplicas>
-    private final String keyGlobalUnknownMap = "Global unknown map";
+    private final String keyUnknownMap = "Unknown map";
     // Map<String, ScannerWorkStatus>
-    private final String keyGlobalWorkingMap = "Global working map";
+    private final String keyWorkingMap = "Working map";
+    // Map<Long, CorfuLayout>
+    private final String keyLayoutMap = "Layout archive map";
 
     public RepairScanner(CorfuRuntime rt) {
         this.rt = rt;
@@ -53,14 +56,17 @@ public class RepairScanner {
 
         try {
             rt.getObjectsView().TXBegin();
-            if (getGlobalHealthyMap() == null) {
-                globalState.put(keyGlobalHealthyMap, new HashMap<IInterval<Long>, Set<String>>());
+            if (getHealthyMap() == null) {
+                globalState.put(keyHealthyMap, new HashMap<IInterval<Long>, Set<String>>());
             }
-            if (getGlobalUnknownMap() == null) {
-                globalState.put(keyGlobalUnknownMap, new HashMap<IInterval<Long>, LogIntervalReplicas>());
+            if (getUnknownMap() == null) {
+                globalState.put(keyUnknownMap, new HashMap<IInterval<Long>, LogIntervalReplicas>());
             }
-            if (getGlobalWorkingMap() == null) {
-                globalState.put(keyGlobalWorkingMap, new HashMap<IInterval<Long>, ScannerWorkStatus>());
+            if (getWorkingMap() == null) {
+                globalState.put(keyWorkingMap, new HashMap<IInterval<Long>, ScannerWorkStatus>());
+            }
+            if (getLayoutMap() == null) {
+                globalState.put(keyWorkingMap, new HashMap<Long, Layout>());
             }
 
             rt.getObjectsView().TXEnd();
@@ -72,7 +78,7 @@ public class RepairScanner {
 
     public Set<Set<String>> getUnknownState_uniqueReplicas() {
         // Map<IInterval<Long>, LogIntervalReplicas>
-        Set<Set<String>> x = getGlobalUnknownMap().values().stream()
+        Set<Set<String>> x = getUnknownMap().values().stream()
                 .map(lir -> lir.getReplicaSet())
                 .collect(Collectors.toSet());
         return x;
@@ -80,7 +86,7 @@ public class RepairScanner {
 
     public Set<IInterval<Long>> getUnknownState_globalRanges(Set<String> replicaSet) {
         // Map<IInterval<Long>, LogIntervalReplicas>
-        Set<IInterval<Long>> x = getGlobalUnknownMap().entrySet().stream()
+        Set<IInterval<Long>> x = getUnknownMap().entrySet().stream()
                 .filter(e -> e.getValue().getReplicaSet().equals(replicaSet))
                 .map(e -> e.getKey())
                 .collect(Collectors.toSet());
@@ -118,7 +124,7 @@ public class RepairScanner {
                 // Find & delete any working entries that are too old.
                 LocalDateTime tooLate = LocalDateTime.now()
                         .minus(Duration.ofSeconds(getWorkerTimeoutSeconds()));
-                getGlobalWorkingMap().entrySet().stream()
+                getWorkingMap().entrySet().stream()
                         .filter(e -> e.getValue().getUpdateTime().compareTo(tooLate) < 0)
                         .forEach(e -> {
                             String workerKey = e.getKey();
@@ -126,7 +132,7 @@ public class RepairScanner {
                             deleteFromGlobalWorkingMap(workerKey);
                         });
 
-                z = getGlobalUnknownMap().get(chosenGlobalInterval).getLogIntervalSet().toArray();
+                z = getUnknownMap().get(chosenGlobalInterval).getLogIntervalSet().toArray();
                 for (int iz = 0; iz < z.length; iz++) {
                     IInterval<Long> workInterval = (IInterval<Long>) z[iz];
                     // System.err.printf("Candidate work interval = %s\n", workInterval);
@@ -152,7 +158,7 @@ public class RepairScanner {
                 .usePredefinedType(IntervalTreeBuilder.IntervalType.LONG)
                 .collectIntervals(interval -> new SetIntervalCollection())
                 .build();
-        getGlobalWorkingMap().entrySet().stream()
+        getWorkingMap().entrySet().stream()
                 .map(e -> e.getValue().getInterval())
                 .forEach(i -> tree.add(i));
 
@@ -183,7 +189,7 @@ public class RepairScanner {
     }
 
     public boolean workerAborted(String workerID, IInterval<Long> workInterval) {
-        if (getGlobalWorkingMap().get(workerID).equals(workerID)) {
+        if (getWorkingMap().get(workerID).equals(workerID)) {
             return deleteFromGlobalWorkingMap(workerID);
         } else {
             return false;
@@ -191,16 +197,16 @@ public class RepairScanner {
     }
 
     public boolean workerSuccess(String workerID, IInterval<Long> workInterval) {
-        if (getGlobalWorkingMap().get(workerID) != null) {
+        if (getWorkingMap().get(workerID) != null) {
             final IntervalTree tree = IntervalTreeBuilder.newBuilder()
                     .usePredefinedType(IntervalTreeBuilder.IntervalType.LONG)
                     .collectIntervals(interval -> new SetIntervalCollection())
                     .build();
-            getGlobalUnknownMap().keySet().stream()
+            getUnknownMap().keySet().stream()
                     .forEach(interval -> tree.add(interval));
             IInterval<Long> unknownMapKey = (IInterval<Long>) tree.overlap(workInterval).toArray()[0];
 
-            LogIntervalReplicas moveVal = getGlobalUnknownMap().get(unknownMapKey);
+            LogIntervalReplicas moveVal = getUnknownMap().get(unknownMapKey);
             if (workInterval.equals(unknownMapKey)) {
                 // 100% overlap.  Nothing to add.
                 // Let the deleteFromGlobalWorkingMap() do the rest.
@@ -230,26 +236,32 @@ public class RepairScanner {
 
     // @VisibleForTesting private
     public
-    Map<IInterval<Long>, Set<String>> getGlobalHealthyMap() {
-        return (Map<IInterval<Long>, Set<String>>) globalState.get(keyGlobalHealthyMap);
+    Map<IInterval<Long>, Set<String>> getHealthyMap() {
+        return (Map<IInterval<Long>, Set<String>>) globalState.get(keyHealthyMap);
     }
 
     // @VisibleForTesting private
     public
-    Map<IInterval<Long>, LogIntervalReplicas> getGlobalUnknownMap() {
-        return (Map<IInterval<Long>, LogIntervalReplicas>) globalState.get(keyGlobalUnknownMap);
+    Map<IInterval<Long>, LogIntervalReplicas> getUnknownMap() {
+        return (Map<IInterval<Long>, LogIntervalReplicas>) globalState.get(keyUnknownMap);
     }
 
     // @VisibleForTesting private
     public
-    Map<String, ScannerWorkStatus> getGlobalWorkingMap() {
-        return (Map<String, ScannerWorkStatus>) globalState.get(keyGlobalWorkingMap);
+    Map<String, ScannerWorkStatus> getWorkingMap() {
+        return (Map<String, ScannerWorkStatus>) globalState.get(keyWorkingMap);
+    }
+
+    // @VisibleForTesting private
+    public
+    Map<Long, Layout> getLayoutMap() {
+        return (Map<Long, Layout>) globalState.get(keyLayoutMap);
     }
 
     // @VisibleForTesting private
     public
     boolean deleteFromGlobalHealthyMap(IInterval<Long> interval) {
-        Map<IInterval<Long>, Set<String>> m = getGlobalHealthyMap();
+        Map<IInterval<Long>, Set<String>> m = getHealthyMap();
         if (m.containsKey(interval)) {
             m.remove(interval);
             return true;
@@ -261,11 +273,11 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean addToGlobalHealthyMap(IInterval<Long> interval, Set<String> replicas) {
-        Map<IInterval<Long>, Set<String>> m = getGlobalHealthyMap();
+        Map<IInterval<Long>, Set<String>> m = getHealthyMap();
         // TODO more safety/sanity checking here, e.g., overlapping conditions
 
         if (! m.containsKey(interval)) {
-            getGlobalHealthyMap().put(interval, replicas);
+            getHealthyMap().put(interval, replicas);
             return true;
         } else {
             return false;
@@ -275,7 +287,7 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean deleteFromGlobalUnknownMap(IInterval<Long> interval) {
-        Map<IInterval<Long>, LogIntervalReplicas> m = getGlobalUnknownMap();
+        Map<IInterval<Long>, LogIntervalReplicas> m = getUnknownMap();
         if (m.containsKey(interval)) {
             m.remove(interval);
             return true;
@@ -287,7 +299,7 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean addToGlobalUnknownMap(IInterval<Long> interval, LogIntervalReplicas lir) {
-        Map<IInterval<Long>, LogIntervalReplicas> m = getGlobalUnknownMap();
+        Map<IInterval<Long>, LogIntervalReplicas> m = getUnknownMap();
         // TODO more safety/sanity checking here, e.g., overlapping conditions
 
         if (! m.containsKey(interval)) {
@@ -301,7 +313,7 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean replaceGlobalUnknownMap(IInterval<Long> interval, LogIntervalReplicas lir) {
-        Map<IInterval<Long>, LogIntervalReplicas> m = getGlobalUnknownMap();
+        Map<IInterval<Long>, LogIntervalReplicas> m = getUnknownMap();
         // TODO more safety/sanity checking here, e.g., overlapping conditions
 
         if (! m.containsKey(interval)) {
@@ -315,7 +327,7 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean deleteFromGlobalWorkingMap(String workerName) {
-        Map<String, ScannerWorkStatus> m = getGlobalWorkingMap();
+        Map<String, ScannerWorkStatus> m = getWorkingMap();
         if (m.containsKey(workerName)) {
             m.remove(workerName);
             return true;
@@ -327,7 +339,7 @@ public class RepairScanner {
     // @VisibleForTesting private
     public
     boolean addToGlobalWorkingMap(String workerName, ScannerWorkStatus status) {
-        Map<String, ScannerWorkStatus> m = getGlobalWorkingMap();
+        Map<String, ScannerWorkStatus> m = getWorkingMap();
         // TODO more safety/sanity checking here, e.g., overlapping conditions
 
         if (! m.containsKey(workerName)) {
