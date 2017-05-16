@@ -219,8 +219,6 @@ public class RepairScanner {
             deleteFromGlobalUnknownMap(unknownMapKey);
             boolean yoo =
             deleteFromGlobalWorkingMap(workerID);
-            System.err.printf("workerSuccess: %s %s -> %s\n", workerID, workInterval, yoo);
-            System.err.printf("globalWorkingMap: %s\n", getGlobalWorkingMap().keySet());
             return true;
         } else {
             return false;

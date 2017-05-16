@@ -5,7 +5,6 @@ import com.brein.time.timeintervals.indexes.IntervalTree;
 import com.brein.time.timeintervals.indexes.IntervalTreeBuilder;
 import com.brein.time.timeintervals.intervals.IInterval;
 import com.brein.time.timeintervals.intervals.LongInterval;
-import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractTransactionsTest;
 import org.corfudb.util.LogIntervalReplicas;
 import org.corfudb.util.RepairScanner;
@@ -15,7 +14,6 @@ import org.junit.Test;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.zip.CheckedOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  */
 
-public class RepairScanTest extends AbstractTransactionsTest {
+public class RepairScannerTest extends AbstractTransactionsTest {
 
     @Override
     public void TXBegin() {
@@ -31,46 +29,12 @@ public class RepairScanTest extends AbstractTransactionsTest {
     }
 
     @Test
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void fooTest() throws Exception {
-        final IntervalTree tree = IntervalTreeBuilder.newBuilder()
-                .usePredefinedType(IntervalTreeBuilder.IntervalType.LONG)
-                // WHOA ... our .overlap() query will find nothing if we omit a .collectIntervals()   {sigh}
-                // .collectIntervals(interval -> new ListIntervalCollection())
-                .collectIntervals(interval -> new SetIntervalCollection())
-                .build();
-        tree.add(new LongInterval(1L, 5L));
-        tree.add(new LongInterval(2L, 5L));
-        tree.add(new LongInterval(3L, 5L));
-
-        final Collection<IInterval> overlap = tree.overlap(new LongInterval(2L, 2L));
-        overlap.forEach(System.out::println); // will print out [1, 5] and [2, 5]
-
-        final Collection<IInterval> find = tree.find(new LongInterval(2L, 5L));
-        find.forEach(System.out::println);    // will print out only [2, 5]
-    }
-
-    @Test
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void barTest() throws Exception {
-        String mapName1 = "testMapBar";
-        Map<Object, Object> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
-
-        testMap1.put("foo", 42);
-        testMap1.put(42.0, new String[]{"bar"});
-
-        System.err.printf("map %s -> %s\n", "foo", testMap1.get("foo"));
-        System.err.printf("map %s -> %s\n", 42, testMap1.get(42));
-        System.err.printf("map %s -> %s\n", 42.0, testMap1.get(42.0));
-    }
-
-    @Test
-    @SuppressWarnings("checkstyle:magicnumber")
     public void healthyMapTest() throws Exception {
+        final long nine=9L, ninetynine=99L;
         RepairScanner rs = new RepairScanner(getDefaultRuntime());
         Set<String> setA = Collections.singleton("host:0");
-        IInterval<Long> bigInterval = new LongInterval(0L, 99L);
-        IInterval<Long> smallInterval = new LongInterval(0L, 9L);
+        IInterval<Long> bigInterval = new LongInterval(0L, ninetynine);
+        IInterval<Long> smallInterval = new LongInterval(0L, nine);
         LogIntervalReplicas lirA = new LogIntervalReplicas(
                 Collections.singleton(smallInterval), setA);
 
@@ -86,10 +50,10 @@ public class RepairScanTest extends AbstractTransactionsTest {
     }
 
     @Test
-    @SuppressWarnings("checkstyle:magicnumber")
     public void unknownMapTest() throws Exception {
+        final long ninetynine=99L;
         RepairScanner rs = new RepairScanner(getDefaultRuntime());
-        IInterval<Long> intervalA = new LongInterval(0L, 99L);
+        IInterval<Long> intervalA = new LongInterval(0L, ninetynine);
         Set<String> setA = Collections.singleton("host:0");
         Set<String> setB = Collections.singleton("host:1");
 
@@ -101,14 +65,14 @@ public class RepairScanTest extends AbstractTransactionsTest {
     }
 
     @Test
-    @SuppressWarnings("checkstyle:magicnumber")
     public void workingMapTest() throws Exception {
+        final long five=5L;
         RepairScanner rs = new RepairScanner(getDefaultRuntime());
         String myName = rs.myWorkerName();
         ScannerWorkStatus status = new ScannerWorkStatus(
                 LocalDateTime.now(),
                 LocalDateTime.now(),
-                new LongInterval(1L, 5L),
+                new LongInterval(1L, five),
                 0);
 
         assertThat(rs.getGlobalWorkingMap()).isEmpty();
@@ -119,13 +83,14 @@ public class RepairScanTest extends AbstractTransactionsTest {
     }
 
     @Test
-    public void sketchWorkflowTest() throws Exception {
+    public void workflowTest() throws Exception {
+        final long nineteen = 19L;
         Random random = new Random();
         long seed = System.currentTimeMillis();
         random.setSeed(seed);
         RepairScanner rs = new RepairScanner(getDefaultRuntime());
-        IInterval<Long> globalInterval = new LongInterval(0L, 19L);
-        Set<String> setA = new HashSet<String>();
+        IInterval<Long> globalInterval = new LongInterval(0L, nineteen);
+        Set<String> setA = new HashSet<>();
         setA.add("hostA:9000");
         setA.add("hostB:9000");
         setA.add("hostC:9000");
@@ -140,14 +105,15 @@ public class RepairScanTest extends AbstractTransactionsTest {
         // Pretend that there are some active workers that
         // have already been started.
         Set<IInterval<Long>> otherActiveWorkers = new HashSet<>();
+        final long four=4L, eleven=11L, twelve=12L;
         otherActiveWorkers.add(new LongInterval(1L, 2L));
-        otherActiveWorkers.add(new LongInterval(4L, 4L));
-        otherActiveWorkers.add(new LongInterval(11L, 12L));
+        otherActiveWorkers.add(new LongInterval(four, four));
+        otherActiveWorkers.add(new LongInterval(eleven, twelve));
         otherActiveWorkers.forEach(i ->
                 rs.addToGlobalWorkingMap("worker" + i.getNormStart().toString(),
                         new ScannerWorkStatus(LocalDateTime.now(), LocalDateTime.now(), i, 0)));
 
-        final int numThreads = 11;
+        final int numThreads = 11, onehundred=100, fifty=50;
         // Pretend that we have 11 threads that want to do work.
         // Iterations 9 and beyond will have no work available,
         // but we'll just test the last iteration.
@@ -191,13 +157,14 @@ public class RepairScanTest extends AbstractTransactionsTest {
         // ourIntervals to help find bugs.
         try {
             ourIntervals.stream()
-                    .sorted((a, b) -> random.nextInt(100) < 50 ? -1 : 1)
+                    .sorted((a, b) -> random.nextInt(onehundred) < fifty ? -1 : 1)
                     .forEach(i -> {
                         String workerKey = (String) rs.getGlobalWorkingMap().entrySet().stream()
                                 .filter(e -> e.getValue().getInterval().equals(i))
                                 .map(e -> e.getKey())
                                 .toArray()[0];
-                        rs.workerSuccess(workerKey, i);
+                        boolean success = rs.workerSuccess(workerKey, i);
+                        assertThat(success).describedAs("with seed " + Long.toString(seed)).isTrue();
                     });
         } catch (Exception e) {
             System.err.printf("Error with seed = %d\n", seed);
