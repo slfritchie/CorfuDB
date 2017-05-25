@@ -3,6 +3,7 @@ package org.corfudb.runtime.view;
 import com.google.common.reflect.TypeToken;
 import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
