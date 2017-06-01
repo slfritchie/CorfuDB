@@ -7,7 +7,9 @@ import org.corfudb.runtime.exceptions.NoRollbackException;
 import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
+import org.corfudb.util.CoopScheduler;
 import org.corfudb.util.Utils;
+import sun.awt.geom.AreaOp;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -145,7 +147,9 @@ public class VersionLockedObject<T> {
                         Function<T, R> accessFunction) {
         // First, we try to do an optimistic read on the object, in case it
         // meets the conditions for direct access.
+        CoopScheduler.withdraw();
         long ts = lock.tryOptimisticRead();
+        CoopScheduler.rejoin();
         if (ts != 0) {
             if (directAccessCheckFunction.apply(this)) {
                 log.trace("Access [{}] Direct (optimistic-read) access at {}", this, getVersionUnsafe());
@@ -172,9 +176,11 @@ public class VersionLockedObject<T> {
         // updated.
         try {
             // Attempt an upgrade
+            CoopScheduler.withdraw();
             ts = lock.tryConvertToWriteLock(ts);
+            CoopScheduler.rejoin();
             // Upgrade failed, try conversion again
-            if (ts == 0) { ts = lock.writeLock(); }
+            if (ts == 0) { CoopScheduler.withdraw(); ts = lock.writeLock(); CoopScheduler.rejoin();}
             // Check if direct access is possible (unlikely).
             if (directAccessCheckFunction.apply(this)) {
                 log.trace("Access [{}] Direct (writelock) access at {}", this, getVersionUnsafe());
@@ -202,7 +208,9 @@ public class VersionLockedObject<T> {
     public <R> R update(Function<VersionLockedObject<T>, R> updateFunction) {
         long ts = 0;
         try {
+            CoopScheduler.withdraw();
             ts = lock.writeLock();
+            CoopScheduler.rejoin();
             log.trace("Update[{}] (writelock)", this);
             return updateFunction.apply(this);
         } finally {

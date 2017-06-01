@@ -52,10 +52,10 @@ public class CoopSchedulerTest  {
      * Long vs. short work execution steps should not alter any thread's actual
      * execution schedule.
      *
-     * @return Execution trace log, for further sanity evaluation by the caller.
+     * @return Execution trace hlog, for further sanity evaluation by the caller.
      * @throws Exception on failure: three conditions are checked:
      *   1. The execution trace is longer than the schedule (for bounds checking of #2)
-     *   2. Given the log trace of thread execution order, the prefix of the trace
+     *   2. Given the hlog trace of thread execution order, the prefix of the trace
      *      is exactly equal to the desired schedule.
      *   3. Due to the unfairness of the schedule (T6 and T5 are the only threads
      *      that have only one tick, all other threads have multiple ticks), we expect

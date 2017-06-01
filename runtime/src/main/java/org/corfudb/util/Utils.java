@@ -329,7 +329,7 @@ public class Utils {
      * simple UUID hashing, which is *not* hashing, and is effectively
      * customized to the task of deterministically allocating new UUIDs
      * based on a given UUID (which is necessary in the assignment of stream
-     * IDs in ICOrfuDBObjects that contain others, since syncing the log in
+     * IDs in ICOrfuDBObjects that contain others, since syncing the hlog in
      * multiple clients needs allocators to produce the same streamID/object
      * every time).
      *

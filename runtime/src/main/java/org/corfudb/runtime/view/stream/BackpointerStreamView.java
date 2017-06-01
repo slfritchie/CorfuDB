@@ -15,6 +15,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.corfudb.util.CoopScheduler.sched;
+
 /** A view of a stream implemented with backpointers.
  *
  * In this implementation, all addresses are global (log) addresses.
@@ -104,12 +106,14 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
      * */
     @Override
     protected ILogData read(final long address) {
-            return runtime.getAddressSpaceView().read(address);
+        ////sched();
+        return runtime.getAddressSpaceView().read(address);
     }
 
     @Nonnull
     @Override
     protected List<ILogData> readAll(@Nonnull List<Long> addresses) {
+        ////sched();
         Map<Long, ILogData> dataMap =
             runtime.getAddressSpaceView().read(addresses);
         return addresses.stream()
@@ -248,6 +252,7 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
             ILogData currentEntry = null;
 
             try {
+                ////sched();
                 currentEntry = runtime.getAddressSpaceView().read(currentRead);
             } catch (TrimmedException te) {
                 if (considerCheckpoint) {

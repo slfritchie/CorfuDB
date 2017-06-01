@@ -1,5 +1,6 @@
 package org.corfudb.util;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.math.RandomUtils;
 
 import java.util.*;
@@ -49,6 +50,7 @@ import java.util.*;
  *     threadDone().
  */
 
+@Slf4j
 public class CoopScheduler {
     private static class CoopThreadStatus {
         boolean ready = false;
@@ -75,7 +77,7 @@ public class CoopScheduler {
     static CoopThreadStatus threadStatus[];
     static CoopQuantum schedule[];
 
-    static List log;
+    static List hlog;
 
     public static void reset(int maxT) {
         maxThreads = maxT;
@@ -88,7 +90,7 @@ public class CoopScheduler {
             threadStatus[t] = new CoopThreadStatus();
         }
         schedule = null;
-        log = Collections.synchronizedList(new ArrayList<Object>());
+        hlog = Collections.synchronizedList(new ArrayList<Object>());
     }
 
     public static int registerThread() {
@@ -217,6 +219,7 @@ public class CoopScheduler {
                     }
                 }
                 threadStatus[t].ready = true;
+                ////log.debug("PASS thread {} sched out", t);
                 threadStatus[t].notify();
             }
             synchronized (threadStatus[t]) {
@@ -226,9 +229,10 @@ public class CoopScheduler {
                 if (centralStopped) {
                     System.err.printf("NOTICE scheduler stopped\n"); return;
                 }
+                ////log.debug("PASS thread {} sched in", t);
             }
         } catch (InterruptedException e) {
-            System.err.printf("sched nterrupted, TODO?\n");
+            System.err.printf("sched interrupted, TODO?\n");
             sched(t);
         }
     }
@@ -257,6 +261,7 @@ public class CoopScheduler {
             throw new Exception("Bogus thread number " + t);
         }
         synchronized (threadStatus[t]) {
+            ////log.debug("PASS thread {} withdraw ", t);
             threadStatus[t].ticks = 0;
             threadStatus[t].ready = false;
             threadStatus[t].notify();
@@ -280,6 +285,7 @@ public class CoopScheduler {
         if (t < 0 || t >= maxThreads) {
             throw new Exception("Bogus thread number " + t);
         }
+        ////ebug("PASS thread {} rejoin", t);
         threadStatus[t].ready = true;
     }
 
@@ -290,7 +296,6 @@ public class CoopScheduler {
         while (! someReady(numStartingThreads)) {
             try { Thread.sleep(1); } catch (Exception e) {}
         }
-        // System.err.printf("SCHED: entering main loop\n");
         while (true) {
             if (allDone()) {
                 synchronized (centralReady) {
@@ -312,6 +317,7 @@ public class CoopScheduler {
                         try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
+                    ////log.debug("PASS give to {}", t);
                     threadStatus[t].notify();
                     given++;
                 }
@@ -345,14 +351,14 @@ public class CoopScheduler {
     }
 
     public static void appendLog(Object s) {
-        synchronized (log) {
-            log.add(s);
+        synchronized (hlog) {
+            hlog.add(s);
         }
     }
 
     public static Object[] getLog() {
-        synchronized (log) {
-            return log.toArray();
+        synchronized (hlog) {
+            return hlog.toArray();
         }
     }
 
