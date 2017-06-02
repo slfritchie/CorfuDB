@@ -106,14 +106,14 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
      * */
     @Override
     protected ILogData read(final long address) {
-        ////sched();
+        sched();
         return runtime.getAddressSpaceView().read(address);
     }
 
     @Nonnull
     @Override
     protected List<ILogData> readAll(@Nonnull List<Long> addresses) {
-        ////sched();
+        sched();
         Map<Long, ILogData> dataMap =
             runtime.getAddressSpaceView().read(addresses);
         return addresses.stream()
@@ -252,7 +252,7 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
             ILogData currentEntry = null;
 
             try {
-                ////sched();
+                sched();
                 currentEntry = runtime.getAddressSpaceView().read(currentRead);
             } catch (TrimmedException te) {
                 if (considerCheckpoint) {
