@@ -224,7 +224,7 @@ public class CoopScheduler {
                     threadStatus[t].wait();
                 }
                 if (centralStopped) {
-                    System.err.printf("NOTICE scheduler stopped\n"); return;
+                    System.err.printf("NOTICE scheduler stopped, I am %d\n", t); return;
                 }
             }
         } catch (InterruptedException e) {
@@ -308,6 +308,7 @@ public class CoopScheduler {
                     return;
                 }
                 synchronized (threadStatus[t]) {
+                    if (! threadStatus[t].ready || threadStatus[t].done) { continue; }
                     while (threadStatus[t].ticks != 0) {
                         try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
@@ -337,7 +338,7 @@ public class CoopScheduler {
 
     private static boolean allDone() {
         for (int t = 0; t < numThreads; t++) {
-            if (threadStatus[t].ready && ! threadStatus[t].done) {
+            if (! threadStatus[t].done) {
                 return false;
             }
         }
