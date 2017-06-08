@@ -1,4 +1,4 @@
-package org.corfudb.util;
+package org.corfudb;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
