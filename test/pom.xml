@@ -30,6 +30,12 @@
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.corfudb</groupId>
+            <artifactId>aspects</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- External Dependencies -->
         <dependency>
@@ -65,6 +71,10 @@
                         <weaveDependency>
                             <groupId>org.corfudb</groupId>
                             <artifactId>runtime</artifactId>
+                        </weaveDependency>
+                        <weaveDependency>
+                            <groupId>org.corfudb</groupId>
+                            <artifactId>aspects</artifactId>
                         </weaveDependency>
                     </weaveDependencies>
                 </configuration>
