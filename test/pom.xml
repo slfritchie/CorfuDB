@@ -47,37 +47,34 @@
     <build>
         <plugins>
             <plugin>
-              <groupId>org.codehaus.mojo</groupId>
-              <artifactId>aspectj-maven-plugin</artifactId>
-              <version>1.10</version>
-              <configuration>
-                  <!-- Java 1.8 usage -->
-                  <complianceLevel>1.8</complianceLevel>
-                  <source>1.8</source>
-                  <target>1.8</target>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>aspectj-maven-plugin</artifactId>
+                <version>1.10</version>
+                <configuration>
+                    <!-- Java 1.8 usage -->
+                    <complianceLevel>1.8</complianceLevel>
+                    <source>1.8</source>
+                    <target>1.8</target>
 
-                  <!-- Lombok compatibility -->
-                  <showWeaveInfo/>
-                  <forceAjcCompile>true</forceAjcCompile>
-                  <sources/>
+                    <!-- Lombok compatibility -->
+                    <showWeaveInfo/>
+                    <forceAjcCompile>true</forceAjcCompile>
+                    <sources/>
 
-                  <!-- other -->
-                  <weaveDirectories>
-                      <weaveDirectory>${project.build.directory}/classes</weaveDirectory>
-                  </weaveDirectories>
-                  <aspectLibraries>
-                      <!-- TODO -->
-                  </aspectLibraries>
-
-              </configuration>
-              <executions>
-                <execution>
-                  <goals>
-                    <goal>compile</goal>       <!-- use this goal to weave all your main classes -->
-                    <goal>test-compile</goal>  <!-- use this goal to weave all your test classes -->
-                  </goals>
-                </execution>
-              </executions>
+                    <weaveDependencies>
+                        <weaveDependency>
+                            <groupId>org.corfudb</groupId>
+                            <artifactId>runtime</artifactId>
+                        </weaveDependency>
+                    </weaveDependencies>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
