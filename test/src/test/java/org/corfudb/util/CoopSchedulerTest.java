@@ -2,7 +2,6 @@ package org.corfudb.util;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.math.RandomUtils;
-import org.corfudb.util.CoopScheduler;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -12,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.corfudb.AbstractCorfuTest.PARAMETERS;
+import static org.corfudb.util.CoopScheduler.sched;
 
 @Slf4j
 public class CoopSchedulerTest  {
@@ -95,7 +95,7 @@ public class CoopSchedulerTest  {
         }
 
         for (int i = 0; i < ITERS; i++) {
-            CoopScheduler.sched();
+            sched();
             CoopScheduler.appendLog(threadNum);
             // System.err.printf("Thread %d iter (%d)", t, i);
             try { Thread.sleep(sleepTime); } catch (Exception e) {}
@@ -174,18 +174,138 @@ public class CoopSchedulerTest  {
 
         CoopScheduler.registerThread(threadNum);
         for (int i = 0; i < ITERS; i++) {
-            CoopScheduler.sched();
+            sched();
             CoopScheduler.withdraw();
             synchronized (mutex) {
                 CoopScheduler.rejoin();
                 for (int j = 0; j < 2; j++) {
-                    CoopScheduler.sched();
+                    sched();
                     CoopScheduler.appendLog(threadNum);
                 }
             }
-            CoopScheduler.sched();
+            sched();
         }
         CoopScheduler.threadDone();
     }
 
+    /** Run testCoopStampedLockInner() some number of times using
+     *  the same schedule, and check that all execution log histories
+     *  are exactly the same.
+     */
+    @Test
+    public void testCoopStampedLock() throws Exception {
+        final int ITERS = 5;
+        final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
+        ArrayList<Object[]> logs = new ArrayList<>();
+
+        for (int j = 0; j < ITERS; j++) {
+            // Use a fixed schedule for j=0 iteration, and
+            // use a random schedule for all others.
+            int[] schedule = (j == 0) ?
+                    new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5} :
+                    CoopScheduler.makeSchedule(T6 + 1, 100);
+
+            failureDescription = new String("schedule = ");
+            for (int k = 0; k < schedule.length; k++) {
+                failureDescription += Integer.toString(schedule[k]) + ",";
+            }
+
+            for (int i = 0; i < ITERS; i++) {
+                CoopScheduler.reset(T6 + 1);
+                CoopScheduler.setSchedule(schedule);
+                water = 0;
+                logs.add(testCoopStampedLockInner(T6 + 1));
+            }
+            assertThat(CoopScheduler.logsAreIdentical(logs))
+                    .describedAs(failureDescription)
+                    .isTrue();
+            logs.clear();
+        }
+    }
+
+    public Object[] testCoopStampedLockInner(int numThreads) throws Exception {
+        CoopStampedLock lock = new CoopStampedLock();
+        Thread ts[] = new Thread[numThreads];
+
+        for (int j = 0; j < ts.length; j++) {
+            final int jj = j;
+            if (j % 2 == 0) {
+                ts[j] = new Thread(() -> threadWorkCoopStampedLock_LU(jj, lock));
+            } else {
+                ts[j] = new Thread(() -> threadWorkCoopStampedLock_try(jj, lock));
+            }
+        }
+        for (int i = 0; i < ts.length; i++) { ts[i].start(); }
+        CoopScheduler.runScheduler(ts.length);
+        for (int i = 0; i < ts.length; i++) { ts[i].join(); }
+
+        Object[] log = CoopScheduler.getLog();
+        printLog(log);
+        return log;
+    }
+
+    private int water = 0;
+    private String failureDescription;
+
+    /** Stress the writeLock() and unlock() part of the StampedLock API.
+     */
+    private void threadWorkCoopStampedLock_LU(int tnum, CoopStampedLock lock) {
+        int t = CoopScheduler.registerThread(tnum);
+        assertThat(t)
+                .describedAs(failureDescription)
+                .isEqualTo(tnum);
+
+        for (int i = 0; i < 2*2*2*2; i++) {
+            sched();
+            long ts = lock.writeLock();
+            CoopScheduler.appendLog(t + "->" + ts);
+            water++;
+            sched();
+            assertThat(water)
+                    .describedAs(failureDescription)
+                    .isEqualTo(1);
+            water--;
+            lock.unlock(ts);
+        }
+
+        CoopScheduler.threadDone(t);
+    }
+
+    /** Stress the tryOptimisticRead() and validate() part of the StampedLock API
+     */
+    private void threadWorkCoopStampedLock_try(int tnum, CoopStampedLock lock) {
+        int t = CoopScheduler.registerThread(tnum);
+        assertThat(t)
+                .describedAs(failureDescription)
+                .isEqualTo(tnum);
+
+        for (int i = 0; i < 2*2*2*2; i++) {
+            sched();
+            long ts = lock.tryOptimisticRead();
+            if (ts > 0) {
+                int myWater = water + 1; // Simulate incrementing the water level.
+                sched();
+                if (lock.validate(ts)) {
+                    assertThat(myWater)
+                            .describedAs(failureDescription)
+                            .isEqualTo(1);
+                    CoopScheduler.appendLog(t + "}" + ts);
+                } else {
+                    CoopScheduler.appendLog(t + "X" + ts);
+                }
+            } else {
+                CoopScheduler.appendLog(t + "Q");
+            }
+        }
+
+        CoopScheduler.threadDone(t);
+    }
+
+    private void printLog(Object[] log) {
+        System.err.printf("Log: ");
+        for (int i = 0; i < log.length; i++) {
+            System.err.printf("%s,", log[i]);
+        }
+        System.err.printf("\n");
+    }
 }
