@@ -68,10 +68,12 @@
                     <sources/>
 
                     <weaveDependencies>
-                        <weaveDependency>
-                            <groupId>org.corfudb</groupId>
-                            <artifactId>runtime</artifactId>
-                        </weaveDependency>
+                        <!-- SLF: There are no Corfu classes/methods in 'aspects' that
+                                  we want to apply aspect weaving to, but the annotations
+                                  inside of 'aspects' functions will tell the AspectJ
+                                  loading weaver to modify 'runtime' and whatever other
+                                  dependencies the AspectJ annotations say.
+                        -->
                         <weaveDependency>
                             <groupId>org.corfudb</groupId>
                             <artifactId>aspects</artifactId>
