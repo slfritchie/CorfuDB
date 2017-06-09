@@ -6,12 +6,15 @@ import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.exceptions.NoRollbackException;
 import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
+import org.corfudb.util.CoopStampedLock;
 import org.corfudb.util.Utils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.*;
+
+import static org.corfudb.util.CoopScheduler.sched;
 
 /**
  * The VersionLockedObject maintains a versioned object which is
@@ -61,7 +64,7 @@ public class VersionLockedObject<T> {
      * the object. Any access to unsafe methods should
      * obtain the lock.
      */
-    private final StampedLock lock;
+    private final CoopStampedLock lock;
 
     /** The stream view this object is backed by.
      *
@@ -108,7 +111,7 @@ public class VersionLockedObject<T> {
         this.pendingUpcalls = new ConcurrentSet<>();
         this.upcallResults = new ConcurrentHashMap<>();
 
-        lock = new StampedLock();
+        lock = new CoopStampedLock();
     }
 
     /** Access the internal state of the object, trying first to optimistically access
@@ -242,7 +245,9 @@ public class VersionLockedObject<T> {
         // and it belongs to this thread use that
         if (optimisticallyOwnedByThreadUnsafe()) {
             // If there are no updates, ensure we are at the right snapshot
+            sched();
             if (optimisticStream.pos() == Address.NEVER_READ) {
+                sched();
                 final WriteSetSMRStream currentOptimisticStream =
                         optimisticStream;
                 // If we are too far ahead, roll back to the past
@@ -258,14 +263,18 @@ public class VersionLockedObject<T> {
                 // It's possible that due to reset,
                 // the optimistic stream is no longer
                 // present. Restore it.
+                sched();
                 optimisticStream = currentOptimisticStream;
             }
+            sched();
             syncStreamUnsafe(optimisticStream, Address.OPTIMISTIC);
         } else {
             // If there is an optimistic stream for another
             // transaction, remove it by rolling it back first
+            sched();
             if (this.optimisticStream != null) {
                 optimisticRollbackUnsafe();
+                sched();
                 this.optimisticStream = null;
             }
             // If we are too far ahead, roll back to the past
@@ -308,6 +317,7 @@ public class VersionLockedObject<T> {
 
     /** Get a handle to the optimistic stream. */
     public WriteSetSMRStream getOptimisticStreamUnsafe() {
+        sched();
         return optimisticStream;
     }
 
@@ -315,6 +325,7 @@ public class VersionLockedObject<T> {
      * to this object permanent.
      */
     public void optimisticCommitUnsafe() {
+        sched();
         optimisticStream = null;
     }
 
@@ -324,6 +335,7 @@ public class VersionLockedObject<T> {
      *          False otherwise.
      */
     public boolean optimisticallyOwnedByThreadUnsafe() {
+        sched();
         return optimisticStream == null ? false : optimisticStream.isStreamForThisThread();
     }
 
@@ -332,6 +344,7 @@ public class VersionLockedObject<T> {
      * @param optimisticStream  The new optimistic stream to install.
      */
     public void setOptimisticStreamUnsafe(WriteSetSMRStream optimisticStream) {
+        sched();
         if (this.optimisticStream != null) {
             optimisticRollbackUnsafe();
         }
@@ -348,6 +361,7 @@ public class VersionLockedObject<T> {
 
     /** Check whether this object is currently under optimistic modifications. */
     public boolean isOptimisticallyModifiedUnsafe() {
+        sched();
         return optimisticStream != null &&
                 optimisticStream.pos() != Address.NEVER_READ;
     }
@@ -356,6 +370,7 @@ public class VersionLockedObject<T> {
     public void resetUnsafe() {
         log.debug("Reset[{}]", this);
         object = newObjectFn.get();
+        sched();
         smrStream.reset();
         optimisticStream = null;
     }
@@ -546,6 +561,7 @@ public class VersionLockedObject<T> {
     protected void optimisticRollbackUnsafe() {
         try {
             log.trace("OptimisticRollback[{}] started", this);
+            sched();
             rollbackStreamUnsafe(this.optimisticStream,
                     Address.NEVER_READ);
             log.trace("OptimisticRollback[{}] complete", this);
