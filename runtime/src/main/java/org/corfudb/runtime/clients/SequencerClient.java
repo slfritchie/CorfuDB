@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import static org.corfudb.util.CoopScheduler.sched;
+
 /**
  * A sequencer client.
  * <p>
@@ -40,11 +42,13 @@ public class SequencerClient implements IClient {
     }
 
     public CompletableFuture<TokenResponse> nextToken(Set<UUID> streamIDs, long numTokens) {
+        sched();
         return router.sendMessageAndGetCompletable(
                 CorfuMsgType.TOKEN_REQ.payloadMsg(new TokenRequest(numTokens, streamIDs)));
     }
 
     public CompletableFuture<TokenResponse> nextToken(Set<UUID> streamIDs, long numTokens, TxResolutionInfo conflictInfo) {
+        sched();
         return router.sendMessageAndGetCompletable(
                 CorfuMsgType.TOKEN_REQ.payloadMsg(new TokenRequest(numTokens, streamIDs, conflictInfo)));
     }
@@ -55,6 +59,7 @@ public class SequencerClient implements IClient {
      * @return A CompletableFuture which completes once the sequencer is reset.
      */
     public CompletableFuture<Boolean> reset(Long initialToken) {
+        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.RESET_SEQUENCER.payloadMsg(initialToken));
     }
 }
