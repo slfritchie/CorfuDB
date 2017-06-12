@@ -19,8 +19,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static org.corfudb.util.CoopScheduler.sched;
-
 
 /**
  * A client to a LogUnit.
@@ -197,7 +195,6 @@ public class LogUnitClient implements IClient {
      */
     public CompletableFuture<Boolean> write(long address, Set<UUID> streams, IMetadata.DataRank rank,
                                             Object writeObject, Map<UUID, Long> backpointerMap) {
-        sched();
         Timer.Context context = getTimerContext("writeObject");
         ByteBuf payload = Unpooled.buffer();
         Serializers.CORFU.serialize(writeObject, payload);
@@ -219,7 +216,6 @@ public class LogUnitClient implements IClient {
      * @param rank           The rank of this write]
      */
     public CompletableFuture<Boolean> writeEmptyData(long address, DataType type, Set<UUID> streams, IMetadata.DataRank rank) {
-        sched();
         Timer.Context context = getTimerContext("writeObject");
         LogEntry entry = new LogEntry(LogEntry.LogEntryType.NOP);
         ByteBuf payload = Unpooled.buffer();
@@ -239,7 +235,6 @@ public class LogUnitClient implements IClient {
      *                  write completes.
      */
     public CompletableFuture<Boolean> write(ILogData payload) {
-        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(new WriteRequest(payload)));
     }
 
@@ -251,7 +246,6 @@ public class LogUnitClient implements IClient {
      * completes.
      */
     public CompletableFuture<ReadResponse> read(long address) {
-        sched();
         Timer.Context context = getTimerContext("read");
         CompletableFuture<ReadResponse> cf = router.sendMessageAndGetCompletable(
                 CorfuMsgType.READ_REQUEST.payloadMsg(new ReadRequest(address)));
@@ -260,7 +254,6 @@ public class LogUnitClient implements IClient {
     }
 
     public CompletableFuture<ReadResponse> read(UUID stream, Range<Long> offsetRange) {
-        sched();
         Timer.Context context = getTimerContext("readRange");
         CompletableFuture<ReadResponse> cf = router.sendMessageAndGetCompletable(
                 CorfuMsgType.READ_REQUEST.payloadMsg(new ReadRequest(offsetRange, stream)));
@@ -273,7 +266,6 @@ public class LogUnitClient implements IClient {
      * received.
      */
     public CompletableFuture<Long> getTail() {
-        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.TAIL_REQUEST.msg());
     }
 
@@ -284,7 +276,6 @@ public class LogUnitClient implements IClient {
      * @param prefix The prefix of the stream, as a global physical offset, to trim.
      */
     public void trim(long prefix) {
-        sched();
         router.sendMessage(CorfuMsgType.TRIM.payloadMsg(new TrimRequest(null, prefix)));
     }
 
@@ -293,7 +284,6 @@ public class LogUnitClient implements IClient {
      * @param address An address to trim up to (i.e. [0, address))
      */
     public CompletableFuture<Void> prefixTrim(long address) {
-        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.PREFIX_TRIM.payloadMsg(new TrimRequest(null, address)));
     }
 
@@ -301,7 +291,6 @@ public class LogUnitClient implements IClient {
      * Send a compact request that will delete the trimmed parts of the log
      */
     public CompletableFuture<Void> compact() {
-        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.COMPACT_REQUEST.msg());
     }
 
@@ -309,7 +298,6 @@ public class LogUnitClient implements IClient {
      * Send a flush cache request that will flush the logunit cache
      */
     public CompletableFuture<Void> flushCache() {
-        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.FLUSH_CACHE.msg());
     }
 
@@ -319,7 +307,6 @@ public class LogUnitClient implements IClient {
      * @param address The address to fill a hole at.
      */
     public CompletableFuture<Boolean> fillHole(long address) {
-        sched();
         Timer.Context context = getTimerContext("fillHole");
         CompletableFuture<Boolean> cf = router.sendMessageAndGetCompletable(
                 CorfuMsgType.FILL_HOLE.payloadMsg(new FillHoleRequest(null, address)));
@@ -327,7 +314,6 @@ public class LogUnitClient implements IClient {
     }
 
     public CompletableFuture<Boolean> fillHole(UUID streamID, long address) {
-        sched();
         Timer.Context context = getTimerContext("fillHole");
         CompletableFuture<Boolean> cf = router.sendMessageAndGetCompletable(
                 CorfuMsgType.FILL_HOLE.payloadMsg(new FillHoleRequest(streamID, address)));
