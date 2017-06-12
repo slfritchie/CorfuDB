@@ -19,6 +19,7 @@ public class CoopStampedLock {
     // private List<Integer> waitingReaders = new LinkedList<>();
     public long writer = -1;
     public List<Integer> waitingWriters = new LinkedList<>();
+    public boolean verbose = false;
 
     public CoopStampedLock() {
         // TODO?
@@ -26,7 +27,7 @@ public class CoopStampedLock {
 
     public long tryOptimisticRead() {
         if (CoopScheduler.threadMap.get() < 0) {
-            System.err.printf("ERROR: tryOptimisticRead() by non-coop thread\n");
+            if (verbose) { System.err.printf("ERROR: tryOptimisticRead() by non-coop thread\n"); }
             return 0;
         }
         if (writer >= 0) {
@@ -46,7 +47,7 @@ public class CoopStampedLock {
     public long tryConvertToWriteLock(long tstamp) {
         int t = CoopScheduler.threadMap.get();
         if (t < 0) {
-            System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n");
+            if (verbose) { System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n"); }
             return 0;
         }
         if (tstamp == 0 || tstamp != this.tstamp) {
@@ -58,7 +59,7 @@ public class CoopStampedLock {
     public long writeLock() {
         int t = CoopScheduler.threadMap.get();
         if (t < 0) {
-            System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n");
+            if (verbose) { System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n"); }
             return 0;
         }
         while (writer >= 0) {
@@ -72,16 +73,16 @@ public class CoopStampedLock {
     public void unlock(long tstamp) {
         int t = CoopScheduler.threadMap.get();
         if (t < 0) {
-            System.err.printf("ERROR: unlock() by non-coop thread\n");
+            if (verbose) { System.err.printf("ERROR: unlock() by non-coop thread\n"); }
             return;
         }
         if (tstamp == 0 || tstamp != this.tstamp) {
-            System.err.printf("ERROR: unlock() with bogus tstamp: %d != correct value %d\n", tstamp, this.tstamp);
+            if (verbose) { System.err.printf("ERROR: unlock() with bogus tstamp: %d != correct value %d\n", tstamp, this.tstamp); }
             return;
         }
         if (t != writer) {
-            System.err.printf("ERROR: unlock() with correct tstamp: %d but caller tid %d != correct tid %d\n",
-                    this.tstamp, t, writer);
+            if (verbose) { System.err.printf("ERROR: unlock() with correct tstamp: %d but caller tid %d != correct tid %d\n",
+                    this.tstamp, t, writer); }
             return;
         }
         tstamp++;
