@@ -318,6 +318,7 @@ public class CheckpointTest extends AbstractObjectTest {
 
         // thread 1: pupolates the maps with mapSize items
         ts[idxTs++] = new Thread(() -> {
+            Thread.currentThread().setName("thr-0");
                 CoopScheduler.registerThread(); sched();
                 populateMaps(mapSize);
                 CoopScheduler.threadDone();
@@ -326,6 +327,7 @@ public class CheckpointTest extends AbstractObjectTest {
         // thread 2: periodic checkpoint of the maps, repeating ITERATIONS_VERY_LOW times,
         // and immediate prefix-trim of the log up to the checkpoint position
         ts[idxTs++] = new Thread(() -> {
+            Thread.currentThread().setName("thr-1");
             CoopScheduler.registerThread(); sched();
             try {
                 mapCkpointAndTrim();
@@ -341,7 +343,9 @@ public class CheckpointTest extends AbstractObjectTest {
         // they should rebuild from the latest checkpoint (if available).
         // performs some sanity checks on the map state
         for (int i = 0; i < PARAMETERS.CONCURRENCY_SOME; i++) {
+            final int ii = i;
             ts[idxTs++] = new Thread(() -> {
+                Thread.currentThread().setName("thr-" + (ii + 2));
                 CoopScheduler.registerThread(); sched();
                 validateMapRebuild(mapSize, false);
                 CoopScheduler.threadDone();

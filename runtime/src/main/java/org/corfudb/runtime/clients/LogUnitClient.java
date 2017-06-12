@@ -239,7 +239,7 @@ public class LogUnitClient implements IClient {
      *                  write completes.
      */
     public CompletableFuture<Boolean> write(ILogData payload) {
-        //QQQ sched();
+        sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.WRITE.payloadMsg(new WriteRequest(payload)));
     }
 
