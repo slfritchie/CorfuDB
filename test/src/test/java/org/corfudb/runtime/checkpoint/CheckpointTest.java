@@ -313,13 +313,27 @@ public class CheckpointTest extends AbstractObjectTest {
         periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
+    // disable for now, revisit for 100% deterministic scheduling [sigh}
+    @Test
+    public void periodicCkpointTrimTest_50_percent_failure() throws Exception {
+        final int T6 = 6;
+        int numThreads = T6 + 1;
+        // WEIRD, this one always passes on iteration 0 and always fails on iteration 1.
+        // Hmmmmmmmmm...........
+        int[] schedule = {3,0,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,6,2,3,0,4,5,6,4,2,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,0,0,4,0,5,4,4,1,0,6,6,3,3,3,3,3,0,0,6,4,0,2,5,5,5,5,5,5};
+        for (int i = 0; i < 2; i++) {
+            System.err.printf("Iteration %d\n", i);
+            periodicCkpointTrimTestInner(schedule, numThreads);
+        }
+    }
+
     @Test
     public void periodicCkpointTrimTest2() throws Exception {
         final int T6 = 6;
         int numThreads = T6+1;
 
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
-            int[] schedule = CoopScheduler.makeSchedule(T6, 100);
+            int[] schedule = CoopScheduler.makeSchedule(numThreads, 100);
             CoopScheduler.printSchedule(schedule);
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
@@ -329,6 +343,7 @@ public class CheckpointTest extends AbstractObjectTest {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         Thread ts[] = new Thread[numThreads];
         int idxTs = 0;
+        AtomicBoolean workerThreadFailure = new AtomicBoolean(false);
 
         // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
         // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
@@ -356,10 +371,11 @@ public class CheckpointTest extends AbstractObjectTest {
             CoopScheduler.registerThread(); sched();
             try {
                 mapCkpointAndTrim();
+            } catch (TransactionAbortedException e) {
+                System.err.printf("Hey, check this schedule!\n");
+                // Abort is possible, but no need to fail test if it does.
             } catch (Exception e) {
-                CoopScheduler.threadDone();
-                System.err.printf("ERROR: mapCkpointAndTrim threw %s\n", e);
-                assertThat(false).isTrue();
+                workerThreadFailure.set(true);
             }
             CoopScheduler.threadDone();
         });
@@ -377,11 +393,13 @@ public class CheckpointTest extends AbstractObjectTest {
             });
         }
         for (int i = 0; i < ts.length; i++) { ts[i].start(); }
-        System.err.printf("Run scheduler\n");
+        // System.err.printf("Run scheduler\n");
         CoopScheduler.runScheduler(ts.length);
-        System.err.printf("Scheduler done\n");
+        // System.err.printf("Scheduler done\n");
         for (int i = 0; i < ts.length; i++) { ts[i].join(); }
-        System.err.printf("Join done\n");
+        // System.err.printf("Join done\n");
+
+        assertThat(workerThreadFailure.get()).isFalse();
 
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
