@@ -313,6 +313,18 @@ public class CheckpointTest extends AbstractObjectTest {
         periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
+    @Test
+    public void periodicCkpointTrimTest2() throws Exception {
+        final int T6 = 6;
+        int numThreads = T6+1;
+
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+            int[] schedule = CoopScheduler.makeSchedule(T6, 100);
+            CoopScheduler.printSchedule(schedule);
+            periodicCkpointTrimTestInner(schedule, numThreads);
+        }
+    }
+
     public void periodicCkpointTrimTestInner(int[] schedule, int numThreads) throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         Thread ts[] = new Thread[numThreads];
