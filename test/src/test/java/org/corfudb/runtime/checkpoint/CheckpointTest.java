@@ -32,6 +32,12 @@ public class CheckpointTest extends AbstractObjectTest {
 
     void setRuntime() {
         myRuntime = new CorfuRuntime(getDefaultConfigurationString()).connect();
+        // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
+        // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
+        // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
+        // causing deadlock.  Our workaround is to disable that cache.
+        // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
+        getMyRuntime().setCacheDisabled(true);
     }
 
     Map<String, Long> instantiateMap(String mapName) {
@@ -311,6 +317,13 @@ public class CheckpointTest extends AbstractObjectTest {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         Thread ts[] = new Thread[numThreads];
         int idxTs = 0;
+
+        // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
+        // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
+        // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
+        // causing deadlock.  Our workaround is to disable that cache.
+        // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
+        getMyRuntime().setCacheDisabled(true);
 
         CoopScheduler.reset(numThreads);
         CoopScheduler.setSchedule(schedule);
