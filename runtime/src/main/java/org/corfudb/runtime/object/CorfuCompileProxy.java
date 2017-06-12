@@ -269,6 +269,7 @@ public class CorfuCompileProxy<T> implements ICorfuSMRProxyInternal<T> {
                         " and we don't have a copy");
             });
         } catch (TrimmedException ex) {
+            log.trace("Going to throw TrimmedUpcallException");
             throw new TrimmedUpcallException(timestamp);
         }
     }

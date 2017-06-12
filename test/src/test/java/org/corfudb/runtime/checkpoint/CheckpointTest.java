@@ -8,6 +8,7 @@ import org.corfudb.runtime.MultiCheckpointWriter;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.exceptions.TransactionAbortedException;
 import org.corfudb.runtime.exceptions.TrimmedException;
+import org.corfudb.runtime.exceptions.TrimmedUpcallException;
 import org.corfudb.runtime.object.AbstractObjectTest;
 import org.corfudb.runtime.object.transactions.TransactionType;
 import org.corfudb.util.CoopScheduler;
@@ -38,6 +39,8 @@ public class CheckpointTest extends AbstractObjectTest {
         // causing deadlock.  Our workaround is to disable that cache.
         // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
         getMyRuntime().setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
     }
 
     Map<String, Long> instantiateMap(String mapName) {
@@ -62,6 +65,10 @@ public class CheckpointTest extends AbstractObjectTest {
     public void instantiateMaps() {
 
         myRuntime = getDefaultRuntime().connect();
+        getMyRuntime().setCacheDisabled(true);
+        myRuntime.setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
 
         m2A = instantiateMap(streamNameA);
         m2B = instantiateMap(streamNameB);
@@ -72,6 +79,9 @@ public class CheckpointTest extends AbstractObjectTest {
      */
     void mapCkpoint() throws Exception {
         CorfuRuntime currentRuntime = getMyRuntime();
+        getMyRuntime().setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
             MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
             mcw1.addMap((SMRMap) m2A);
@@ -85,6 +95,9 @@ public class CheckpointTest extends AbstractObjectTest {
      */
     void mapCkpointAndTrim() throws Exception {
         CorfuRuntime currentRuntime = getMyRuntime();
+        getMyRuntime().setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
             try {
                 MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
@@ -125,14 +138,22 @@ public class CheckpointTest extends AbstractObjectTest {
      */
     void validateMapRebuild(int mapSize, boolean expectedFullsize) {
         setRuntime();
+        getMyRuntime().setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         try {
             Map<String, Long> localm2A = instantiateMap(streamNameA);
             Map<String, Long> localm2B = instantiateMap(streamNameB);
-            for (int i = 0; i < localm2A.size(); i++) {
+            int max;
+            max = localm2A.size();
+            System.err.printf("%s@A%d,", Thread.currentThread().getName(), max);
+            for (int i = 0; i < max; i++) {
                 sched();
                 assertThat(localm2A.get(String.valueOf(i))).isEqualTo((long) i);
             }
-            for (int i = 0; i < localm2B.size(); i++) {
+            max = localm2B.size();
+            System.err.printf("%s@B%d,", Thread.currentThread().getName(), max);
+            for (int i = 0; i < max; i++) {
                 sched();
                 assertThat(localm2B.get(String.valueOf(i))).isEqualTo(0L);
             }
@@ -155,15 +176,26 @@ public class CheckpointTest extends AbstractObjectTest {
      */
     void populateMaps(int mapSize) {
         for (int i = 0; i < mapSize; i++) {
-            try {
-                sched();
-                m2A.put(String.valueOf(i), (long) i);
-                sched();
-                m2B.put(String.valueOf(i), (long) 0);
-            } catch (TrimmedException te) {
-                // shouldn't happen
-                te.printStackTrace();
-                throw te;
+            // If TrimmedUpcallException happens, we need to retry the put() calls,
+            // because other parts of this test assume that the put() calls are
+            // eventually successful.
+            while (true) {
+                try {
+                    sched();
+                    m2A.put(String.valueOf(i), (long) i);
+                    sched();
+                    m2B.put(String.valueOf(i), (long) 0);
+                    System.err.printf("PUT%d,", i);
+                    break;
+                } catch (TrimmedUpcallException te) {
+                    // NOTE: This is a possible exception nowadays.
+                    // TODO: Get 100% deterministic replay when it does happen.
+                    System.err.printf("NOTICE/TODO: %s\n", te);
+                } catch (TrimmedException te) {
+                    // shouldn't happen
+                    te.printStackTrace();
+                    throw te;
+                }
             }
         }
     }
@@ -315,13 +347,14 @@ public class CheckpointTest extends AbstractObjectTest {
 
     // disable for now, revisit for 100% deterministic scheduling [sigh}
     @Test
-    public void periodicCkpointTrimTest_50_percent_failure() throws Exception {
+    public void periodicCkpointTrimTest_50_percent_failure_usually() throws Exception {
         final int T6 = 6;
         int numThreads = T6 + 1;
         // WEIRD, this one always passes on iteration 0 and always fails on iteration 1.
         // Hmmmmmmmmm...........
-        int[] schedule = {3,0,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,6,2,3,0,4,5,6,4,2,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,0,0,4,0,5,4,4,1,0,6,6,3,3,3,3,3,0,0,6,4,0,2,5,5,5,5,5,5};
-        for (int i = 0; i < 2; i++) {
+        // int[] schedule = {3,0,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,6,2,3,0,4,5,6,4,2,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,0,0,4,0,5,4,4,1,0,6,6,3,3,3,3,3,0,0,6,4,0,2,5,5,5,5,5,5};
+        int[] schedule = {1,5,5,5,4,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,5,4,1,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,0,0,4,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+        for (int i = 0; i < 2*2*2*2*2*2; i++) {
             System.err.printf("Iteration %d\n", i);
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
@@ -351,6 +384,8 @@ public class CheckpointTest extends AbstractObjectTest {
         // causing deadlock.  Our workaround is to disable that cache.
         // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
         getMyRuntime().setCacheDisabled(true);
+        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
+        getMyRuntime().getAddressSpaceView().invalidateClientCache();
 
         CoopScheduler.reset(numThreads);
         CoopScheduler.setSchedule(schedule);
@@ -372,7 +407,7 @@ public class CheckpointTest extends AbstractObjectTest {
             try {
                 mapCkpointAndTrim();
             } catch (TransactionAbortedException e) {
-                System.err.printf("Hey, check this schedule!\n");
+                System.err.printf(",Hey, check this schedule!,");
                 // Abort is possible, but no need to fail test if it does.
             } catch (Exception e) {
                 workerThreadFailure.set(true);
@@ -387,7 +422,8 @@ public class CheckpointTest extends AbstractObjectTest {
             final int ii = i;
             ts[idxTs++] = new Thread(() -> {
                 Thread.currentThread().setName("thr-" + (ii + 2));
-                CoopScheduler.registerThread(); sched();
+                System.err.printf("thr-%d\n", (ii + 2));
+                CoopScheduler.registerThread(); try{Thread.sleep(50);}catch(Exception e){}; sched();
                 validateMapRebuild(mapSize, false);
                 CoopScheduler.threadDone();
             });
@@ -404,6 +440,7 @@ public class CheckpointTest extends AbstractObjectTest {
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
         validateMapRebuild(mapSize, true);
+        System.err.printf("\n");
     }
 
     /**

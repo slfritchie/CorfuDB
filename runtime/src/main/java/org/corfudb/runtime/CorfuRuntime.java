@@ -96,7 +96,7 @@ public class CorfuRuntime {
      * Whether or not to disable the cache.
      */
     @Getter
-    public boolean cacheDisabled = false;
+    private final boolean cacheDisabled = true;
     /**
      * The maximum size of the cache, in bytes.
      */
@@ -308,7 +308,8 @@ public class CorfuRuntime {
      * @return A CorfuRuntime to support chaining.
      */
     public CorfuRuntime setCacheDisabled(boolean disable) {
-        this.cacheDisabled = disable;
+        if (!disable) { throw new ArithmeticException(); }
+        // this.cacheDisabled = disable;
         return this;
     }
 

@@ -213,9 +213,11 @@ public class CoopScheduler {
                     threadStatus[t].ticks--;
                     if (threadStatus[t].ticks > 0) {
                         // We still have a tick remaining, don't pester scheduler yet.
+System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                         return;
                     }
                 }
+                if (t == 3 || t == 5) { System.err.printf("%d*,", t); }
                 threadStatus[t].ready = true;
                 threadStatus[t].notify();
             }
@@ -223,6 +225,7 @@ public class CoopScheduler {
                 while (!centralStopped && threadStatus[t].ticks == 0) {
                     threadStatus[t].wait();
                 }
+                if (t == 3 || t == 5) { System.err.printf("%d>,", t); }
                 if (centralStopped) {
                     System.err.printf("NOTICE scheduler stopped, I am %d\n", t); return;
                 }
@@ -288,7 +291,7 @@ public class CoopScheduler {
         int given = 0;
 
         while (! someReady(numStartingThreads)) {
-            try { Thread.sleep(1); } catch (Exception e) {}
+            try { System.err.printf("!someReady,"); Thread.sleep(1); } catch (Exception e) {}
         }
         // System.err.printf("SCHED: entering main loop\n");
         while (true) {
@@ -313,6 +316,8 @@ public class CoopScheduler {
                         try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
+                    if (given < 1000) { System.err.printf("%d,", t); }
+                    if (given == 1000) { System.err.printf("\n"); }
                     threadStatus[t].notify();
                     given++;
                 }

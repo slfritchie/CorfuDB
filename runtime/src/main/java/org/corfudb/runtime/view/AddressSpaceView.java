@@ -139,6 +139,7 @@ public class AddressSpaceView extends AbstractView {
      */
     public @Nonnull ILogData read(long address) {
         if (!runtime.isCacheDisabled()) {
+System.err.printf("F-%s!\n", Thread.currentThread().getName());
             ILogData data = readCache.get(address);
             if (data == null || data.getType() == DataType.EMPTY) {
                 throw new RuntimeException("Unexpected return of empty data at address " + address + " on read");
@@ -155,6 +156,7 @@ public class AddressSpaceView extends AbstractView {
      * @return A result, which be cached.
      */
     public Map<Long, ILogData> read(Iterable<Long> addresses) {
+        System.err.printf("Goooooo\n");
         if (!runtime.isCacheDisabled()) {
             return readCache.getAll(addresses);
         }
