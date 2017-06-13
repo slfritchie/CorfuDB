@@ -39,12 +39,10 @@ public class CheckpointTest extends AbstractObjectTest {
         // causing deadlock.  Our workaround is to disable that cache.
         // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
         getMyRuntime().setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
     }
 
     Map<String, Long> instantiateMap(String mapName) {
-        System.err.printf("\nI=%s@%s,\n", mapName, Thread.currentThread().getName());
+        /**** System.err.printf("\nI=%s@%s,\n", mapName, Thread.currentThread().getName()); ****/
         log.info("I={}@{}", mapName, Thread.currentThread().getName());
         return (SMRMap<String, Long>)
                 instantiateCorfuObject(
@@ -69,8 +67,6 @@ public class CheckpointTest extends AbstractObjectTest {
         myRuntime = getDefaultRuntime().connect();
         getMyRuntime().setCacheDisabled(true);
         myRuntime.setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
 
         /******
         m2A = instantiateMap(streamNameA);
@@ -84,8 +80,6 @@ public class CheckpointTest extends AbstractObjectTest {
     void mapCkpoint() throws Exception {
         CorfuRuntime currentRuntime = getMyRuntime();
         getMyRuntime().setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
             MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
             mcw1.addMap((SMRMap) m2A);
@@ -100,8 +94,6 @@ public class CheckpointTest extends AbstractObjectTest {
     void mapCkpointAndTrim() throws Exception {
         CorfuRuntime currentRuntime = getMyRuntime();
         getMyRuntime().setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
             try {
                 MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
@@ -143,8 +135,6 @@ public class CheckpointTest extends AbstractObjectTest {
     void validateMapRebuild(int mapSuffix, int mapSize, boolean expectedFullsize) {
         setRuntime();
         getMyRuntime().setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
         try {
             Map<String, Long> localm2A = instantiateMap(streamNameA + mapSuffix);
             Map<String, Long> localm2B = instantiateMap(streamNameB + mapSuffix);

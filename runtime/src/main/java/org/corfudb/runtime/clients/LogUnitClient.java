@@ -308,7 +308,8 @@ public class LogUnitClient implements IClient {
      * Send a flush cache request that will flush the logunit cache
      */
     public CompletableFuture<Void> flushCache() {
-        sched();
+        // invalidateServerCaches can call us, but inside of a synchronized block,
+        // so don't call CoopSched here: sched();
         return router.sendMessageAndGetCompletable(CorfuMsgType.FLUSH_CACHE.msg());
     }
 

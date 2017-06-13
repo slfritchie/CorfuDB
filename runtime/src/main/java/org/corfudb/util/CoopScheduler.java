@@ -316,8 +316,8 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                         try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
-                    if (given < 1000) { System.err.printf("\nSCHED-NOTIFY %d,\n", t); log.info("SCHED-NOTIFY {}", t); }
-                    if (given == 1000) { System.err.printf("\n"); }
+                    if (given < 1000) { /**** System.err.printf("\nSCHED-NOTIFY %d,\n", t); ****/ log.info("SCHED-NOTIFY {}", t); }
+                    if (given == 1000) { /**** System.err.printf("\n"); ****/ }
                     threadStatus[t].notify();
                     given++;
                 }
