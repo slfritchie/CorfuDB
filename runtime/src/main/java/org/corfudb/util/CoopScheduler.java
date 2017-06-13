@@ -305,26 +305,25 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
             }
             for (int i = 0; i < schedule.length; i++) {
                 t = schedule[i].thread;
-                if (! threadStatus[t].ready || threadStatus[t].done) { continue; }
+                if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipA {}", t); continue; }
                 if (schedule[i].ticks < 1) {
                     System.err.printf("TODO FIX ME Bad ticks value in schedule item %d: %d ticks\n", i, schedule[i].ticks);
                     return;
                 }
                 synchronized (threadStatus[t]) {
-                    if (! threadStatus[t].ready || threadStatus[t].done) { continue; }
+                    if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipB {}", t);continue; }
                     while (threadStatus[t].ticks != 0) {
-                        try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
+                        try {threadStatus[t].wait(); log.info("SCHED-WAIT1 {}", t);} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
-                    if (given < 1000) { /**** System.err.printf("\nSCHED-NOTIFY %d,\n", t); ****/ log.info("SCHED-NOTIFY {}", t); }
-                    if (given == 1000) { /**** System.err.printf("\n"); ****/ }
+                    { /**** System.err.printf("\nSCHED-NOTIFY %d,\n", t); ****/ log.info("SCHED-NOTIFY {}", t); }
                     threadStatus[t].notify();
                     given++;
                 }
 
                 synchronized (threadStatus[t]) {
                     while (!threadStatus[t].done && threadStatus[t].ticks != 0) {
-                        try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
+                        try {threadStatus[t].wait(); log.info("SCHED-WAIT2 {}", t);} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                 }
             }
