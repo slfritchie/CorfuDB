@@ -49,10 +49,16 @@ public class ReadWaitHoleFillPolicy implements IHoleFillPolicy {
             // If this is not the first try, sleep before trying again
             if (tryNum != 0) {
                 try {
-                    log.trace("peekUntilHoleFillRequired: sleep {} msec iteration {} of {}", waitMs, tryNum, numRetries);
-                    // TODO: Add deterministic control over exiting this loop early?
-                    sched();
-                    Thread.sleep(waitMs);
+                    if (true) {
+                        int lim = 5;
+                        log.trace("peekUntilHoleFillRequired: extra sched() {} times @ iteration {} of {}", lim, tryNum, numRetries);
+                        for (int i = 0; i < lim; i++) {
+                            sched();
+                        }
+                    } else {
+                        log.trace("peekUntilHoleFillRequired: sleep {} msec iteration {} of {}", waitMs, tryNum, numRetries);
+                        Thread.sleep(waitMs);
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
