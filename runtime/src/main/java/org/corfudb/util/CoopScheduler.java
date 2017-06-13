@@ -1,5 +1,6 @@
 package org.corfudb.util;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.math.RandomUtils;
 
 import java.util.*;
@@ -49,6 +50,7 @@ import java.util.*;
  *     threadDone().
  */
 
+@Slf4j
 public class CoopScheduler {
     private static class CoopThreadStatus {
         boolean ready = false;
@@ -75,7 +77,7 @@ public class CoopScheduler {
     static CoopThreadStatus threadStatus[];
     static CoopQuantum schedule[];
 
-    static List log;
+    static List theLog;
 
     public static void reset(int maxT) {
         maxThreads = maxT;
@@ -88,7 +90,7 @@ public class CoopScheduler {
             threadStatus[t] = new CoopThreadStatus();
         }
         schedule = null;
-        log = Collections.synchronizedList(new ArrayList<Object>());
+        theLog = Collections.synchronizedList(new ArrayList<Object>());
     }
 
     public static int registerThread() {
@@ -217,7 +219,6 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                         return;
                     }
                 }
-                if (t == 3 || t == 5) { System.err.printf("%d*,", t); }
                 threadStatus[t].ready = true;
                 threadStatus[t].notify();
             }
@@ -225,7 +226,6 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                 while (!centralStopped && threadStatus[t].ticks == 0) {
                     threadStatus[t].wait();
                 }
-                if (t == 3 || t == 5) { System.err.printf("%d>,", t); }
                 if (centralStopped) {
                     System.err.printf("NOTICE scheduler stopped, I am %d\n", t); return;
                 }
@@ -316,7 +316,7 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                         try {threadStatus[t].wait();} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
-                    if (given < 1000) { System.err.printf("%d,", t); }
+                    if (given < 1000) { System.err.printf("\nSCHED-NOTIFY %d,\n", t); log.info("SCHED-NOTIFY {}", t); }
                     if (given == 1000) { System.err.printf("\n"); }
                     threadStatus[t].notify();
                     given++;
@@ -352,13 +352,13 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
 
     public static void appendLog(Object s) {
         synchronized (log) {
-            log.add(s);
+            theLog.add(s);
         }
     }
 
     public static Object[] getLog() {
         synchronized (log) {
-            return log.toArray();
+            return theLog.toArray();
         }
     }
 

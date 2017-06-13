@@ -203,12 +203,14 @@ public class BackpointerStreamView extends AbstractQueuedStreamView {
             // Try using backpointers first
             if (!runtime.isBackpointersDisabled() &&
                     d.hasBackpointer(streamId)) {
+                log.trace("Backpointer present: {} -> {}", currentAddress, d.getBackpointer(streamId));
                 currentAddress = d.getBackpointer(streamId);
             }
             // backpointers failed, so we're
             // downgrading to a linear scan
             else {
                 currentAddress = currentAddress - 1;
+                log.trace("Backpointer not present: linear scan");
             }
         }
 
