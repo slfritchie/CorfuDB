@@ -68,10 +68,9 @@ public class CheckpointTest extends AbstractObjectTest {
         getMyRuntime().setCacheDisabled(true);
         myRuntime.setCacheDisabled(true);
 
-        /******
         m2A = instantiateMap(streamNameA);
-        m2B = instantiateMap(streamNameB); ******/
-        System.err.printf("\nNOTE: instantiateMaps doesn't actually instantiate anything here\n");
+        m2B = instantiateMap(streamNameB);
+        // System.err.printf("\nNOTE: instantiateMaps doesn't actually instantiate anything here\n");
     }
 
     /**
@@ -374,6 +373,17 @@ public class CheckpointTest extends AbstractObjectTest {
         int idxTs = 0;
         AtomicBoolean workerThreadFailure = new AtomicBoolean(false);
 
+        // Reset (simulated) server state: Sequencer, LogUnit, etc.
+        // Manual calls for @Before infrastructure
+        /*****/
+        resetTests();
+        clearTestStatus();
+        setupScheduledThreads();
+        resetThreadingTest();
+        InitSM();
+        addSingleServer(SERVERS.PORT_0);
+        /******/
+
         // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
         // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
         // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
@@ -439,6 +449,15 @@ public class CheckpointTest extends AbstractObjectTest {
         // This time the we check that the new map instances contains all values
         validateMapRebuild(mapSuffix, mapSize, true);
         System.err.printf("\n");
+
+        // Reset (simulated) server state: Sequencer, LogUnit, etc.
+        // Manual calls for @After infrastructure
+        /*****/
+        cleanupBuffers();
+        cleanupScheduledThreads();
+        cleanPerTestTempDir();
+        shutdownThreadingTest();
+        /*****/
     }
 
     /**
