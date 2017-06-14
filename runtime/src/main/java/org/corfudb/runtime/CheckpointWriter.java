@@ -23,6 +23,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.corfudb.util.CoopScheduler.sched;
+
 /** Checkpoint writer for SMRMaps: take a snapshot of the
  *  object via TXBegin(), then dump the frozen object's
  *  state into CheckpointEntry records into the object's
@@ -141,6 +143,7 @@ public class CheckpointWriter {
      * @return Global log address of the START record.
      */
     public long startCheckpoint() {
+        sched();
         startTime = LocalDateTime.now();
         AbstractTransactionalContext context = TransactionalContext.getCurrentContext();
         long txBeginGlobalAddress = context.getSnapshotTimestamp();
@@ -156,6 +159,7 @@ public class CheckpointWriter {
         ImmutableMap<CheckpointEntry.CheckpointDictKey,String> mdKV = ImmutableMap.copyOf(this.mdKV);
         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.START,
                 author, checkpointID, mdKV, null);
+        sched();
         startAddress = sv.append(Collections.singleton(checkpointStreamID), cp, null);
 
         postAppendFunc.accept(cp, startAddress);
@@ -193,6 +197,7 @@ public class CheckpointWriter {
 
         Iterators.partition(map.keySet().stream()
                 .map(k -> {
+                    sched();
                     return new SMREntry("put",
                             new Object[]{keyMutator.apply(k), valueMutator.apply(map.get(k))},
                             serializer);
@@ -204,6 +209,7 @@ public class CheckpointWriter {
                     }
                     CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.CONTINUATION,
                             author, checkpointID, mdKV, smrEntries);
+                    sched();
                     long pos = sv.append(Collections.singleton(checkpointStreamID), cp, null);
 
                     postAppendFunc.accept(cp, pos);
@@ -235,6 +241,7 @@ public class CheckpointWriter {
 
         CheckpointEntry cp = new CheckpointEntry(CheckpointEntry.CheckpointEntryType.END,
                 author, checkpointID, mdKV, null);
+        sched();
         endAddress = sv.append(Collections.singleton(checkpointStreamID), cp, null);
 
         postAppendFunc.accept(cp, endAddress);

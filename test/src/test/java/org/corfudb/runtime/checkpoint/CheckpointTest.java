@@ -93,12 +93,16 @@ public class CheckpointTest extends AbstractObjectTest {
     void mapCkpointAndTrim() throws Exception {
         CorfuRuntime currentRuntime = getMyRuntime();
         getMyRuntime().setCacheDisabled(true);
+        final int spin = 20;
+
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
             try {
                 MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
                 mcw1.addMap((SMRMap) m2A);
                 mcw1.addMap((SMRMap) m2B);
-                sched();
+                for (int j = 0; j < spin; j++) {
+                    sched();
+                }
                 long checkpointAddress = mcw1.appendCheckpoints(currentRuntime, author);
                 System.err.printf("cp-%d,", i);
 
@@ -109,15 +113,23 @@ public class CheckpointTest extends AbstractObjectTest {
                     //
                 } ******/
                 // Trim the log
-                sched();
+                for (int j = 0; j < spin; j++) {
+                    sched();
+                }
                 currentRuntime.getAddressSpaceView().prefixTrim(checkpointAddress - 1);
                 System.err.printf("trim-%d,", i);
-                sched();
+                for (int j = 0; j < spin; j++) {
+                    sched();
+                }
                 currentRuntime.getAddressSpaceView().gc();
                 System.err.printf("gc-%d,", i);
-                sched();
+                for (int j = 0; j < spin; j++) {
+                    sched();
+                }
                 currentRuntime.getAddressSpaceView().invalidateServerCaches();
-                sched();
+                for (int j = 0; j < spin; j++) {
+                    sched();
+                }
                 currentRuntime.getAddressSpaceView().invalidateClientCache();
             } catch (TrimmedException te) {
                 // shouldn't happen
