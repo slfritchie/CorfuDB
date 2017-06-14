@@ -336,7 +336,7 @@ public class CheckpointTest extends AbstractObjectTest {
      * @throws Exception
      */
 
-    @Test
+    ////@Test
     public void periodicCkpointTrimTest() throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
@@ -435,8 +435,8 @@ public class CheckpointTest extends AbstractObjectTest {
 
         // thread 1: pupolates the maps with mapSize items
         ts[idxTs++] = new Thread(() -> {
-            Thread.currentThread().setName("thr-0");
-                CoopScheduler.registerThread(); sched();
+                Thread.currentThread().setName("thr-0");
+                CoopScheduler.registerThread(0); sched();
                 populateMaps(mapSize);
                 CoopScheduler.threadDone();
         });
@@ -445,7 +445,7 @@ public class CheckpointTest extends AbstractObjectTest {
         // and immediate prefix-trim of the log up to the checkpoint position
         ts[idxTs++] = new Thread(() -> {
             Thread.currentThread().setName("thr-1");
-            CoopScheduler.registerThread(); sched();
+            CoopScheduler.registerThread(1); sched();
             try {
                 mapCkpointAndTrim();
             } catch (TransactionAbortedException e) {
@@ -464,8 +464,7 @@ public class CheckpointTest extends AbstractObjectTest {
             final int ii = i;
             ts[idxTs++] = new Thread(() -> {
                 Thread.currentThread().setName("thr-" + (ii + 2));
-                // System.err.printf("thr-%d\n", (ii + 2));
-                CoopScheduler.registerThread(); sched();
+                CoopScheduler.registerThread(ii+2); sched();
                 for (int j = 0; j < 2*2*2; j++) {
                     validateMapRebuild(mapSuffix, mapSize, false);
                 }
