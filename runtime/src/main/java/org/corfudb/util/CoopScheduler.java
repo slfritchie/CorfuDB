@@ -305,13 +305,13 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
             }
             for (int i = 0; i < schedule.length; i++) {
                 t = schedule[i].thread;
-                if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipA {}", t); continue; }
+                if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipA {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done); continue; }
                 if (schedule[i].ticks < 1) {
                     System.err.printf("TODO FIX ME Bad ticks value in schedule item %d: %d ticks\n", i, schedule[i].ticks);
                     return;
                 }
                 synchronized (threadStatus[t]) {
-                    if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipB {}", t);continue; }
+                    if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipB {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done);continue; }
                     while (threadStatus[t].ticks != 0) {
                         try {threadStatus[t].wait(); log.info("SCHED-WAIT1 {}", t);} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
