@@ -76,6 +76,7 @@ public class CoopScheduler {
     static final Object centralReady = new Object();
     static CoopThreadStatus threadStatus[];
     static CoopQuantum schedule[];
+    public static int verbose = 1;
 
     static List theLog;
 
@@ -305,25 +306,25 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
             }
             for (int i = 0; i < schedule.length; i++) {
                 t = schedule[i].thread;
-                if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipA {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done); continue; }
+                if (! threadStatus[t].ready || threadStatus[t].done) { if (verbose > 1) { log.info("SCHED-skipA {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done); } continue; }
                 if (schedule[i].ticks < 1) {
                     System.err.printf("TODO FIX ME Bad ticks value in schedule item %d: %d ticks\n", i, schedule[i].ticks);
                     return;
                 }
                 synchronized (threadStatus[t]) {
-                    if (! threadStatus[t].ready || threadStatus[t].done) { log.info("SCHED-skipB {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done);continue; }
+                    if (! threadStatus[t].ready || threadStatus[t].done) { if (verbose > 1) { log.info("SCHED-skipB {} ready {} done {}", t, threadStatus[t].ready, threadStatus[t].done); } continue; }
                     while (threadStatus[t].ticks != 0) {
-                        try {threadStatus[t].wait(); log.info("SCHED-WAIT1 {}", t);} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
+                        try {threadStatus[t].wait(); if (verbose > 1) { log.info("SCHED-WAIT1 {}", t); } } catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                     threadStatus[t].ticks = schedule[i].ticks;
-                    { /**** System.err.printf("\nSCHED-NOTIFY %d,\n", t); ****/ log.info("SCHED-NOTIFY {}", t); }
+                    { if (verbose > 0) { log.info("SCHED-NOTIFY {}", t); } }
                     threadStatus[t].notify();
                     given++;
                 }
 
                 synchronized (threadStatus[t]) {
                     while (!threadStatus[t].done && threadStatus[t].ticks != 0) {
-                        try {threadStatus[t].wait(); log.info("SCHED-WAIT2 {}", t);} catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
+                        try {threadStatus[t].wait(); if (verbose > 1) { log.info("SCHED-WAIT2 {}", t); } } catch (InterruptedException e) { System.err.printf("TODO BUMMER FIX ME\n"); return; }
                     }
                 }
             }
