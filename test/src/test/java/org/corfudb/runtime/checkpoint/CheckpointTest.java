@@ -5,11 +5,16 @@ import com.google.common.reflect.TypeToken;
 import lombok.Getter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.MultiCheckpointWriter;
+import org.corfudb.runtime.collections.ISMRObject;
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.collections.SMRMap$CORFUSMR;
 import org.corfudb.runtime.exceptions.TransactionAbortedException;
 import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.exceptions.TrimmedUpcallException;
 import org.corfudb.runtime.object.AbstractObjectTest;
+import org.corfudb.runtime.object.CorfuSMRObjectConcurrencyTest;
+import org.corfudb.runtime.object.ICorfuSMRProxy;
+import org.corfudb.runtime.object.ICorfuSMRProxyInternal;
 import org.corfudb.runtime.object.transactions.TransactionType;
 import org.corfudb.util.CoopScheduler;
 import org.junit.Before;
@@ -356,7 +361,7 @@ public class CheckpointTest extends AbstractObjectTest {
         periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
-    ////@Test
+    @Test
     public void periodicCkpointTrimTest_lots() throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
@@ -386,11 +391,11 @@ public class CheckpointTest extends AbstractObjectTest {
         }
     }
 
+    /*******
     @Test public void periodicCkpointTrimTest_yo0() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo1() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo2() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo3() throws Exception { periodicCkpointTrimTest_yo_inner(); }
-    /*******
     @Test public void periodicCkpointTrimTest_yo4() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo5() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo6() throws Exception { periodicCkpointTrimTest_yo_inner(); }
