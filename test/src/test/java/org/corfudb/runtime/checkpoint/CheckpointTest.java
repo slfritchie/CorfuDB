@@ -61,7 +61,7 @@ public class CheckpointTest extends AbstractObjectTest {
     /**
      * common initialization for tests: establish Corfu runtime and instantiate two maps
      */
-    ////////// @Before
+    @Before
     public void instantiateMaps() {
         System.err.printf("@@@ instantiateMaps\n");
         myRuntime = getDefaultRuntime().connect();
@@ -146,12 +146,12 @@ public class CheckpointTest extends AbstractObjectTest {
      * @param mapSize
      * @param expectedFullsize
      */
-    void validateMapRebuild(int mapSuffix, int mapSize, boolean expectedFullsize) {
+    void validateMapRebuild(int mapSize, boolean expectedFullsize) {
         setRuntime();
         getMyRuntime().setCacheDisabled(true);
         try {
-            Map<String, Long> localm2A = instantiateMap(streamNameA + mapSuffix);
-            Map<String, Long> localm2B = instantiateMap(streamNameB + mapSuffix);
+            Map<String, Long> localm2A = instantiateMap(streamNameA);
+            Map<String, Long> localm2B = instantiateMap(streamNameB);
             int max;
             max = localm2A.size();
             System.err.printf("%s@A%d,", Thread.currentThread().getName(), max);
@@ -244,14 +244,14 @@ public class CheckpointTest extends AbstractObjectTest {
         // they should rebuild from the latest checkpoint (if available).
         // performs some sanity checks on the map state
         scheduleConcurrently(PARAMETERS.NUM_ITERATIONS_LOW, ignored_task_num -> {
-            validateMapRebuild(0, mapSize, false);
+            validateMapRebuild(mapSize, false);
         });
 
         executeScheduled(PARAMETERS.CONCURRENCY_SOME, PARAMETERS.TIMEOUT_LONG);
 
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
-        validateMapRebuild(0, mapSize, true);
+        validateMapRebuild(mapSize, true);
     }
 
     /**
@@ -277,14 +277,14 @@ public class CheckpointTest extends AbstractObjectTest {
         // thread 2: repeat ITERATIONS_LOW times starting a fresh runtime, and instantiating the maps.
         // they should be empty.
         scheduleConcurrently(PARAMETERS.NUM_ITERATIONS_LOW, ignored_task_num -> {
-            validateMapRebuild(0, mapSize, true);
+            validateMapRebuild(mapSize, true);
         });
 
         executeScheduled(PARAMETERS.CONCURRENCY_SOME, PARAMETERS.TIMEOUT_LONG);
 
         // Finally, after the two threads finish, again we start a fresh runtime and instante the maps.
         // Then verify they are empty.
-        validateMapRebuild(0, mapSize, true);
+        validateMapRebuild(mapSize, true);
     }
 
     /**
@@ -320,14 +320,14 @@ public class CheckpointTest extends AbstractObjectTest {
         // they should rebuild from the latest checkpoint (if available).
         // this thread checks that all values are present in the maps
         scheduleConcurrently(PARAMETERS.NUM_ITERATIONS_LOW, ignored_task_num -> {
-            validateMapRebuild(0, mapSize, true);
+            validateMapRebuild(mapSize, true);
         });
 
         executeScheduled(PARAMETERS.CONCURRENCY_SOME, PARAMETERS.TIMEOUT_LONG);
 
         // Finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
-        validateMapRebuild(0, mapSize, true);
+        validateMapRebuild(mapSize, true);
     }
 
     /**
@@ -353,10 +353,10 @@ public class CheckpointTest extends AbstractObjectTest {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
         int numThreads = T6+1;
-        periodicCkpointTrimTestInner(0, schedule, numThreads);
+        periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
-    @Test
+    ////@Test
     public void periodicCkpointTrimTest_lots() throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
@@ -377,17 +377,20 @@ public class CheckpointTest extends AbstractObjectTest {
             resetThreadingTest();
             InitSM();
             resetTests();
+            addSingleServer(SERVERS.PORT_0);
+            setRuntime();
+            //// instantiateMaps(i);
             instantiateMaps();
 
-            periodicCkpointTrimTestInner(i, schedule, numThreads);
+            periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
 
-    /*******
     @Test public void periodicCkpointTrimTest_yo0() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo1() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo2() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo3() throws Exception { periodicCkpointTrimTest_yo_inner(); }
+    /*******
     @Test public void periodicCkpointTrimTest_yo4() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo5() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo6() throws Exception { periodicCkpointTrimTest_yo_inner(); }
@@ -427,7 +430,7 @@ public class CheckpointTest extends AbstractObjectTest {
         int numThreads = T6 + 1;
         // int[] schedule = {3,0,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,6,2,3,0,4,5,6,4,2,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,0,0,4,0,5,4,4,1,0,6,6,3,3,3,3,3,0,0,6,4,0,2,5,5,5,5,5,5};
         int[] schedule = {1,5,5,5,4,6,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,5,4,1,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,0,0,4,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
-        periodicCkpointTrimTestInner(42, schedule, numThreads);
+        periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
     // TODO revisit the StackOverflow exception in 2nd iteration of this!  ... @Test
@@ -438,11 +441,11 @@ public class CheckpointTest extends AbstractObjectTest {
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
             int[] schedule = CoopScheduler.makeSchedule(numThreads, 100);
             CoopScheduler.printSchedule(schedule);
-            periodicCkpointTrimTestInner(i, schedule, numThreads);
+            periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
 
-    public void periodicCkpointTrimTestInner(int mapSuffix, int[] schedule, int numThreads) throws Exception {
+    public void periodicCkpointTrimTestInner(int[] schedule, int numThreads) throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         Thread ts[] = new Thread[numThreads];
         int idxTs = 0;
@@ -458,17 +461,6 @@ public class CheckpointTest extends AbstractObjectTest {
         InitSM();
         addSingleServer(SERVERS.PORT_0);
         ******/
-
-        // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
-        // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
-        // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
-        // causing deadlock.  Our workaround is to disable that cache.
-        // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
-        getMyRuntime().setCacheDisabled(true);
-        getMyRuntime().getAddressSpaceView().invalidateServerCaches();
-        getMyRuntime().getAddressSpaceView().invalidateClientCache();
-        m2A = instantiateMap(streamNameA + mapSuffix);
-        m2B = instantiateMap(streamNameB + mapSuffix);
 
         CoopScheduler.reset(numThreads);
         CoopScheduler.setSchedule(schedule);
@@ -507,7 +499,7 @@ public class CheckpointTest extends AbstractObjectTest {
                 Thread.currentThread().setName("thr-" + (ii + 2));
                 CoopScheduler.registerThread(ii+2); sched();
                 for (int j = 0; j < 2*2*2; j++) {
-                    validateMapRebuild(mapSuffix, mapSize, false);
+                    validateMapRebuild(mapSize, false);
                 }
                 CoopScheduler.threadDone();
             });
@@ -525,7 +517,7 @@ public class CheckpointTest extends AbstractObjectTest {
         // This time the we check that the new map instances contains all values
         log.info("FINAL CHECK");
         System.err.printf("\nYooo ... m2A = %s, m2B = %s\n", m2A, m2B);
-        validateMapRebuild(mapSuffix, mapSize, true);
+        validateMapRebuild(mapSize, true);
         System.err.printf("\n");
 
         // Reset (simulated) server state: Sequencer, LogUnit, etc.
