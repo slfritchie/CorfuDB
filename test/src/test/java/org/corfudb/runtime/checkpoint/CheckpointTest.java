@@ -33,11 +33,18 @@ import static org.corfudb.util.CoopScheduler.sched;
 @Slf4j
 public class CheckpointTest extends AbstractObjectTest {
 
-    @Getter
+    ///@Getter
     CorfuRuntime myRuntime = null;
+    CorfuRuntime getMyRuntime() { System.err.printf("myRuntime=%s @ thread %s\n", myRuntime, Thread.currentThread().getName()); return myRuntime; }
 
     void setRuntime() {
+        System.err.printf("setRuntime A\n");
+        try {
+            addSingleServer(SERVERS.PORT_0);
+        } catch (Exception e) {}
+        
         myRuntime = new CorfuRuntime(getDefaultConfigurationString()).connect();
+        System.err.printf("setRuntime B\n");
         // Deadlock prevention: Java 'synchronized' is used to lock the CorfuRuntime's
         // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
         // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
@@ -66,12 +73,9 @@ public class CheckpointTest extends AbstractObjectTest {
     /**
      * common initialization for tests: establish Corfu runtime and instantiate two maps
      */
-    @Before
     public void instantiateMaps() {
         System.err.printf("@@@ instantiateMaps\n");
-        myRuntime = getDefaultRuntime().connect();
-        getMyRuntime().setCacheDisabled(true);
-        myRuntime.setCacheDisabled(true);
+        if (getMyRuntime() == null) { setRuntime(); }
 
         m2A = instantiateMap(streamNameA);
         m2B = instantiateMap(streamNameB);
@@ -230,9 +234,11 @@ public class CheckpointTest extends AbstractObjectTest {
      *
      * @throws Exception
      */
-    ////@Test
+    @Test
     public void periodicCkpointTest() throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
+
+        instantiateMaps();
 
         // thread 1: pupolates the maps with mapSize items
         scheduleConcurrently(1, ignored_task_num -> {
@@ -271,9 +277,11 @@ public class CheckpointTest extends AbstractObjectTest {
      *
      * @throws Exception
      */
-    ////@Test
+    @Test
     public void emptyCkpointTest() throws Exception {
         final int mapSize = 0;
+
+        instantiateMaps();
 
         scheduleConcurrently(1, ignored_task_num -> {
             mapCkpoint();
@@ -309,9 +317,11 @@ public class CheckpointTest extends AbstractObjectTest {
      *
      * @throws Exception
      */
-    ////@Test
+    @Test
     public void periodicCkpointNoUpdatesTest() throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
+
+        instantiateMaps();
 
         // pre-populate map
         populateMaps(mapSize);
@@ -353,11 +363,13 @@ public class CheckpointTest extends AbstractObjectTest {
      * @throws Exception
      */
 
-    ////@Test
+    @Test
     public void periodicCkpointTrimTest() throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
         int numThreads = T6+1;
+
+        instantiateMaps();
         periodicCkpointTrimTestInner(schedule, numThreads);
     }
 
@@ -371,28 +383,33 @@ public class CheckpointTest extends AbstractObjectTest {
             System.err.printf("Iter %d\n", i);
 
             // @After methods:
+            System.err.printf("@After methods\n");
             cleanupBuffers();
             cleanupScheduledThreads();
             shutdownThreadingTest();
             cleanPerTestTempDir();
+            System.err.printf("@After methods done\n");
 
             // @Before methods:
+            System.err.printf("@Before methods\n");
             setupScheduledThreads();
             clearTestStatus();
             resetThreadingTest();
             InitSM();
             resetTests();
+            System.err.printf("@Before methods done\n");
             addSingleServer(SERVERS.PORT_0);
+            System.err.printf("@Before methods done 2\n");
             setRuntime();
-            //// instantiateMaps(i);
+            System.err.printf("@Before methods done 3\n");
             instantiateMaps();
+            System.err.printf("@Before methods done 4\n");
 
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
 
-    /*******
-    @Test public void periodicCkpointTrimTest_yo0() throws Exception { periodicCkpointTrimTest_yo_inner(); }
+    @Test public void periodicCkpointTrimTest_yo0() throws Exception { System.err.printf("INSIDE of yo0\n"); periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo1() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo2() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo3() throws Exception { periodicCkpointTrimTest_yo_inner(); }
@@ -428,7 +445,6 @@ public class CheckpointTest extends AbstractObjectTest {
     @Test public void periodicCkpointTrimTest_yoX() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yoY() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yoZ() throws Exception { periodicCkpointTrimTest_yo_inner(); }
-    ******/
 
     public void periodicCkpointTrimTest_yo_inner() throws Exception {
         final int T6 = 6;
@@ -456,16 +472,7 @@ public class CheckpointTest extends AbstractObjectTest {
         int idxTs = 0;
         AtomicBoolean workerThreadFailure = new AtomicBoolean(false);
 
-        // Reset (simulated) server state: Sequencer, LogUnit, etc.
-        // Manual calls for @Before infrastructure
-        /***** BROKEN:
-        resetTests();
-        clearTestStatus();
-        setupScheduledThreads();
-        resetThreadingTest();
-        InitSM();
-        addSingleServer(SERVERS.PORT_0);
-        ******/
+        instantiateMaps();
 
         CoopScheduler.reset(numThreads);
         CoopScheduler.setSchedule(schedule);
@@ -525,14 +532,6 @@ public class CheckpointTest extends AbstractObjectTest {
         validateMapRebuild(mapSize, true);
         System.err.printf("\n");
 
-        // Reset (simulated) server state: Sequencer, LogUnit, etc.
-        // Manual calls for @After infrastructure
-        /***** BROKEN:
-        cleanupBuffers();
-        cleanupScheduledThreads();
-        cleanPerTestTempDir();
-        shutdownThreadingTest();
-        /*****/
     }
 
     /**
@@ -555,11 +554,13 @@ public class CheckpointTest extends AbstractObjectTest {
      * <p>
      * Finally, we start a snapshot-TX at timestamp 77. We verify that the map state is [0, 1, 2, 3, ..., 76].
      */
-    ////@Test
+    @Test
     public void undoCkpointTest() throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         final int trimPosition = mapSize / 2;
         final int snapshotPosition = trimPosition + 2;
+
+        instantiateMaps();
 
         t(1, () -> {
 
@@ -640,10 +641,12 @@ public class CheckpointTest extends AbstractObjectTest {
      *
      * @throws Exception
      */
-    ////@Test
+    @Test
     public void delayedCkpointTest() throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         final int additional = mapSize / 2;
+
+        instantiateMaps();
 
         // first, populate the map
         for (int i = 0; i < mapSize; i++) {
