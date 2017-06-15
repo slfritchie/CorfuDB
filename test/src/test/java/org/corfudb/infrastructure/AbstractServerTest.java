@@ -43,6 +43,7 @@ public abstract class AbstractServerTest extends AbstractCorfuTest {
 
     @Before
     public void resetTest() {
+        System.err.printf("@@@ resetTest\n");
         router.reset();
         router.addServer(getDefaultServer());
         requestCounter.set(0);

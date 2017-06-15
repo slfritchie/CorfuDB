@@ -18,6 +18,7 @@ public class SealIT extends AbstractIT{
 
     @Before
     public void loadProperties() {
+        System.err.printf("@@@ loadProperties\n");
         corfuSingleNodeHost = (String) PROPERTIES.get("corfuSingleNodeHost");
         corfuSingleNodePort = Integer.parseInt((String) PROPERTIES.get("corfuSingleNodePort"));
     }

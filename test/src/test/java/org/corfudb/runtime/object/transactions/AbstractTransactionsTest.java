@@ -8,7 +8,10 @@ import org.junit.Before;
  */
 public abstract class AbstractTransactionsTest extends AbstractObjectTest {
     @Before
-    public void becomeCorfuApp() {         getDefaultRuntime(); }
+    public void becomeCorfuApp() {
+        System.err.printf("@@@@ becomeCorfuApp\n");
+        getDefaultRuntime();
+    }
 
     /**
      * Utility method to start a (default type) TX;

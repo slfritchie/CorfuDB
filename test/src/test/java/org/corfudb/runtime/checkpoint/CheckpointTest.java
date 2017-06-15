@@ -42,7 +42,7 @@ public class CheckpointTest extends AbstractObjectTest {
     }
 
     Map<String, Long> instantiateMap(String mapName) {
-        /**** System.err.printf("\nI=%s@%s,\n", mapName, Thread.currentThread().getName()); ****/
+        System.err.printf("\nInstantiate %s by %s\n", mapName, Thread.currentThread().getName());
         log.info("I={}@{}", mapName, Thread.currentThread().getName());
         return (SMRMap<String, Long>)
                 instantiateCorfuObject(
@@ -61,9 +61,9 @@ public class CheckpointTest extends AbstractObjectTest {
     /**
      * common initialization for tests: establish Corfu runtime and instantiate two maps
      */
-    @Before
+    ////////// @Before
     public void instantiateMaps() {
-
+        System.err.printf("@@@ instantiateMaps\n");
         myRuntime = getDefaultRuntime().connect();
         getMyRuntime().setCacheDisabled(true);
         myRuntime.setCacheDisabled(true);
@@ -356,6 +356,34 @@ public class CheckpointTest extends AbstractObjectTest {
         periodicCkpointTrimTestInner(0, schedule, numThreads);
     }
 
+    @Test
+    public void periodicCkpointTrimTest_lots() throws Exception {
+        final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
+        int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
+        int numThreads = T6+1;
+
+        for (int i = 0; i < 2*2; i++) {
+            System.err.printf("Iter %d\n", i);
+
+            // @After methods:
+            cleanupBuffers();
+            cleanupScheduledThreads();
+            shutdownThreadingTest();
+            cleanPerTestTempDir();
+
+            // @Before methods:
+            setupScheduledThreads();
+            clearTestStatus();
+            resetThreadingTest();
+            InitSM();
+            resetTests();
+            instantiateMaps();
+
+            periodicCkpointTrimTestInner(i, schedule, numThreads);
+        }
+    }
+
+    /*******
     @Test public void periodicCkpointTrimTest_yo0() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo1() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yo2() throws Exception { periodicCkpointTrimTest_yo_inner(); }
@@ -392,6 +420,7 @@ public class CheckpointTest extends AbstractObjectTest {
     @Test public void periodicCkpointTrimTest_yoX() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yoY() throws Exception { periodicCkpointTrimTest_yo_inner(); }
     @Test public void periodicCkpointTrimTest_yoZ() throws Exception { periodicCkpointTrimTest_yo_inner(); }
+    ******/
 
     public void periodicCkpointTrimTest_yo_inner() throws Exception {
         final int T6 = 6;
@@ -494,6 +523,8 @@ public class CheckpointTest extends AbstractObjectTest {
 
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
+        log.info("FINAL CHECK");
+        System.err.printf("\nYooo ... m2A = %s, m2B = %s\n", m2A, m2B);
         validateMapRebuild(mapSuffix, mapSize, true);
         System.err.printf("\n");
 

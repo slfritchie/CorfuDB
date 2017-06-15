@@ -12,6 +12,7 @@ public class QuorumReplicationStreamViewTest extends StreamViewTest {
     @Before
     @Override
     public void setRuntime() throws Exception {
+        System.err.printf("@@@ QRSVT setRuntime\n");
         r = getDefaultRuntime().connect();
         // First commit a layout that uses Replex
         Layout newLayout = r.layout.get();

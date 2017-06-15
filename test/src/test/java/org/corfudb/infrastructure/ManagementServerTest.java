@@ -31,6 +31,7 @@ public class ManagementServerTest extends AbstractServerTest {
 
     @After
     public void cleanUp() {
+        System.err.printf("@@@ mgmt cleanUp\n");
         managementServer.shutdown();
     }
 

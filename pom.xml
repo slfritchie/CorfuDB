@@ -298,6 +298,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.19.1</version>
                 <configuration>
+                    <!-- showoutput="true" printsummary="on" enabletestlistenerevents="true"  -->
+                    <showoutput>true</showoutput>
+                    <printsummary>true</printsummary>
+                    <enabletestlistenerevents>true</enabletestlistenerevents>
+
                     <trimStackTrace>false</trimStackTrace>
                     <systemPropertyVariables>
                         <propertyName>test.travisBuild</propertyName>

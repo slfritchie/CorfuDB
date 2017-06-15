@@ -52,6 +52,7 @@ public class ManagementClientTest extends AbstractClientTest {
      */
     @After
     public void cleanUp() {
+        System.err.printf("@@@ mgmt client cleanUp\n");
         server.shutdown();
     }
 

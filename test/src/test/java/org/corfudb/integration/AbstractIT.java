@@ -61,6 +61,7 @@ public class AbstractIT extends AbstractCorfuTest {
      */
     @Before
     public void setUp() throws Exception {
+        System.err.printf("@@@ IT setUp\n");
         forceShutdownAllCorfuServers();
         FileUtils.cleanDirectory(new File(CORFU_LOG_PATH));
     }
@@ -72,6 +73,7 @@ public class AbstractIT extends AbstractCorfuTest {
      */
     @After
     public void cleanUp() throws Exception {
+        System.err.printf("@@@ IT cleanUp\n");
         forceShutdownAllCorfuServers();
     }
 

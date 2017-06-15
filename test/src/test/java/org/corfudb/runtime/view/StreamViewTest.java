@@ -26,6 +26,7 @@ public class StreamViewTest extends AbstractViewTest {
 
     @Before
     public void setRuntime() throws Exception {
+        System.err.printf("@@@ StreamViewTest setRuntime\n");
         r = getDefaultRuntime().connect();
     }
 

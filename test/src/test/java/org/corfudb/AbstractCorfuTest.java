@@ -222,17 +222,20 @@ public class AbstractCorfuTest {
 
     @Before
     public void clearTestStatus() {
+        System.err.printf("@@@ clearTestStatus\n");
         testStatus = "";
     }
 
     @Before
     public void setupScheduledThreads() {
+        System.err.printf("@@@ setupScheduledThreads\n");
         scheduledThreads = ConcurrentHashMap.newKeySet();
     }
 
 
     @After
     public void cleanupScheduledThreads() {
+        System.err.printf("@@@ cleanupScheduledThreads\n");
         try {
             assertThat(scheduledThreads)
                     .as("Test ended but there are still threads scheduled!")
@@ -246,6 +249,7 @@ public class AbstractCorfuTest {
      */
     @After
     public void cleanPerTestTempDir() {
+        System.err.printf("@@@ cleanPerTestTempDir\n");
         deleteFolder(new File(PARAMETERS.TEST_TEMP_DIR),
                 false);
     }
@@ -430,6 +434,7 @@ public class AbstractCorfuTest {
 
     @Before
     public void resetThreadingTest() {
+        System.err.printf("@@@ resetThreadingTest\n");
         threadsMap.clear();
         lastException = null;
     }
@@ -438,6 +443,7 @@ public class AbstractCorfuTest {
     public void shutdownThreadingTest()
     throws Exception
     {
+        System.err.printf("@@@ shutdownThreadingTest\n");
         threadsMap.entrySet().forEach(x -> {
             x.getValue().shutdown();
         });
@@ -750,6 +756,7 @@ public class AbstractCorfuTest {
      */
     @Before
     public void InitSM() {
+        System.err.printf("@@@ InitSM\n");
         if (testSM != null)
             testSM.clear();
         else

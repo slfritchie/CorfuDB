@@ -70,7 +70,7 @@ public class CoopScheduler {
 
     static int maxThreads = -1;
     static int numThreads;
-    static public ThreadLocal<Integer> threadMap;
+    static public ThreadLocal<Integer> threadMap = ThreadLocal.withInitial(() -> -1);
     static HashSet<Integer> threadSet;
     static boolean centralStopped;
     static final Object centralReady = new Object();

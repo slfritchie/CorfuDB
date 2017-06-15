@@ -27,6 +27,7 @@ public class SMRMultiLogunitTest extends AbstractViewTest {
 
     @Before
     public void setRuntime() {
+        System.err.printf("@@@ SMRMultiLogunitTest setRuntime\n");
         addServer(SERVERS.PORT_0);
         addServer(SERVERS.PORT_1);
         addServer(SERVERS.PORT_2);
