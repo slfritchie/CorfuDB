@@ -142,7 +142,6 @@ public class SequencerServer extends AbstractServer {
     static private Counter counterToken0;
 
     public SequencerServer(ServerContext serverContext) {
-        System.err.printf("\nSequencerServer constructor\n");
         this.serverContext = serverContext;
         this.opts = serverContext.getServerConfig();
 

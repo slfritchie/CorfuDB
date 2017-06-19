@@ -27,7 +27,6 @@ public class SMRMapEntrySetTest extends AbstractTransactionsTest {
 
     @Before
     public void setRuntime() throws Exception {
-        System.err.printf("@@@ SMRMapEntrySetTest setRuntime\n");
         r = getDefaultRuntime().connect();
     }
 

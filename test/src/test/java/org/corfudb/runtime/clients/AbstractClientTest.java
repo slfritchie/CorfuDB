@@ -34,7 +34,6 @@ public abstract class AbstractClientTest extends AbstractCorfuTest {
 
     @Before
     public void resetTest() {
-        System.err.printf("@@@ client resetTest\n");
         serverRouter = new TestServerRouter();
         router = new TestClientRouter(serverRouter);
         getServersForTest().stream().forEach(serverRouter::addServer);

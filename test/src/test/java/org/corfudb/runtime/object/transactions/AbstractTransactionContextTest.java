@@ -22,7 +22,6 @@ public abstract class AbstractTransactionContextTest extends AbstractTransaction
 
     @Before
     public void resetMap() {
-        System.err.printf("@@@ resetMap\n");
         testMap = null;
     }
 

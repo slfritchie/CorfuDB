@@ -110,7 +110,6 @@ public abstract class AbstractViewTest extends AbstractCorfuTest {
      */
     @Before
     public void resetTests() {
-        System.err.printf("@@@ AbstractViewTest resetTests\n");
         testServerMap.clear();
         runtime.parseConfigurationString(getDefaultConfigurationString());
        //         .setCacheDisabled(true); // Disable cache during unit tests to fully stress the system.
@@ -119,7 +118,6 @@ public abstract class AbstractViewTest extends AbstractCorfuTest {
 
     @After
     public void cleanupBuffers() {
-        System.err.printf("@@@ AbstractViewTest cleanupBuffers\n");
         testServerMap.values().stream().forEach(x -> {
             x.getLogUnitServer().shutdown();
             x.getManagementServer().shutdown();

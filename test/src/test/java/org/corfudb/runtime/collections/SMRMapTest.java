@@ -36,7 +36,6 @@ public class SMRMapTest extends AbstractViewTest {
 
     @Before
     public void setRuntime() throws Exception {
-        System.err.printf("@@@ SMRMapTest setRuntime\n");
         r = getDefaultRuntime().connect();
     }
 

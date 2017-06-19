@@ -319,7 +319,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
         log.info("FINAL CHECK");
-        System.err.printf("\nYooo ... m2A = %s, m2B = %s\n", m2A, m2B);
         validateMapRebuild(mapSize, true);
         System.err.printf("\n");
 

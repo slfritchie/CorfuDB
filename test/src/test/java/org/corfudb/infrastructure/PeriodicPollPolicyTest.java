@@ -25,7 +25,6 @@ public class PeriodicPollPolicyTest extends AbstractViewTest {
 
     @Before
     public void pollingEnvironmentSetup() {
-        System.err.printf("@@@ pollingEnvironmentalSetup\n");
 
         addServer(SERVERS.PORT_0);
         addServer(SERVERS.PORT_1);

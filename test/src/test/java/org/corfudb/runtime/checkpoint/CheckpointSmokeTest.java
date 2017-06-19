@@ -35,7 +35,6 @@ public class CheckpointSmokeTest extends AbstractViewTest {
 
     @Before
     public void setRuntime() throws Exception {
-        System.err.printf("@@@ smoke setRuntime\n");
         // This module *really* needs separate & independent runtimes.
         r = getDefaultRuntime().connect(); // side-effect of using AbstractViewTest::getRouterFunction
         r = new CorfuRuntime(getDefaultEndpoint()).connect();

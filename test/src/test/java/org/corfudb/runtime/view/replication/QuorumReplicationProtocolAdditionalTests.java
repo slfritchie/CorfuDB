@@ -54,7 +54,7 @@ public class QuorumReplicationProtocolAdditionalTests extends AbstractViewTest {
 
     @Before
     public void before() {
-        System.err.printf("@@@ QRPAT before\n");
+
         addServer(SERVERS.PORT_0);
         addServer(SERVERS.PORT_1);
         addServer(SERVERS.PORT_2);
