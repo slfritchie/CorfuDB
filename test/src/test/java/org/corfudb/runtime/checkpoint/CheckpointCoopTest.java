@@ -44,7 +44,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
     }
 
     Map<String, Long> instantiateMap(String mapName) {
-        // System.err.printf("\nInstantiate %s by %s\n", mapName, Thread.currentThread().getName());
         log.info("I={}@{}", mapName, Thread.currentThread().getName());
         return (SMRMap<String, Long>)
                 instantiateCorfuObject(
@@ -59,6 +58,14 @@ public class CheckpointCoopTest extends AbstractObjectTest {
     final String author = "ckpointTest";
     protected Map<String, Long> m2A;
     protected Map<String, Long> m2B;
+    String scheduleString;
+
+    private void myOpTrace(String fmt, Object... args) {
+        String s = String.format(fmt, args);
+        //// System.err.printf(s + ",");
+        log.trace(s);
+        CoopScheduler.appendLog(s);
+    }
 
     /**
      * common initialization for tests: establish Corfu runtime and instantiate two maps
@@ -68,21 +75,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
 
         m2A = instantiateMap(streamNameA);
         m2B = instantiateMap(streamNameB);
-        // System.err.printf("\nNOTE: instantiateMaps doesn't actually instantiate anything here\n");
-    }
-
-    /**
-     * checkpoint the maps
-     */
-    void mapCkpoint() throws Exception {
-        CorfuRuntime currentRuntime = getMyRuntime();
-        getMyRuntime().setCacheDisabled(true);
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
-            MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
-            mcw1.addMap((SMRMap) m2A);
-            mcw1.addMap((SMRMap) m2B);
-            long firstGlobalAddress1 = mcw1.appendCheckpoints(currentRuntime, author);
-        }
     }
 
     /**
@@ -102,25 +94,18 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                     sched();
                 }
                 long checkpointAddress = mcw1.appendCheckpoints(currentRuntime, author);
-                System.err.printf("cp-%d,", i);
-
-                /***** SLF nothankyou:
-                try {
-                    Thread.sleep(PARAMETERS.TIMEOUT_SHORT.toMillis());
-                } catch (InterruptedException ie) {
-                    //
-                } ******/
+                myOpTrace("cp-%d", i);
                 // Trim the log
                 for (int j = 0; j < spin; j++) {
                     sched();
                 }
                 currentRuntime.getAddressSpaceView().prefixTrim(checkpointAddress - 1);
-                System.err.printf("trim-%d,", i);
+                myOpTrace("trim-%d", i);
                 for (int j = 0; j < spin; j++) {
                     sched();
                 }
                 currentRuntime.getAddressSpaceView().gc();
-                System.err.printf("gc-%d,", i);
+                myOpTrace("gc-%d", i);
                 for (int j = 0; j < spin; j++) {
                     sched();
                 }
@@ -152,24 +137,32 @@ public class CheckpointCoopTest extends AbstractObjectTest {
             Map<String, Long> localm2B = instantiateMap(streamNameB);
             int max;
             max = localm2A.size();
-            System.err.printf("%s@A%d,", Thread.currentThread().getName(), max);
+            myOpTrace("%s@A%d", Thread.currentThread().getName(), max);
             log.info("{}@A{}", Thread.currentThread().getName(), max);
             for (int i = 0; i < max; i++) {
                 sched();
-                assertThat(localm2A.get(String.valueOf(i))).isEqualTo((long) i);
+                assertThat(localm2A.get(String.valueOf(i)))
+                        .describedAs(scheduleString)
+                        .isEqualTo((long) i);
             }
             max = localm2B.size();
-            System.err.printf("%s@B%d,", Thread.currentThread().getName(), max);
+            myOpTrace("%s@B%d", Thread.currentThread().getName(), max);
             log.info("{}@B{}", Thread.currentThread().getName(), max);
             for (int i = 0; i < max; i++) {
                 sched();
-                assertThat(localm2B.get(String.valueOf(i))).isEqualTo(0L);
+                assertThat(localm2B.get(String.valueOf(i)))
+                        .describedAs(scheduleString)
+                        .isEqualTo(0L);
             }
             if (expectedFullsize) {
                 sched();
-                assertThat(localm2A.size()).isEqualTo(mapSize);
+                assertThat(localm2A.size())
+                        .describedAs(scheduleString)
+                        .isEqualTo(mapSize);
                 sched();
-                assertThat(localm2B.size()).isEqualTo(mapSize);
+                assertThat(localm2B.size())
+                        .describedAs(scheduleString)
+                        .isEqualTo(mapSize);
             }
         } catch (TrimmedException te) {
             // shouldn't happen
@@ -191,15 +184,16 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                 try {
                     sched();
                     m2A.put(String.valueOf(i), (long) i);
-                    System.err.printf("pA-%d,", i);
+                    myOpTrace("pA-%d", i);
                     sched();
                     m2B.put(String.valueOf(i), (long) 0);
-                    System.err.printf("pB-%d,", i);
+                    myOpTrace("pB-%d", i);
                     break;
                 } catch (TrimmedUpcallException te) {
                     // NOTE: This is a possible exception nowadays.
                     // TODO: Get 100% deterministic replay when it does happen.
                     System.err.printf("NOTICE/TODO: %s\n", te);
+                    throw te;
                 } catch (TrimmedException te) {
                     // shouldn't happen
                     te.printStackTrace();
@@ -232,8 +226,9 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;
 
-        for (int i = 0; i < 2*2*2*2*2; i++) {
-            System.err.printf("Iter %d\n", i);
+        for (int i = 0; i < 2*2*2*2*2*2*2*2; i++) {
+            //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
+            System.err.printf(".");
 
             // @After methods:
             cleanupBuffers();
@@ -253,6 +248,7 @@ public class CheckpointCoopTest extends AbstractObjectTest {
 
             //// int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
             int[] schedule = CoopScheduler.makeSchedule(numThreads, 100);
+            scheduleString = CoopScheduler.formatSchedule(schedule);
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
@@ -269,11 +265,16 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         CoopScheduler.setSchedule(schedule);
         assertThat(PARAMETERS.CONCURRENCY_SOME + 2).isEqualTo(numThreads);
 
-        // thread 1: pupolates the maps with mapSize items
+        // thread 1: populates the maps with mapSize items
         ts[idxTs++] = new Thread(() -> {
                 Thread.currentThread().setName("thr-0");
                 CoopScheduler.registerThread(0); sched();
-                populateMaps(mapSize);
+                try {
+                    populateMaps(mapSize);
+                } catch (Exception e) {
+                    workerThreadFailure.set(true);
+                    throw e;
+                }
                 CoopScheduler.threadDone();
         });
 
@@ -308,20 +309,17 @@ public class CheckpointCoopTest extends AbstractObjectTest {
             });
         }
         for (int i = 0; i < ts.length; i++) { ts[i].start(); }
-        // System.err.printf("Run scheduler\n");
         CoopScheduler.runScheduler(ts.length);
-        // System.err.printf("Scheduler done\n");
         for (int i = 0; i < ts.length; i++) { ts[i].join(); }
-        // System.err.printf("Join done\n");
 
-        assertThat(workerThreadFailure.get()).isFalse();
+        assertThat(workerThreadFailure.get())
+                .describedAs(scheduleString)
+                .isFalse();
 
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
         log.info("FINAL CHECK");
         validateMapRebuild(mapSize, true);
-        System.err.printf("\n");
-
     }
 
 }

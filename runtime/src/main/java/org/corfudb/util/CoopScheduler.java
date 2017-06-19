@@ -292,9 +292,8 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
         int given = 0;
 
         while (! someReady(numStartingThreads)) {
-            try { System.err.printf("!someReady,"); Thread.sleep(1); } catch (Exception e) {}
+            try { if (verbose > 1) { System.err.printf("!someReady,"); } Thread.sleep(1); } catch (Exception e) {}
         }
-        // System.err.printf("SCHED: entering main loop\n");
         while (true) {
             if (allDone()) {
                 synchronized (centralReady) {
