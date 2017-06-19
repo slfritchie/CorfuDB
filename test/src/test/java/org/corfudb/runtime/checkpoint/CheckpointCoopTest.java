@@ -226,7 +226,7 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;
 
-        for (int i = 0; i < 2*2*2*2*2*2*2*2; i++) {
+        for (int i = 0; i < 2*2*2; i++) {
             //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
             System.err.printf(".");
 
@@ -247,8 +247,10 @@ public class CheckpointCoopTest extends AbstractObjectTest {
             instantiateMaps();
 
             //// int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
+            // The schedule below will yield this error (for debugging, etc.): TrimmedUpcallException: Attempted to get upcall result @10 ......
+            // int[] schedule = new int[]{1,4,1,1,3,2,4,3,5,0,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,4,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2,0,6,1,5,5,5,5,5,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
             int[] schedule = CoopScheduler.makeSchedule(numThreads, 100);
-            scheduleString = CoopScheduler.formatSchedule(schedule);
+            scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
@@ -273,7 +275,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                     populateMaps(mapSize);
                 } catch (Exception e) {
                     workerThreadFailure.set(true);
-                    throw e;
                 }
                 CoopScheduler.threadDone();
         });
@@ -303,7 +304,11 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                 Thread.currentThread().setName("thr-" + (ii + 2));
                 CoopScheduler.registerThread(ii+2); sched();
                 for (int j = 0; j < 2*2*2; j++) {
-                    validateMapRebuild(mapSize, false);
+                    try {
+                        validateMapRebuild(mapSize, false);
+                    } catch (Exception e) {
+                        workerThreadFailure.set(true);
+                    }
                 }
                 CoopScheduler.threadDone();
             });
