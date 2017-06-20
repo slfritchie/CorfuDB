@@ -17,8 +17,11 @@ import org.corfudb.runtime.object.ICorfuSMRProxy;
 import org.corfudb.runtime.object.ICorfuSMRProxyInternal;
 import org.corfudb.runtime.object.transactions.TransactionType;
 import org.corfudb.util.CoopScheduler;
+import org.jboss.byteman.contrib.bmunit.BMScript;
+import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.text.spi.CollatorProvider;
 import java.util.Map;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.extractProperty;
 import static org.corfudb.util.CoopScheduler.sched;
 
+@RunWith(org.jboss.byteman.contrib.bmunit.BMUnitRunner.class)
 @Slf4j
 public class CheckpointCoopTest extends AbstractObjectTest {
 
@@ -236,12 +240,14 @@ public class CheckpointCoopTest extends AbstractObjectTest {
      * @throws Exception
      */
 
+    // SLF: Oh, this one isn't necessary, neat. @BMUnitConfig(loadDirectory="target/test-classes")
+    @BMScript(value="../foo.btm")
     @Test
     public void periodicCkpointTrimTest_lots() throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;
 
-        for (int i = 0; i < 2*2*2*2*2*2*2*2; i++) {
+        for (int i = 0; i < 2*2*2; i++) {
             //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
             System.err.printf(".");
 

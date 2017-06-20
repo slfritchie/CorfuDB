@@ -1,0 +1,25 @@
+RULE trace experiment 1
+CLASS VersionLockedObject
+METHOD access
+AT ENTRY
+IF true
+DO
+    trace("t,")
+ENDRULE
+
+RULE trace experiment 2
+CLASS CheckpointCoopTest
+METHOD setRuntime
+AT ENTRY
+IF true
+DO trace("yo")
+ENDRULE
+
+### DEEERP, this branch isn't using StampedLock for the _lots() test!!!!!!!!
+# RULE trace experiment 3
+# CLASS java.util.concurrent.locks.StampedLock
+# METHOD <init>
+# AT ENTRY
+# IF true
+# DO trace("stamp,")
+# ENDRULE
