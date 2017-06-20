@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.extractProperty;
 import static org.corfudb.util.CoopScheduler.sched;
 
 @Slf4j
@@ -203,6 +204,20 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         }
     }
 
+    public static void main(String[] argv) {
+        try {
+            CheckpointCoopTest t = new CheckpointCoopTest();
+            t.periodicCkpointTrimTest_lots();
+            System.exit(0);
+        } catch (Exception e) {
+            System.err.printf("ERROR: Caught exception %s at:\n", e);
+            for (int i = 0; i < e.getStackTrace().length; i++) {
+                System.err.printf("    %s\n", e.getStackTrace()[i]);
+            }
+            System.exit(1);
+        }
+    }
+
     /**
      * this test is similar to periodicCkpointTest(), but adds simultaneous log prefix-trimming.
      * <p>
@@ -226,13 +241,13 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;
 
-        for (int i = 0; i < 2*2*2; i++) {
+        for (int i = 0; i < 2*2*2*2*2*2*2*2; i++) {
             //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
             System.err.printf(".");
 
             // @After methods:
             cleanupBuffers();
-            cleanupScheduledThreads();
+            try { cleanupScheduledThreads(); } catch (Exception e) {};
             shutdownThreadingTest();
             cleanPerTestTempDir();
 
@@ -251,6 +266,7 @@ public class CheckpointCoopTest extends AbstractObjectTest {
             // int[] schedule = new int[]{1,4,1,1,3,2,4,3,5,0,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,4,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2,0,6,1,5,5,5,5,5,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
             int[] schedule = CoopScheduler.makeSchedule(numThreads, 100);
             scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+            // System.err.printf(scheduleString + "\n");
             periodicCkpointTrimTestInner(schedule, numThreads);
         }
     }
