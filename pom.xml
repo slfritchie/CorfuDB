@@ -16,6 +16,7 @@
         <module>annotations</module>
         <module>samples</module>
         <module>logReader</module>
+        <module>aspects</module>
         <module>debian</module>
         <module>generator</module>
     </modules>
@@ -157,6 +158,18 @@
             <version>3.0.3</version>
             <scope>provided</scope>
             <type>maven-plugin</type>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjrt</artifactId>
+            <version>1.8.9</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <version>1.8.9</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
