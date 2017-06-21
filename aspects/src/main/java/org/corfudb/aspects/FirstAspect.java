@@ -13,18 +13,28 @@ public class FirstAspect {
     private boolean enabled = false;
     private boolean warned = false;
 
-    @Around("execution(* java.lang.Thread.sleep(..))")
+    @Around("call(* java.lang.Thread.sleep(..))")
     public Object advice(ProceedingJoinPoint pjp) throws Throwable {
-        System.err.printf("sleep...");
-        System.err.printf("sleep arg0 = %s\n", pjp.getArgs()[0]);
+        System.err.printf("sleep(%s)", pjp.getArgs()[0]);
         Object res = pjp.proceed();
         return res;
     }
 
-    @Around("execution(* Thread.sleep(..))")
-    public Object advice_bareSleep(ProceedingJoinPoint pjp) throws Throwable {
-        System.err.printf("sleep...");
-        System.err.printf("sleep arg0 = %s\n", pjp.getArgs()[0]);
+    // NOTE: Trying to use @Around("execution(* Thread.sleep(..))") will _NOT_ work.
+    // TODO Read the docs to understand WTF is the difference between execution() and call()
+
+    int tORCount = 0;
+    int vCount = 0;
+
+    @Around("call(* java.util.concurrent.locks.StampedLock.tryOptimisticRead(..))")
+    public Object advice_lock_tryOptimisticRead2(ProceedingJoinPoint pjp) throws Throwable {
+        if (tORCount++ < 42) { System.err.printf("tOR,"); }
+        Object res = pjp.proceed();
+        return res;
+    }
+    @Around("call(* java.util.concurrent.locks.StampedLock.validate(..))")
+    public Object advice_lock_validate2(ProceedingJoinPoint pjp) throws Throwable {
+        if (vCount++ < 42) { System.err.printf("v,"); }
         Object res = pjp.proceed();
         return res;
     }
