@@ -7,6 +7,7 @@
     <!-- Of the set of aspects declared to the weaver
          use aspects matching the type pattern "com..*" for weaving. -->
     <include within="org.corfudb..*"/>
+    <include within="Thread..*"/>
 
     <!-- Of the set of aspects declared to the weaver
          do not use any aspects with the @CoolAspect annotation for weaving -->
@@ -14,8 +15,14 @@
 
   </aspects>
 
+  <!-- options doc: https://eclipse.org/aspectj/doc/released/devguide/ltw-configuration.html#weaver-options -->
+
   <!-- Useful options: -verbose :: turns on SLF4J logging -->
   <!-- Useful options: -showWeaveInfo :: more verbose than -verbose -->
+  <!-- Useful options: debug :: VERY verbose, yay -->
+
+  <!-- For even more verbosity, use java -Dorg.aspectj.tracing.factory=default -Dorg.aspectj.tracing.enabled=true -Dorg.aspectj.tracing.messages=true ... -->
+
   <weaver options="-verbose -showWeaveInfo">
     <!-- Weave types that are within the javax.* or org.aspectj.*
          packages. Also weave all types in the foo package that do

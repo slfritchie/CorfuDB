@@ -349,6 +349,7 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                 .describedAs(scheduleString)
                 .isFalse();
 
+        System.err.printf("<"); Thread.sleep(2*2*2*2*2*2*2); System.err.printf(">");
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
         log.info("FINAL CHECK");

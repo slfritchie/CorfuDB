@@ -13,8 +13,24 @@ public class FirstAspect {
     private boolean enabled = false;
     private boolean warned = false;
 
-    @Around("execution(* org.corfudb.runtime.view.stream.BackpointerStreamView.fillReadQueue(..))")
+    @Around("execution(* java.lang.Thread.sleep(..))")
     public Object advice(ProceedingJoinPoint pjp) throws Throwable {
+        System.err.printf("sleep...");
+        System.err.printf("sleep arg0 = %s\n", pjp.getArgs()[0]);
+        Object res = pjp.proceed();
+        return res;
+    }
+
+    @Around("execution(* Thread.sleep(..))")
+    public Object advice_bareSleep(ProceedingJoinPoint pjp) throws Throwable {
+        System.err.printf("sleep...");
+        System.err.printf("sleep arg0 = %s\n", pjp.getArgs()[0]);
+        Object res = pjp.proceed();
+        return res;
+    }
+
+    @Around("execution(* org.corfudb.runtime.view.stream.BackpointerStreamView.fillReadQueue(..))")
+    public Object advice_fillReadQueue(ProceedingJoinPoint pjp) throws Throwable {
         Object res = pjp.proceed();
         if (enabled) {
             System.err.printf("Hello, fillReadQueue, from aspect world!\n");
@@ -32,5 +48,14 @@ public class FirstAspect {
         }
         return res;
     }
+
+    private int readCount = 0;
+    @Around("execution(* org.corfudb.runtime.view.AddressSpaceView.read(..))")
+    public Object advice_ASV_read(ProceedingJoinPoint pjp) throws Throwable {
+        if (readCount++ < 42) { System.err.printf("r"); }
+        Object res = pjp.proceed();
+        return res;
+    }
+
 }
 
