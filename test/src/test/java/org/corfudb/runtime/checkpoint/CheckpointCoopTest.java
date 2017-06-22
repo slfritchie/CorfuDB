@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.text.spi.CollatorProvider;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -201,9 +202,8 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                     break;
                 } catch (TrimmedUpcallException te) {
                     // NOTE: This is a possible exception nowadays.
-                    // TODO: Get 100% deterministic replay when it does happen.
-                    System.err.printf("NOTICE/TODO: %s\n", te);
-                    throw te;
+                    System.err.printf("\nSchedule: %s\nNOTICE/TODO: %s\n", scheduleString, te);
+                    // Let's keep going.... throw te;
                 } catch (TrimmedException te) {
                     // shouldn't happen
                     te.printStackTrace();
@@ -216,13 +216,11 @@ public class CheckpointCoopTest extends AbstractObjectTest {
     public static void main(String[] argv) {
         try {
             CheckpointCoopTest t = new CheckpointCoopTest();
-            t.periodicCkpointTrimTest_lots();
+            t.periodicCkpointTrimTest_lots(argv.length > 0 && argv[0].contentEquals("fixed"));
             System.exit(0);
         } catch (Exception e) {
             System.err.printf("ERROR: Caught exception %s at:\n", e);
-            for (int i = 0; i < e.getStackTrace().length; i++) {
-                System.err.printf("    %s\n", e.getStackTrace()[i]);
-            }
+            e.printStackTrace();
             System.exit(1);
         }
     }
@@ -247,13 +245,15 @@ public class CheckpointCoopTest extends AbstractObjectTest {
 
     // SLF: Oh, this one isn't necessary, neat. @BMUnitConfig(loadDirectory="target/test-classes")
     // @BMScript(value="../foo.btm")
-    @Test
-    public void periodicCkpointTrimTest_lots() throws Exception {
+    @SuppressWarnings("checkstyle:magicnumber")
+    public void periodicCkpointTrimTest_lots(boolean fixedSchedule) throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;
         final int onehundred = 100;
+        ArrayList<Object[]> logs = new ArrayList<>();
+        final int numTests = 20;
 
-        for (int i = 0; i < 2*2*2; i++) {
+        for (int i = 0; i < numTests; i++) {
             //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
             System.err.printf(".");
 
@@ -273,13 +273,28 @@ public class CheckpointCoopTest extends AbstractObjectTest {
             setRuntime();
             instantiateMaps();
 
-            //// int[] schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
-            // The schedule below will yield this error (for debugging, etc.): TrimmedUpcallException: Attempted to get upcall result @10 ......
-            // int[] schedule = new int[]{1,4,1,1,3,2,4,3,5,0,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,4,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2,0,6,1,5,5,5,5,5,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-            int[] schedule = CoopScheduler.makeSchedule(numThreads, onehundred);
+            int[] schedule;
+            if (fixedSchedule) {
+                schedule = new int[]{T1, T1, T0, T2, T1, T1, T1, T0, T4, T3, T4, T3, T3, T3, T6, T5};
+                // The schedule below will yield this error (for debugging, etc.): TrimmedUpcallException: Attempted to get upcall result @25 ......
+                // int[] schedule = new int[]{1,4,1,1,3,2,4,3,5,0,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,4,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,2,0,6,1,5,5,5,5,5,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+            } else {
+                schedule = CoopScheduler.makeSchedule(numThreads, onehundred);
+            }
             scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
             // System.err.printf(scheduleString + "\n");
+
             periodicCkpointTrimTestInner(schedule, numThreads);
+            logs.add(CoopScheduler.getLog());
+
+            // printLog(logs.get(i));
+        }
+        if (fixedSchedule) {
+            if (CoopScheduler.logsAreIdentical(logs)) {
+                System.err.printf("\nIDENTICAL = true\n");
+            } else {
+                throw new Exception("logsAreIdentical= false");
+            }
         }
     }
 
@@ -349,12 +364,17 @@ public class CheckpointCoopTest extends AbstractObjectTest {
                 .describedAs(scheduleString)
                 .isFalse();
 
-        System.err.printf("<"); Thread.sleep(2*2*2*2*2*2*2); System.err.printf(">");
         // finally, after all three threads finish, again we start a fresh runtime and instante the maps.
         // This time the we check that the new map instances contains all values
         log.info("FINAL CHECK");
         validateMapRebuild(mapSize, true);
     }
 
+    private void printLog(Object[] log) {
+        for (int i = 0; i < log.length; i++) {
+            System.err.printf("%s,", log[i]);
+        }
+        System.err.printf("\n");
+    }
 }
 

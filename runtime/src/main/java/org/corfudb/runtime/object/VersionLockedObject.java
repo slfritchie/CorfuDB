@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -18,6 +17,7 @@ import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.exceptions.NoRollbackException;
 import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
+import org.corfudb.util.CoopStampedLock;
 import org.corfudb.util.Utils;
 
 
@@ -72,7 +72,7 @@ public class VersionLockedObject<T> {
      * the object. Any access to unsafe methods should
      * obtain the lock.
      */
-    private final StampedLock lock;
+    private final CoopStampedLock lock;
 
     /**
      * The stream view this object is backed by.
@@ -139,7 +139,7 @@ public class VersionLockedObject<T> {
         this.pendingUpcalls = new ConcurrentSet<>();
         this.upcallResults = new ConcurrentHashMap<>();
 
-        lock = new StampedLock();
+        lock = new CoopStampedLock();
     }
 
     /**

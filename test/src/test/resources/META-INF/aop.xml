@@ -2,7 +2,8 @@
 
   <aspects>
     <!-- declare existing aspects to the weaver -->
-    <aspect name="org.corfudb.aspects.FirstAspect"/>
+    <!-- learning exercise: <aspect name="org.corfudb.aspects.FirstAspect"/> -->
+    <aspect name="org.corfudb.aspects.CkTrimTestAspect"/>
 
     <!-- Of the set of aspects declared to the weaver
          use aspects matching the type pattern "com..*" for weaving. -->
