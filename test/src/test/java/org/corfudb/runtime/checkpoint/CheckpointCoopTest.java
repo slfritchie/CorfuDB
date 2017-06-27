@@ -5,17 +5,11 @@ import com.google.common.reflect.TypeToken;
 import lombok.Getter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.MultiCheckpointWriter;
-import org.corfudb.runtime.collections.ISMRObject;
 import org.corfudb.runtime.collections.SMRMap;
-import org.corfudb.runtime.collections.SMRMap$CORFUSMR;
 import org.corfudb.runtime.exceptions.TransactionAbortedException;
 import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.exceptions.TrimmedUpcallException;
 import org.corfudb.runtime.object.AbstractObjectTest;
-import org.corfudb.runtime.object.CorfuSMRObjectConcurrencyTest;
-import org.corfudb.runtime.object.ICorfuSMRProxy;
-import org.corfudb.runtime.object.ICorfuSMRProxyInternal;
-import org.corfudb.runtime.object.transactions.TransactionType;
 import org.corfudb.util.CoopScheduler;
 // import org.jboss.byteman.contrib.bmunit.BMScript;
 // import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
@@ -25,13 +19,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.text.spi.CollatorProvider;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.extractProperty;
 import static org.corfudb.util.CoopScheduler.sched;
 
 // @RunWith(org.jboss.byteman.contrib.bmunit.BMUnitRunner.class)

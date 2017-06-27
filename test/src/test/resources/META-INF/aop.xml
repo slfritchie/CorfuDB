@@ -4,6 +4,7 @@
     <!-- declare existing aspects to the weaver -->
     <!-- learning exercise: <aspect name="org.corfudb.aspects.FirstAspect"/> -->
     <aspect name="org.corfudb.aspects.CkTrimTestAspect"/>
+    <aspect name="org.corfudb.aspects.CorfuSmrObjectConcurrencyAspect"/>
 
     <!-- Of the set of aspects declared to the weaver
          use aspects matching the type pattern "com..*" for weaving. -->
@@ -28,22 +29,8 @@
     <!-- Weave types that are within the javax.* or org.aspectj.*
          packages. Also weave all types in the foo package that do
          not have the @NoWeave annotation. -->
-    <include within="javax.*"/>
-    <include within="org.aspectj.*"/>
-    <include within="(!@NoWeave foo.*) AND foo.*"/>
     <include within="org.corfudb..*"/>
 
-    <!-- Do not weave types within the "bar" pakage -->
-    <exclude within="bar.*"/>
-
-    <!-- Dump all types within the "com.foo.bar" package
-         to the "./_ajdump" folder on disk (for diagnostic purposes) -->
-    <dump within="org.corfu.runtime..*"/>
-
-    <!-- Dump all types within the "com.foo.bar" package and sub-packages,
-         both before are after they are woven,
-         which can be used for byte-code generated at runtime -->
-    <dump within="com.foo.bar..*" beforeandafter="true"/> 
   </weaver>
 
 </aspectj>

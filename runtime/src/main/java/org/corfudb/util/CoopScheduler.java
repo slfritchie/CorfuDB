@@ -121,7 +121,7 @@ public class CoopScheduler {
                 }
             }
             if (t >= maxThreads) {
-                System.err.printf("Too many threads, TODO\n");
+                System.err.printf("Too many threads, %d >= %d, TODO\n", t, maxThreads);
                 return -1;
             }
             threadMap.set(t);
@@ -378,7 +378,7 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
         final int winnerThisTime = 10;
         boolean winnerPossible = RandomUtils.nextInt(100) < winnerThisTime;
         final int winnerProb = 10;
-        final int winnerMaxLen = 40;
+        final int winnerMaxLen = 200;
 
         for (int i = 0; i < schedule.length; i++) {
             // Sometimes create an unfair schedule for a lucky winner thread.
