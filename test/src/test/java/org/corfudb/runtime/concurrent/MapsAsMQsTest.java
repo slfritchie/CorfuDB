@@ -64,14 +64,15 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         m.scheduleCoopConcurrently((thr, t) -> {
 
             // wait for other threads to start
-            barrierAwait(barrier, nThreads);
+            CoopUtil.barrierCountdown(barrier);
+            CoopUtil.barrierAwait(barrier, nThreads);
             log.debug("all started");
 
             for (int i = 0; i < numIterations; i++) {
 
                 try {
                     sched();
-                    lock(lock);
+                    CoopUtil.lock(lock);
 
                     // place a value in the map
                     sched();
@@ -80,14 +81,14 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopScheduler.appendLog("put " + i);
 
                     // await for the consumer condition to circulate back
-                    await(lock, c2);
+                    CoopUtil.await(lock, c2);
 
                     log.debug("- sending 2nd trigger " + i);
 
 
                 } finally {
                     sched();
-                    unlock(lock);
+                    CoopUtil.unlock(lock);
                 }
             }
         });
@@ -96,7 +97,8 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrierAwait(barrier, nThreads);
+            CoopUtil.barrierCountdown(barrier);
+            CoopUtil.barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
                 sched();
@@ -110,7 +112,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                 // 1st producer signal through lock
                 try {
                     sched();
-                    lock(lock);
+                    CoopUtil.lock(lock);
 
                     // 1st producer signal
                     sched();
@@ -118,7 +120,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopScheduler.appendLog("1st producer");
                 } finally {
                     sched();
-                    unlock(lock);
+                    CoopUtil.unlock(lock);
                 }
             }
         });
@@ -127,18 +129,19 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrierAwait(barrier, nThreads);
+            CoopUtil.barrierCountdown(barrier);
+            CoopUtil.barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
                 try {
                     sched();
                     TXBegin();
                     sched();
-                    lock(lock);
+                    CoopUtil.lock(lock);
                     sched();
 
                     // wait for 1st producer signal
-                    await(lock, c1);
+                    CoopUtil.await(lock, c1);
                     log.debug( "- received 1st condition " + i);
                     CoopScheduler.appendLog("1st condition " + i);
 
@@ -150,7 +153,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     sched();
                     TXEnd();
                 } finally {
-                    unlock(lock);
+                    CoopUtil.unlock(lock);
                 }
             }
         });
@@ -159,7 +162,8 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrierAwait(barrier, nThreads);
+            CoopUtil.barrierCountdown(barrier);
+            CoopUtil.barrierAwait(barrier, nThreads);
 
             int busyDelay = 1; // millisecs
 
@@ -174,7 +178,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                 // 2nd producer signal through lock
                 try {
                     sched();
-                    lock(lock);
+                    CoopUtil.lock(lock);
 
                     // 2nd producer signal
                     sched();
@@ -182,7 +186,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     log.debug( "- sending 2nd signal " + i);
                     CoopScheduler.appendLog("2nd signal " + i);
                 } finally {
-                    unlock(lock);
+                    CoopUtil.unlock(lock);
                 }
             }
         });
@@ -190,31 +194,4 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         m.executeScheduled();
     }
 
-    private void barrierAwait(AtomicInteger barrier, int max) {
-        barrier.getAndIncrement();
-        while (barrier.get() < max) {
-            sched();
-        }
-    }
-
-    private void lock(AtomicInteger lock) {
-        while (lock.get() != 0) {
-            sched();
-        }
-        lock.set(1);
-    }
-
-    private void unlock(AtomicInteger lock) {
-        lock.set(0);
-    }
-
-    private void await(AtomicInteger lock, AtomicInteger cond) {
-        while (cond.get() == 0) {
-            unlock(lock);
-            sched();
-            lock(lock);
-        }
-        sched();
-        cond.set(0);
-    }
 }

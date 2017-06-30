@@ -3,6 +3,7 @@ package org.corfudb.util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -74,5 +75,36 @@ public class CoopUtil {
         for (int i = 0; i < scheduledThreads.size(); i++) {
             ts[i].join();
         }
+    }
+
+    public static void barrierCountdown(AtomicInteger barrier) {
+        barrier.getAndIncrement();
+    }
+
+    public static void barrierAwait(AtomicInteger barrier, int max) {
+        while (barrier.get() < max) {
+            sched();
+        }
+    }
+
+    public static void lock(AtomicInteger lock) {
+        while (lock.get() != 0) {
+            sched();
+        }
+        lock.set(1);
+    }
+
+    public static void unlock(AtomicInteger lock) {
+        lock.set(0);
+    }
+
+    public static void await(AtomicInteger lock, AtomicInteger cond) {
+        while (cond.get() == 0) {
+            unlock(lock);
+            sched();
+            lock(lock);
+        }
+        sched();
+        cond.set(0);
     }
 }
