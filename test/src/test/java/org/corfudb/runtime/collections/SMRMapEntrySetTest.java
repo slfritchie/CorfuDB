@@ -28,7 +28,7 @@ public class SMRMapEntrySetTest extends AbstractTransactionsTest {
 
     public CorfuRuntime r;
 
-    String scheduleString;
+    private String scheduleString;
 
     @Before
     public void setRuntime() throws Exception {

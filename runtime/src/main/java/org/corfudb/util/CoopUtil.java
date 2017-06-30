@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.corfudb.util.CoopScheduler.sched;
 
@@ -46,6 +47,10 @@ public class CoopUtil {
      * Execute any threads which were scheduled to run.
      */
     public void executeScheduled() throws Exception {
+        executeScheduled(null);
+    }
+
+    public void executeScheduled(Consumer exceptionLambda) throws Exception {
         Thread ts[] = new Thread[scheduledThreads.size()];
 
         for (int i = 0; i < scheduledThreads.size(); i++) {
@@ -55,7 +60,12 @@ public class CoopUtil {
                 try {
                     scheduledThreads.get(ii).call();
                 } catch (Exception e) {
-                    System.err.printf("executeScheduled error: %s\n", e);
+                    if (exceptionLambda == null) {
+                        System.err.printf("executeScheduled error: %s\n", e);
+                    } else {
+                        exceptionLambda.accept(e);
+                    }
+                    CoopScheduler.threadDone();
                 }
             });
             ts[i].start();
