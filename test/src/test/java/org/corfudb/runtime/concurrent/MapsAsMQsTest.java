@@ -3,12 +3,14 @@ package org.corfudb.runtime.concurrent;
 import lombok.extern.slf4j.Slf4j;
 import org.corfudb.runtime.collections.SMRMap;
 import org.corfudb.runtime.object.transactions.AbstractTransactionsTest;
+import org.corfudb.util.CoopScheduler;
+import org.corfudb.util.CoopUtil;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.corfudb.util.CoopScheduler.sched;
 
 /**
  * Created by dalia on 3/18/17.
@@ -20,6 +22,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
 
     protected int numIterations = PARAMETERS.NUM_ITERATIONS_LOW;
+    private String scheduleString;
 
     /**
      * This test verifies commit atomicity against concurrent -read- activity,
@@ -29,122 +32,189 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
      */
     @Test
     public void useMapsAsMQs() throws Exception {
-        String mapName1 = "testMapA";
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
+            long start = System.currentTimeMillis();
+            useMapsAsMQs(i);
+            // System.err.printf("Iter %d -> %d msec\n", i, System.currentTimeMillis() - start);
+        }
+    }
+
+    /**
+     * Typical iteration time = 150 msec on MacBook,
+     * occasional outliers at 2.5 - 3.5 seconds.
+     */
+    public void useMapsAsMQs(int iter) throws Exception {
+        String mapName1 = "testMapA" + iter;
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
 
         final int nThreads = 4;
-        CountDownLatch barrier = new CountDownLatch(nThreads-1);
-        ReentrantLock lock = new ReentrantLock();
-        Condition c1 = lock.newCondition();
-        Condition c2 = lock.newCondition();
+        final int schedLength = 300;
+        CoopUtil m = new CoopUtil();
+        AtomicInteger barrier = new AtomicInteger(0);
+        AtomicInteger lock = new AtomicInteger(0);
+        AtomicInteger c1 = new AtomicInteger(0);
+        AtomicInteger c2 = new AtomicInteger(0);
 
+        CoopScheduler.reset(nThreads);
+        int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
+        CoopScheduler.setSchedule(schedule);
+        scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
 
         // 1st thread: producer of new "trigger" values
-        scheduleConcurrently(t -> {
+        m.scheduleCoopConcurrently((thr, t) -> {
 
             // wait for other threads to start
-            barrier.await();
+            barrierAwait(barrier, nThreads);
             log.debug("all started");
 
             for (int i = 0; i < numIterations; i++) {
 
                 try {
-                    lock.lock();
+                    sched();
+                    lock(lock);
 
                     // place a value in the map
-                    log.debug("- sending 1st trigger " + i);
+                    sched();
                     testMap1.put(1L, (long) i);
+                    log.debug("- sending 1st trigger " + i);
+                    CoopScheduler.appendLog("put " + i);
 
                     // await for the consumer condition to circulate back
-                    c2.await();
+                    await(lock, c2);
 
                     log.debug("- sending 2nd trigger " + i);
 
 
                 } finally {
-                    //lock.unlock();
+                    sched();
+                    unlock(lock);
                 }
             }
         });
 
         // 2nd thread: monitor map and wait for "trigger" values to show up, produce 1st signal
-        scheduleConcurrently(t -> {
+        m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrier.countDown();
-
-            int busyDelay = 1; // millisecs
+            barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
+                sched();
                 while (testMap1.get(1L) == null || testMap1.get(1L) != (long) i) {
                     log.debug( "- wait for 1st trigger " + i);
-                    Thread.sleep(busyDelay);
+                    sched();
                 }
                 log.debug( "- received 1st trigger " + i);
+                CoopScheduler.appendLog("1st trigger " + i);
 
                 // 1st producer signal through lock
                 try {
-                    lock.lock();
+                    sched();
+                    lock(lock);
 
                     // 1st producer signal
-                    c1.signal();
+                    sched();
+                    c1.set(1);
+                    CoopScheduler.appendLog("1st producer");
                 } finally {
-                    lock.unlock();
+                    sched();
+                    unlock(lock);
                 }
             }
         });
 
         // 3rd thread: monitor 1st producer condition and produce a second "trigger"
-        scheduleConcurrently(t -> {
+        m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrier.countDown();
+            barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
                 try {
+                    sched();
                     TXBegin();
-                    lock.lock();
+                    sched();
+                    lock(lock);
+                    sched();
 
                     // wait for 1st producer signal
-                    c1.await();
+                    await(lock, c1);
                     log.debug( "- received 1st condition " + i);
+                    CoopScheduler.appendLog("1st condition " + i);
 
-                    // produce another tigger value
-                    log.debug( "- sending 2nd trigger " + i);
+                    // produce another trigger value
+                    sched();
                     testMap1.put(2L, (long) i);
+                    log.debug( "- sending 2nd trigger " + i);
+                    CoopScheduler.appendLog("2nd trigger " + i);
+                    sched();
                     TXEnd();
                 } finally {
-                    lock.unlock();
+                    unlock(lock);
                 }
             }
         });
 
         // 4th thread: monitor map and wait for 2nd "trigger" values to show up, produce second signal
-        scheduleConcurrently(t -> {
+        m.scheduleCoopConcurrently((thr, t) -> {
 
             // signal start
-            barrier.countDown();
+            barrierAwait(barrier, nThreads);
 
             int busyDelay = 1; // millisecs
 
             for (int i = 0; i < numIterations; i++) {
-                while (testMap1.get(2L) == null || testMap1.get(2L) != (long) i)
-                    Thread.sleep(busyDelay);
+                sched();
+                while (testMap1.get(2L) == null || testMap1.get(2L) != (long) i) {
+                    sched();
+                }
                 log.debug( "- received 2nd trigger " + i);
+                CoopScheduler.appendLog("2nd trigger " + i);
 
                 // 2nd producer signal through lock
                 try {
-                    lock.lock();
+                    sched();
+                    lock(lock);
 
                     // 2nd producer signal
+                    sched();
+                    c2.set(1);
                     log.debug( "- sending 2nd signal " + i);
-                    c2.signal();
+                    CoopScheduler.appendLog("2nd signal " + i);
                 } finally {
-                    lock.unlock();
+                    unlock(lock);
                 }
             }
         });
 
-        executeScheduled(nThreads, PARAMETERS.TIMEOUT_LONG);
+        m.executeScheduled();
+    }
+
+    private void barrierAwait(AtomicInteger barrier, int max) {
+        barrier.getAndIncrement();
+        while (barrier.get() < max) {
+            sched();
+        }
+    }
+
+    private void lock(AtomicInteger lock) {
+        while (lock.get() != 0) {
+            sched();
+        }
+        lock.set(1);
+    }
+
+    private void unlock(AtomicInteger lock) {
+        lock.set(0);
+    }
+
+    private void await(AtomicInteger lock, AtomicInteger cond) {
+        while (cond.get() == 0) {
+            unlock(lock);
+            sched();
+            lock(lock);
+        }
+        sched();
+        cond.set(0);
     }
 }
