@@ -3,14 +3,18 @@ package org.corfudb.runtime.collections;
 import lombok.Getter;
 import org.corfudb.runtime.CorfuRuntime;
 import org.corfudb.runtime.object.transactions.AbstractTransactionsTest;
+import org.corfudb.util.CoopScheduler;
+import org.corfudb.util.CoopUtil;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.corfudb.util.CoopScheduler.sched;
 
 /**
  * Created by dmalkhi on 3/20/17.
@@ -24,6 +28,7 @@ public class SMRMapEntrySetTest extends AbstractTransactionsTest {
 
     public CorfuRuntime r;
 
+    String scheduleString;
 
     @Before
     public void setRuntime() throws Exception {
@@ -70,93 +75,131 @@ public class SMRMapEntrySetTest extends AbstractTransactionsTest {
     }
 
     @Test
-    public void manipulateSetsConcurrent()
+    public void manipulateSetsCoopConcurrent()
+            throws Exception {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+            manipulateSetsCoopConcurrent(i);
+        }
+    }
+
+    public void manipulateSetsCoopConcurrent(int iter)
             throws Exception {
         Map<Long, Long> testMap = instantiateCorfuObject(SMRMap.class,
-                "mapsettest");
-        CountDownLatch l1 = new CountDownLatch(1);
-        CountDownLatch l2 = new CountDownLatch(1);
-        CountDownLatch l3 = new CountDownLatch(1);
-        CountDownLatch l4 = new CountDownLatch(1);
+                "mapsettest" + iter);
+        final int numThreads = 3;
+        final int schedLength = 200;
+        CoopUtil m = new CoopUtil();
+        AtomicInteger l1 = new AtomicInteger(1);
+        AtomicInteger l2 = new AtomicInteger(1);
+        AtomicInteger l3 = new AtomicInteger(1);
+
+        CoopScheduler.reset(numThreads);
+        int[] schedule = CoopScheduler.makeSchedule(numThreads, schedLength);
+        CoopScheduler.setSchedule(schedule);
+        scheduleString = "Schedule is: " + schedule;
 
         // first thread: create and manipulate map
-        scheduleConcurrently(t -> {
+        m.scheduleCoopConcurrently((t, thr) -> {
 
             // signal start to second thread
-            l1.countDown();
+            l1.set(0);
 
             // populate the map
-            for (long i = 0; i < (long) PARAMETERS.NUM_ITERATIONS_LOW; i++)
+            for (long i = 0; i < (long) PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+                sched();
                 testMap.put(i, i);
+            }
 
             assertThat(testMap.get(0L))
+                    .describedAs(scheduleString)
                     .isEqualTo(0L);
+            sched();
             assertThat(testMap.size())
+                    .describedAs(scheduleString)
                     .isEqualTo(PARAMETERS.NUM_ITERATIONS_LOW);
 
             // wait for second thread to advance
-            l2.await();
+            while (l2.get() > 0) { sched(); }
 
             // manipulate the map, verify that keys set is unmodified,
             // the original map is modified
+            sched();
             testMap.remove(0L);
 
+            sched();
             assertThat(testMap.containsKey(0L))
+                    .describedAs(scheduleString)
                     .isFalse();
+            sched();
             assertThat(testMap.size())
+                    .describedAs(scheduleString)
                     .isEqualTo(PARAMETERS.NUM_ITERATIONS_LOW - 1);
 
             // allow third thread to proceed
-            l3.countDown();
+            l3.set(0);
         });
 
         // 2nd thread: get an immutable copy of the keys in the
         // at an arbitrary snapshot
-        scheduleConcurrently(t -> {
-            l1.await();
+        m.scheduleCoopConcurrently((t, thr) -> {
+            while (l1.get() > 0) { sched(); }
 
             // get a snapshot of the keys;
             // we don't know at which point the snapshot will be,
             // relative to the other thread
             Set<Long> keys = testMap.keySet();
+            // Without using the CoopScheduler, snapshotSize would
+            // almost always be zero or one.
             int snapshotSize = keys.size();
 
+            sched();
             if (snapshotSize > 0)
                 assertThat(keys.contains(0L))
+                        .describedAs(scheduleString)
                         .isTrue();
 
             // signal that one snapshot was taken already
-            l2.countDown();
+            l2.set(0);
 
             // verify that the immutable snapshot remains immutable
-            while (l3.getCount() > 0) {
+            while (l3.get() > 0) {
+                sched();
                 assertThat(keys.size())
+                        .describedAs(scheduleString)
                         .isEqualTo(snapshotSize);
+                sched();
                 if (snapshotSize > 0)
                     assertThat(keys.contains(0L))
+                            .describedAs(scheduleString)
                             .isTrue();
             }
-            l3.await();
+            while (l3.get() > 0) { sched(); }
+
             assertThat(keys.size())
+                    .describedAs(scheduleString)
                     .isEqualTo(snapshotSize);
+            sched();
             if (snapshotSize > 0)
                 assertThat(keys.contains(0L))
+                        .describedAs(scheduleString)
                         .isTrue();
         } );
 
-        scheduleConcurrently(t -> {
-            l3.await();
+        m.scheduleCoopConcurrently((t, thr) -> {
+            while (l3.get() > 0) { sched(); }
 
             // get a snapshot of the keys;
             Set<Long> keys = testMap.keySet();
             assertThat(keys.size())
+                    .describedAs(scheduleString)
                     .isEqualTo(PARAMETERS.NUM_ITERATIONS_LOW-1);
+            sched();
             assertThat(keys.contains(0L))
+                    .describedAs(scheduleString)
                     .isFalse();
         });
 
-        executeScheduled(PARAMETERS.CONCURRENCY_SOME, PARAMETERS.TIMEOUT_SHORT);
+        m.executeScheduled();
 
     }
-
 }
