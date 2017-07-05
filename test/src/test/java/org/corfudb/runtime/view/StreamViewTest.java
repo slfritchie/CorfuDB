@@ -10,7 +10,6 @@ import lombok.Getter;
 import org.corfudb.protocols.wireprotocol.ILogData;
 import org.corfudb.protocols.wireprotocol.TokenResponse;
 import org.corfudb.runtime.CorfuRuntime;
-import org.corfudb.runtime.concurrent.StreamSeekAtomicityTest;
 import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.view.stream.IStreamView;
 import org.junit.Before;
@@ -407,6 +406,7 @@ public class StreamViewTest extends AbstractViewTest {
     }
 
     @Test
+    @SuppressWarnings("checkstyle:magicnumber")
     public void caffeineExplorationTest() {
         CorfuRuntime runtime = getRuntime();
         Ticker myTicker = new logicalTicker();
@@ -417,16 +417,15 @@ public class StreamViewTest extends AbstractViewTest {
                 .maximumWeight(weight)
                 .expireAfter(new Expiry<Long, String>() {
                     public long expireAfterCreate(Long key, String graph, long currentTime) {
-                        // Use wall clock time, rather than nanotime, if from an external resource
                         return key;
                     }
                     public long expireAfterUpdate(Long key, String graph,
                                                   long currentTime, long currentDuration) {
-                        return currentDuration;
+                        return key;
                     }
                     public long expireAfterRead(Long key, String graph,
                                                 long currentTime, long currentDuration) {
-                        return currentDuration;
+                        return key;
                     }
                 })
                 // .ticker(this::getLogicalTime) // Same behavior as .ticker(myTicker)
@@ -520,5 +519,33 @@ public class StreamViewTest extends AbstractViewTest {
             res.put(i, cacheFetch(i));
         }
         return res;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void trimCausesCacheEviction()
+            throws Exception {
+        UUID streamA = UUID.nameUUIDFromBytes("stream A".getBytes());
+        UUID streamB = UUID.nameUUIDFromBytes("stream B".getBytes());
+        byte[] testPayload = "hello world".getBytes();
+        final int iters = 2;
+
+        IStreamView svA = r.getStreamsView().get(streamA);
+        IStreamView svB = r.getStreamsView().get(streamB);
+
+        for (int i = 0; i < iters; i++) {
+            svA.append(testPayload);
+            svB.append(testPayload);
+        }
+
+        getRuntime().getAddressSpaceView().prefixTrim((iters*2)-1);
+        getRuntime().getAddressSpaceView().invalidateClientCache();
+        getRuntime().getAddressSpaceView().invalidateServerCaches();
+        // Thread.sleep(1000);
+
+        assertThatThrownBy(() -> svB.next().getPayload(getRuntime()))
+                .isInstanceOf(TrimmedException.class);
+        assertThatThrownBy(() -> svA.next().getPayload(getRuntime()))
+                .isInstanceOf(TrimmedException.class);
     }
 }

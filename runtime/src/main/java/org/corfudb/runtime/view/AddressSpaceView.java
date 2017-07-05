@@ -3,7 +3,9 @@ package org.corfudb.runtime.view;
 import com.codahale.metrics.Gauge;
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -40,13 +42,41 @@ import java.util.Comparator;
 public class AddressSpaceView extends AbstractView {
 
     /**
+     * Log address where this client has witnessed a TrimmedException,
+     * which we assume was due to an earlier prefixTrim() operation.
+     */
+    private long trimmedWitnessed = -1;
+
+    private class trimmedWitnessedTicker implements Ticker {
+        @Override
+        public long read() {
+            return trimmedWitnessed;
+        }
+    }
+
+    /**
      * A cache for read results.
      */
     final LoadingCache<Long, ILogData> readCache = Caffeine.<Long, ILogData>newBuilder()
             .<Long, ILogData>weigher((k, v) -> v.getSizeEstimate())
             .maximumWeight(runtime.getMaxCacheSize())
-            .expireAfterAccess(runtime.getCacheExpiryTime(), TimeUnit.SECONDS)
-            .expireAfterWrite(runtime.getCacheExpiryTime(), TimeUnit.SECONDS)
+            .expireAfter(new Expiry<Long, ILogData>() {
+                // Use a policy of logical time, where the logical clock advances
+                // each time that we witness a TrimmedException.  The "time" for
+                // a cache entry's expiry is its log address.
+                public long expireAfterCreate(Long key, ILogData l, long currentTime) {
+                    return key;
+                }
+                public long expireAfterUpdate(Long key, ILogData l,
+                                              long currentTime, long currentDuration) {
+                    return key;
+                }
+                public long expireAfterRead(Long key, ILogData l,
+                                            long currentTime, long currentDuration) {
+                    return key;
+                }
+            })
+            .ticker(new trimmedWitnessedTicker())
             .recordStats()
             .build(new CacheLoader<Long, ILogData>() {
                 @Override
@@ -148,12 +178,33 @@ public class AddressSpaceView extends AbstractView {
      * @return A result, which be cached.
      */
     public @Nonnull ILogData read(long address) {
+        if (address <= trimmedWitnessed) {
+            System.err.printf("DEBUG TrimmedException via trimmedWitnessed\n");
+            throw new TrimmedException();
+        }
         if (!runtime.isCacheDisabled()) {
             ILogData data = readCache.get(address);
             if (data == null || data.getType() == DataType.EMPTY) {
                 throw new RuntimeException("Unexpected return of empty data at address "
                         + address + " on read");
             } else if (data.isTrimmed()) {
+                // TODO: SLF: We don't know this client's access pattern (forward or backward).
+                // And we don't know where the prefix trim point is, so it could be possible
+                // to have an access pattern that's going forward ... and if that pattern
+                // triggers a full cache scan+eviction on each read() attempt, then we'd
+                // do many of eviction scans for very little reward.
+                //
+                // Ah, we can use getTrimMark() to figure out where the global trim
+                // mark is and then run a single eviction scan.
+                //
+                // Or use the logical time scheme and hope that Caffeine does the same
+                // space reclamation as an eviction scan.
+                //
+                // {sigh}  Which to choose?
+                System.err.printf("DEBUG TrimmedException\n");
+                if (address > trimmedWitnessed) {
+                    trimmedWitnessed = address;
+                }
                 throw new TrimmedException();
             }
             return data;
