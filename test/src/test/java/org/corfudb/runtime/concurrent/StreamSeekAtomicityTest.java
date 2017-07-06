@@ -101,6 +101,9 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps affecting optimistic-rollback of the above thread
         m.scheduleCoopConcurrently((thr, t) -> {
+            final int itersLimit = 500;
+            int i = 0;
+
             TXBegin();
             sched();
             testMap1.get(1L);
@@ -112,7 +115,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
             // keep accessing the snapshot, causing optimistic rollback
 
-            while (!commitDone.get()) {
+            while (!commitDone.get() && i++ < itersLimit) {
                 sched();
                 System.err.printf("1");
                 testMap1.get(1L);
@@ -122,13 +125,16 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps syncing with the tail of log
         m.scheduleCoopConcurrently((thr, t) -> {
+            final int itersLimit = 500;
+            int i = 0;
+
             // signal that thread has started
             sched();
             CoopUtil.barrierCountdown(l1);
             sched();
 
             // keep updating the in-memory proxy from the log
-            while (!commitDone.get()) {
+            while (!commitDone.get() && i++ < itersLimit) {
                 sched();
                 System.err.printf("2");
                 testMap1.get(1L);
