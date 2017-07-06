@@ -30,6 +30,27 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
     protected int numIterations = PARAMETERS.NUM_ITERATIONS_LOW;
     private String scheduleString;
 
+    public static void main(String[] argv) {
+        try {
+            StreamSeekAtomicityTest t = new StreamSeekAtomicityTest();
+            // @Before items
+            t.clearTestStatus();
+            t.setupScheduledThreads();
+            t.resetThreadingTest();
+            t.InitSM();
+            t.resetTests();
+            t.becomeCorfuApp();
+
+            // Do real work
+            t.ckCommitAtomicity();
+            System.exit(0);
+        } catch (Exception e) {
+            System.err.printf("ERROR: Caught exception %s at:\n", e);
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
     /**
      * This test verifies commit atomicity against concurrent -read- activity,
      * which constantly causes rollbacks and optimistic-rollbacks.
@@ -38,7 +59,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
      */
     @Test
     public void ckCommitAtomicity() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
             ckCommitAtomicity(i);
         }
     }
@@ -46,7 +67,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
     public void ckCommitAtomicity(int iter) throws Exception {
         String mapName1 = "testMapA" + iter;
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
-        AtomicInteger l1 = new AtomicInteger(2);
+        AtomicInteger l1 = new AtomicInteger(0);
         AtomicBoolean commitDone = new AtomicBoolean(false);
         final int NTHREADS = 3;
         CoopUtil m = setupCoopSchedule(NTHREADS);
@@ -62,11 +83,13 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
                 // generate optimistic mutation
                 sched();
+                System.err.printf("0");
                 testMap1.put(1L, (long) txCnt);
 
                 // wait for it to be undon
                 TXEnd();
             }
+            System.err.printf("0 finished!\n");
             // signal done
             commitDone.set(true);
 
@@ -91,8 +114,10 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
             while (!commitDone.get()) {
                 sched();
+                System.err.printf("1");
                 testMap1.get(1L);
             }
+            System.err.printf("1 finished!\n");
         });
 
         // thread that keeps syncing with the tail of log
@@ -105,8 +130,10 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
             // keep updating the in-memory proxy from the log
             while (!commitDone.get()) {
                 sched();
+                System.err.printf("2");
                 testMap1.get(1L);
             }
+            System.err.printf("2 finished!\n");
         });
 
         m.executeScheduled();
@@ -306,7 +333,9 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
     private CoopUtil setupCoopSchedule(int nThreads) {
         final int schedLength = 300;
         int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
+        schedule = new int[]{2,1,0,1,0,2,0,0,1,0,1,2,1,0,1,1,2,2,2,0,1,1,2,2,2,2,2,1,0,2,1,2,1,1,0,0,0,2,1,0,1,1,2,2,1,2,1,0,1,2,2,2,2,1,1,2,1,2,2,2,1,2,0,1,1,0,1,2,0,0,1,0,0,2,1,0,1,2,1,1,0,2,1,2,0,2,1,0,2,1,2,1,2,0,2,1,1,1,2,0,1,0,1,2,2,1,0,1,0,0,0,0,2,1,1,2,2,2,0,2,0,1,2,0,1,2,2,0,1,2,0,1,0,1,2,2,0,0,2,1,0,0,1,0,2,1,2,0,0,0,0,1,2,0,0,0,1,2,1,1,1,1,2,1,2,0,1,0,0,1,2,2,0,2,2,0,0,0,2,0,0,1,2,0,0,2,1,1,1,1,2,2,0,1,1,0,0,0,0,1,2,2,1,1,1,1,1,0,0,0,2,2,0,1,2,2,2,2,0,1,1,2,0,1,2,1,1,2,1,2,2,0,0,2,0,2,0,1,0,1,2,1,1,1,0,1,1,0,0,0,0,0,1,1,1,2,2,2,0,1,2,0,0,2,1,0,2,1,2,0,2,2,2,0,0,2,2,0,1,0,0,2,0,1,1,0,2,2,1,0,1,0,2,0,1,1,0,0,0,0};
         scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+        System.err.printf("SCHED: %s\n", scheduleString);
         CoopScheduler.reset(nThreads);
         CoopScheduler.setSchedule(schedule);
         return new CoopUtil();

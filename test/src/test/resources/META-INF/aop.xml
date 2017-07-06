@@ -5,6 +5,7 @@
     <!-- learning exercise: <aspect name="org.corfudb.aspects.FirstAspect"/> -->
     <aspect name="org.corfudb.aspects.CkTrimTestAspect"/>
     <aspect name="org.corfudb.aspects.CorfuSmrObjectConcurrencyAspect"/>
+    <aspect name="org.corfudb.aspects.GH802Aspect"/>
 
     <!-- Of the set of aspects declared to the weaver
          use aspects matching the type pattern "com..*" for weaving. -->
