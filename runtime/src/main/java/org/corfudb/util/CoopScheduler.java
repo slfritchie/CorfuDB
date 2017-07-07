@@ -290,6 +290,11 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
     public static void runScheduler(int numStartingThreads) {
         int t;
         int given = 0;
+        int[] g;
+        g = new int[maxThreads];
+        for (int i = 0; i < g.length; i++) {
+            g[i] = 0;
+        }
 
         while (! someReady(numStartingThreads)) {
             try { if (verbose > 1) { System.err.printf("!someReady,"); } Thread.sleep(1); } catch (Exception e) {}
@@ -318,6 +323,7 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                     threadStatus[t].ticks = schedule[i].ticks;
                     { if (verbose > 0) { log.info("SCHED-NOTIFY {}", t); } }
                     threadStatus[t].notify();
+                    g[t]++;
                     given++;
                 }
 
@@ -328,7 +334,10 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                 }
             }
         }
-        // System.err.printf("GIVEN = %d,", given);
+        System.err.printf("GIVEN = %d,", given);
+        for (int i = 0; i < maxThreads; i++) {
+            System.err.printf("GIVEN[%d] = %d,", i, g[i]);
+        }
     }
 
     private static boolean someReady(int maxThr) {

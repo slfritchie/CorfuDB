@@ -71,6 +71,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
         AtomicBoolean commitDone = new AtomicBoolean(false);
         final int NTHREADS = 3;
         CoopUtil m = setupCoopSchedule(NTHREADS);
+        final int itersLimit = 200;
 
         m.scheduleCoopConcurrently((thr, t) -> {
             int txCnt;
@@ -101,7 +102,6 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps affecting optimistic-rollback of the above thread
         m.scheduleCoopConcurrently((thr, t) -> {
-            final int itersLimit = 500;
             int i = 0;
 
             TXBegin();
@@ -125,7 +125,6 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps syncing with the tail of log
         m.scheduleCoopConcurrently((thr, t) -> {
-            final int itersLimit = 500;
             int i = 0;
 
             // signal that thread has started
