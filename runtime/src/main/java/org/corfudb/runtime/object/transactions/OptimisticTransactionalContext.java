@@ -25,6 +25,7 @@ import org.corfudb.runtime.object.ICorfuSMRProxyInternal;
 import org.corfudb.runtime.object.VersionLockedObject;
 
 import static org.corfudb.runtime.view.ObjectsView.TRANSACTION_STREAM_ID;
+import static org.corfudb.util.CoopScheduler.sched;
 
 /** A Corfu optimistic transaction context.
  *
@@ -79,6 +80,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      *
      * {@inheritDoc}
      */
+    boolean hack(int i) { sched(); System.err.printf("%d@%s,", i, Thread.currentThread().getName()); return false; }
     @Override
     public <R, T> R access(ICorfuSMRProxyInternal<T> proxy,
                            ICorfuSMRAccess<R, T> accessFunction,
@@ -97,8 +99,8 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
                         // And at the correct timestamp
                         o.getVersionUnsafe() == getSnapshotTimestamp()
                                 && (o.getOptimisticStreamUnsafe() == null
-                                || o.getOptimisticStreamUnsafe()
-                                        .isStreamCurrentContextThreadCurrentContext())
+                                || (hack(1) || o.getOptimisticStreamUnsafe()
+                                        .isStreamCurrentContextThreadCurrentContext()))
                 ),
                         o -> {
                             // Swap ourselves to be the active optimistic stream.
@@ -182,8 +184,8 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      */
     <T> void setAsOptimisticStream(VersionLockedObject<T> object) {
         if (object.getOptimisticStreamUnsafe() == null
-                || !object.getOptimisticStreamUnsafe()
-                        .isStreamCurrentContextThreadCurrentContext()) {
+                || (hack(2) || !object.getOptimisticStreamUnsafe()
+                        .isStreamCurrentContextThreadCurrentContext())) {
 
             // We are setting the current context to the root context of nested transactions.
             // Upon sync forward

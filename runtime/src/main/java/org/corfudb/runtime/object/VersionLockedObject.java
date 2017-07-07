@@ -19,6 +19,7 @@ import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
 import org.corfudb.util.CoopStampedLock;
 import org.corfudb.util.Utils;
+import static org.corfudb.util.CoopScheduler.sched;
 
 
 /**
@@ -308,6 +309,7 @@ public class VersionLockedObject<T> {
             if (this.optimisticStream != null) {
                 optimisticRollbackUnsafe();
                 this.optimisticStream = null;
+                sched(); System.err.printf("V1@%s,", Thread.currentThread().getName());
             }
             // If we are too far ahead, roll back to the past
             if (getVersionUnsafe() > timestamp) {
@@ -363,7 +365,7 @@ public class VersionLockedObject<T> {
      * to this object permanent.
      */
     public void optimisticCommitUnsafe() {
-        optimisticStream = null;
+        optimisticStream = null; sched(); System.err.printf("V2@%s,", Thread.currentThread().getName());
     }
 
     /**
@@ -413,6 +415,7 @@ public class VersionLockedObject<T> {
         object = newObjectFn.get();
         smrStream.reset();
         optimisticStream = null;
+        sched(); System.err.printf("V3@%s,", Thread.currentThread().getName());
     }
 
     /**

@@ -59,7 +59,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
      */
     @Test
     public void ckCommitAtomicity() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2; i++) {
             ckCommitAtomicity(i);
         }
     }
