@@ -52,7 +52,7 @@ public class CoopUtil {
         return executeScheduled(null);
     }
 
-    public boolean executeScheduled(Consumer exceptionLambda) throws Exception {
+    public boolean executeScheduled(BiConsumer exceptionLambda) throws Exception {
         Thread ts[] = new Thread[scheduledThreads.size()];
         AtomicBoolean failed = new AtomicBoolean(false);
 
@@ -67,14 +67,9 @@ public class CoopUtil {
                         System.err.printf("executeScheduled error by thr %d: %s\n", ii, e);
                         e.printStackTrace();
                     } else {
-                        exceptionLambda.accept(e);
+                        exceptionLambda.accept(e, failed);
                     }
                     CoopScheduler.threadDone();
-                    // TODO: Hrm, with the current bug I'm hunting, another exception is interfering
-                    // For example:
-                    // executeScheduled error by thr 1: org.corfudb.runtime.exceptions.TransactionAbortedException: TX ABORT  | Snapshot Time = -1 | Transaction ID = bf4cb0e8-0454-4500-9bce-206d8071ffc6 | Conflict Key = null | Cause = UNDEFINED
-                    // So, for now, don't set the flag.  {sigh}
-                    //failed.set(true);
                 }
             });
             ts[i].start();

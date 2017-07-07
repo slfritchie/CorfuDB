@@ -193,7 +193,7 @@ public class SMRMultiLogunitTest extends AbstractViewTest {
         });
 
         try {
-            m.executeScheduled((e) -> {
+            m.executeScheduled((e, failedSignal) -> {
                 if (e.getClass().equals(TransactionAbortedException.class)) {
                     aborted.set(true);
                 } else {

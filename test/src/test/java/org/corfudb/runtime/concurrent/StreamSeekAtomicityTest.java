@@ -3,6 +3,7 @@ package org.corfudb.runtime.concurrent;
 import lombok.extern.slf4j.Slf4j;
 
 import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.exceptions.TransactionAbortedException;
 import org.corfudb.runtime.object.transactions.AbstractTransactionsTest;
 import org.corfudb.util.CoopScheduler;
 import org.corfudb.util.CoopUtil;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.corfudb.util.CoopScheduler.sched;
@@ -141,7 +143,17 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
             System.err.printf("2 finished,");
         });
 
-        boolean failed = m.executeScheduled();
+        BiConsumer whenFails = (exception, failedSignal) -> {
+            System.err.printf("MY: executeScheduled error by thr %s: %s\n", Thread.currentThread().getName(), exception);
+            ((Exception) exception).printStackTrace();
+            System.err.printf("MY: done\n");
+            if (exception instanceof TransactionAbortedException) {
+                System.err.printf("MY: TAE, skip...\n");
+            } else {
+                ((AtomicBoolean) failedSignal).set(true);
+            }
+        };
+        boolean failed = m.executeScheduled(whenFails);
         System.err.printf("Failed? %s\n", failed);
         if (failed) {
             throw new RuntimeException("CoopScheduler thread failed");
