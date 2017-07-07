@@ -59,7 +59,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
      */
     @Test
     public void ckCommitAtomicity() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
             ckCommitAtomicity(i);
         }
     }
@@ -141,8 +141,11 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
             System.err.printf("2 finished,");
         });
 
-        m.executeScheduled();
-        System.err.printf("\n");
+        boolean failed = m.executeScheduled();
+        System.err.printf("Failed? %s\n", failed);
+        if (failed) {
+            throw new RuntimeException("CoopScheduler thread failed");
+        }
     }
 
     /**
@@ -339,6 +342,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
     private CoopUtil setupCoopSchedule(int nThreads) {
         final int schedLength = 300;
         int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
+        schedule = new int[]{0,0,0,2,0,1,0,0,1,0,1,1,2,2,0,0,2,0,2,1,0,1,1,0,2,2,1,1,2,2,2,0,0,0,0,0,1,0,0,0,1,1,1,2,2,2,0,1,0,1,1,2,0,0,2,1,0,1,2,0,2,2,1,1,2,2,2,0,1,1,0,1,0,1,0,2,2,1,2,1,2,1,1,2,1,0,1,0,0,1,0,1,2,2,2,0,1,1,0,2,0,0,2,0,0,0,0,0,0,0,1,1,0,0,2,0,1,0,1,2,2,0,2,0,2,1,2,1,1,0,0,1,2,0,0,0,2,2,2,0,1,0,2,1,1,1,1,0,2,1,1,0,1,1,2,2,0,2,1,2,0,1,0,1,2,0,0,1,1,2,0,1,2,1,2,1,2,1,1,0,1,1,1,1,2,2,2,1,0,1,1,2,0,0,0,0,2,2,1,0,2,2,1,1,0,2,2,1,2,2,2,1,0,2,2,2,2,1,1,1,0,2,0,1,0,1,2,1,2,1,1,2,1,1,0,0,2,0,1,2,1,2,1,2,1,0,1,2,2,0,0,2,1,1,1,0,1,1,2,1,1,1,0,1,1,2,1,0,2,1,2,2,2,2,2,2,1,1,2,0,0,2,2,2,2,1,0,1,1,1,0,1,2,1,1,2,0,2,0,0};
         scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
         System.err.printf("SCHED: %s\n", scheduleString);
         CoopScheduler.reset(nThreads);

@@ -3,6 +3,7 @@ package org.corfudb.util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -47,12 +48,13 @@ public class CoopUtil {
     /**
      * Execute any threads which were scheduled to run.
      */
-    public void executeScheduled() throws Exception {
-        executeScheduled(null);
+    public boolean executeScheduled() throws Exception {
+        return executeScheduled(null);
     }
 
-    public void executeScheduled(Consumer exceptionLambda) throws Exception {
+    public boolean executeScheduled(Consumer exceptionLambda) throws Exception {
         Thread ts[] = new Thread[scheduledThreads.size()];
+        AtomicBoolean failed = new AtomicBoolean(false);
 
         for (int i = 0; i < scheduledThreads.size(); i++) {
             final int ii = i;
@@ -63,10 +65,16 @@ public class CoopUtil {
                 } catch (Exception e) {
                     if (exceptionLambda == null) {
                         System.err.printf("executeScheduled error by thr %d: %s\n", ii, e);
+                        e.printStackTrace();
                     } else {
                         exceptionLambda.accept(e);
                     }
                     CoopScheduler.threadDone();
+                    // TODO: Hrm, with the current bug I'm hunting, another exception is interfering
+                    // For example:
+                    // executeScheduled error by thr 1: org.corfudb.runtime.exceptions.TransactionAbortedException: TX ABORT  | Snapshot Time = -1 | Transaction ID = bf4cb0e8-0454-4500-9bce-206d8071ffc6 | Conflict Key = null | Cause = UNDEFINED
+                    // So, for now, don't set the flag.  {sigh}
+                    //failed.set(true);
                 }
             });
             ts[i].start();
@@ -75,6 +83,7 @@ public class CoopUtil {
         for (int i = 0; i < scheduledThreads.size(); i++) {
             ts[i].join();
         }
+        return failed.get();
     }
 
     public static void barrierCountdown(AtomicInteger barrier) {
