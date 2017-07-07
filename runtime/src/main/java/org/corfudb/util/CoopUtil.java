@@ -62,7 +62,7 @@ public class CoopUtil {
                     scheduledThreads.get(ii).call();
                 } catch (Exception e) {
                     if (exceptionLambda == null) {
-                        System.err.printf("executeScheduled error: %s\n", e);
+                        System.err.printf("executeScheduled error by thr %d: %s\n", ii, e);
                     } else {
                         exceptionLambda.accept(e);
                     }

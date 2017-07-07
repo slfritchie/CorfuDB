@@ -44,4 +44,16 @@ public class GH802Aspect {
         sched();
     }
 
+    @After("set(org.corfudb.runtime.object.transactions.WriteSetSMRStream org.corfudb.runtime.object.VersionLockedObject.optimisticStream) && "
+            + "args(s)")
+    public void sched_oSA0(org.corfudb.runtime.object.transactions.WriteSetSMRStream s, JoinPoint tjp) {
+        if (s == null) {
+            //System.err.printf("%s,", Thread.currentThread().getName());
+            sched();
+        } else {
+            //System.err.printf("x,");
+        }
+    }
+
+
 }

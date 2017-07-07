@@ -71,7 +71,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
         AtomicBoolean commitDone = new AtomicBoolean(false);
         final int NTHREADS = 3;
         CoopUtil m = setupCoopSchedule(NTHREADS);
-        final int itersLimit = 200;
+        final int itersLimit = 100;
 
         m.scheduleCoopConcurrently((thr, t) -> {
             int txCnt;
@@ -84,7 +84,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
                 // generate optimistic mutation
                 sched();
-                System.err.printf("0");
+                //System.err.printf("0");
                 testMap1.put(1L, (long) txCnt);
 
                 // wait for it to be undon
@@ -117,7 +117,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
             while (!commitDone.get() && i++ < itersLimit) {
                 sched();
-                System.err.printf("1");
+                //System.err.printf("1");
                 testMap1.get(1L);
             }
             System.err.printf("1 finished,");
@@ -135,7 +135,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
             // keep updating the in-memory proxy from the log
             while (!commitDone.get() && i++ < itersLimit) {
                 sched();
-                System.err.printf("2");
+                //System.err.printf("2");
                 testMap1.get(1L);
             }
             System.err.printf("2 finished,");
