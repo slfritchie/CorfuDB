@@ -59,7 +59,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
      */
     @Test
     public void ckCommitAtomicity() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2*2*2; i++) {
             ckCommitAtomicity(i);
         }
     }
@@ -101,17 +101,17 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps affecting optimistic-rollback of the above thread
         m.scheduleCoopConcurrently((thr, t) -> {
-            final int itersLimit = 500;
+            final int itersLimit = 200;
             int i = 0;
 
             TXBegin();
-            sched();
+            ////sched();
             testMap1.get(1L);
 
             // signal that transaction has started and obtained a snapshot
-            sched();
+            ////sched();
             CoopUtil.barrierCountdown(l1);
-            sched();
+            ////sched();
 
             // keep accessing the snapshot, causing optimistic rollback
 
@@ -125,7 +125,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
         // thread that keeps syncing with the tail of log
         m.scheduleCoopConcurrently((thr, t) -> {
-            final int itersLimit = 500;
+            final int itersLimit = 200;
             int i = 0;
 
             // signal that thread has started
