@@ -32,7 +32,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
      */
     @Test
     public void useMapsAsMQs() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_VERY_LOW; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2*2; i++) {
             long start = System.currentTimeMillis();
             useMapsAsMQs(i);
             // System.err.printf("Iter %d -> %d msec\n", i, System.currentTimeMillis() - start);
@@ -59,9 +59,11 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
         CoopScheduler.setSchedule(schedule);
         scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+        System.err.printf("SCHED 2: %s\n", scheduleString);
 
         // 1st thread: producer of new "trigger" values
         m.scheduleCoopConcurrently((thr, t) -> {
+            sched();
 
             // wait for other threads to start
             CoopUtil.barrierCountdown(barrier);
@@ -71,11 +73,9 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
             for (int i = 0; i < numIterations; i++) {
 
                 try {
-                    sched();
                     CoopUtil.lock(lock);
 
                     // place a value in the map
-                    sched();
                     testMap1.put(1L, (long) i);
                     log.debug("- sending 1st trigger " + i);
                     CoopScheduler.appendLog("put " + i);
@@ -95,13 +95,13 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
         // 2nd thread: monitor map and wait for "trigger" values to show up, produce 1st signal
         m.scheduleCoopConcurrently((thr, t) -> {
+            sched();
 
             // signal start
             CoopUtil.barrierCountdown(barrier);
             CoopUtil.barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
-                sched();
                 while (testMap1.get(1L) == null || testMap1.get(1L) != (long) i) {
                     log.debug( "- wait for 1st trigger " + i);
                     sched();
@@ -111,11 +111,9 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
                 // 1st producer signal through lock
                 try {
-                    sched();
                     CoopUtil.lock(lock);
 
                     // 1st producer signal
-                    sched();
                     c1.set(1);
                     CoopScheduler.appendLog("1st producer");
                 } finally {
@@ -127,6 +125,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
         // 3rd thread: monitor 1st producer condition and produce a second "trigger"
         m.scheduleCoopConcurrently((thr, t) -> {
+            sched();
 
             // signal start
             CoopUtil.barrierCountdown(barrier);
@@ -134,11 +133,8 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
             for (int i = 0; i < numIterations; i++) {
                 try {
-                    sched();
                     TXBegin();
-                    sched();
                     CoopUtil.lock(lock);
-                    sched();
 
                     // wait for 1st producer signal
                     CoopUtil.await(lock, c1);
@@ -146,11 +142,10 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopScheduler.appendLog("1st condition " + i);
 
                     // produce another trigger value
-                    sched();
                     testMap1.put(2L, (long) i);
                     log.debug( "- sending 2nd trigger " + i);
                     CoopScheduler.appendLog("2nd trigger " + i);
-                    sched();
+                    sched(); // NOTE: if this sched() is removed from the rest, NPE in VersionLockedObject won't happen.
                     TXEnd();
                 } finally {
                     CoopUtil.unlock(lock);
@@ -160,6 +155,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
         // 4th thread: monitor map and wait for 2nd "trigger" values to show up, produce second signal
         m.scheduleCoopConcurrently((thr, t) -> {
+            sched();
 
             // signal start
             CoopUtil.barrierCountdown(barrier);
@@ -168,7 +164,6 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
             int busyDelay = 1; // millisecs
 
             for (int i = 0; i < numIterations; i++) {
-                sched();
                 while (testMap1.get(2L) == null || testMap1.get(2L) != (long) i) {
                     sched();
                 }
@@ -177,11 +172,9 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
                 // 2nd producer signal through lock
                 try {
-                    sched();
                     CoopUtil.lock(lock);
 
                     // 2nd producer signal
-                    sched();
                     c2.set(1);
                     log.debug( "- sending 2nd signal " + i);
                     CoopScheduler.appendLog("2nd signal " + i);
@@ -192,6 +185,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         });
 
         m.executeScheduled();
+        System.err.printf("After m.executeScheduled()\n");
     }
 
 }
