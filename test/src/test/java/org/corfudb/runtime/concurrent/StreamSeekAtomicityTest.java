@@ -11,7 +11,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -34,6 +33,9 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
     public static void main(String[] argv) {
         try {
+            String y = System.getProperty("java.class.path");
+            System.err.printf("java.class.path y = %s\n", y);
+
             StreamSeekAtomicityTest t = new StreamSeekAtomicityTest();
             // @Before items
             t.clearTestStatus();
@@ -61,7 +63,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
      */
     @Test
     public void ckCommitAtomicity() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2*2*2*2*2*2*2*2*2; i++) {
             ckCommitAtomicity(i);
         }
     }
@@ -354,7 +356,14 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
     private CoopUtil setupCoopSchedule(int nThreads) {
         final int schedLength = 300;
         int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
-        schedule = new int[]{0,0,0,2,0,1,0,0,1,0,1,1,2,2,0,0,2,0,2,1,0,1,1,0,2,2,1,1,2,2,2,0,0,0,0,0,1,0,0,0,1,1,1,2,2,2,0,1,0,1,1,2,0,0,2,1,0,1,2,0,2,2,1,1,2,2,2,0,1,1,0,1,0,1,0,2,2,1,2,1,2,1,1,2,1,0,1,0,0,1,0,1,2,2,2,0,1,1,0,2,0,0,2,0,0,0,0,0,0,0,1,1,0,0,2,0,1,0,1,2,2,0,2,0,2,1,2,1,1,0,0,1,2,0,0,0,2,2,2,0,1,0,2,1,1,1,1,0,2,1,1,0,1,1,2,2,0,2,1,2,0,1,0,1,2,0,0,1,1,2,0,1,2,1,2,1,2,1,1,0,1,1,1,1,2,2,2,1,0,1,1,2,0,0,0,0,2,2,1,0,2,2,1,1,0,2,2,1,2,2,2,1,0,2,2,2,2,1,1,1,0,2,0,1,0,1,2,1,2,1,1,2,1,1,0,0,2,0,1,2,1,2,1,2,1,0,1,2,2,0,0,2,1,1,1,0,1,1,2,1,1,1,0,1,1,2,1,0,2,1,2,2,2,2,2,2,1,1,2,0,0,2,2,2,2,1,0,1,1,1,0,1,2,1,1,2,0,2,0,0};
+        schedule = new int[]{0,0,1,1,1,2,2,2,2,1,1,1,2,2,1,2,0,2,1,0,1,2,1,1,2,2,1,1,1,1,1,1,2,
+                0,2,2,0,0,0,1,0,0,0,1,0,1,0,1,1,0,1,0,2,1,0,2,0,1,0,1,1,2,1,0,2,1,1,2,0,2,0,2,0,1,0,1,2
+                ,1,0,1,2,2,1,2,2,2,2,2,1,2,0,0,0,0,1,2,1,1,0,1,2,0,2,0,0,1,1,1,2,2,1,0,1,0,0,1,0,1,1,2,
+                1,1,2,2,2,1,0,0,0,0,0,0,2,0,1,2,2,2,1,0,1,1,2,0,1,1,1,2,0,1,2,0,0,2,2,0,1,1,1,2,0,2,1,0
+                ,1,0,2,2,1,1,0,0,2,0,1,1,0,0,1,2,2,1,0,1,1,2,2,1,0,1,1,0,2,0,0,1,1,1,0,0,2,2,0,1,0,2,2,
+                0,0,2,0,1,1,2,2,0,2,0,2,2,1,2,2,2,1,1,1,2,1,1,2,0,0,0,1,2,1,2,1,2,0,1,2,2,2,2,1,2,1,0,2
+                ,0,2,2,2,1,0,1,1,2,1,2,2,1,2,0,2,2,1,1,0,1,1,0,0,1,2,2,2,2,2,1,2,1,1,2,0,2,0,0,0,1,0,2,
+                1,1,0,0,2,1};
         scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
         System.err.printf("SCHED: %s\n", scheduleString);
         CoopScheduler.reset(nThreads);
