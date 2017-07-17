@@ -103,12 +103,21 @@ public class CoopUtil {
     }
 
     public static void await(AtomicInteger lock, AtomicInteger cond) {
-        while (cond.get() == 0) {
+        await(lock, cond, Long.MAX_VALUE);
+    }
+
+    public static boolean await(AtomicInteger lock, AtomicInteger cond, long tries) {
+        while (tries-- > 0 && cond.get() == 0) {
             unlock(lock);
             sched();
             lock(lock);
         }
-        sched();
-        cond.set(0);
+        if (tries >= 0) {
+            sched();
+            cond.set(0);
+            return true;
+        } else {
+            return false;
+        }
     }
 }

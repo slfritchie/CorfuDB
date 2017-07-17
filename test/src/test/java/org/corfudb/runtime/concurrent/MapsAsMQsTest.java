@@ -8,8 +8,10 @@ import org.corfudb.util.CoopUtil;
 import org.junit.Test;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.corfudb.util.CoopScheduler.sched;
 
 /**
@@ -54,12 +56,13 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         AtomicInteger lock = new AtomicInteger(0);
         AtomicInteger c1 = new AtomicInteger(0);
         AtomicInteger c2 = new AtomicInteger(0);
+        AtomicBoolean failed = new AtomicBoolean(false);
 
         CoopScheduler.reset(nThreads);
         int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
         CoopScheduler.setSchedule(schedule);
         scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
-        System.err.printf("SCHED 2: %s\n", scheduleString);
+        System.err.printf("SCHED: %s\n", scheduleString);
 
         // 1st thread: producer of new "trigger" values
         m.scheduleCoopConcurrently((thr, t) -> {
@@ -81,11 +84,12 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopScheduler.appendLog("put " + i);
 
                     // await for the consumer condition to circulate back
-                    CoopUtil.await(lock, c2);
-
+                    while (! CoopUtil.await(lock, c2, 10)) {
+                        if (failed.get() == true) {
+                            return;
+                        }
+                    }
                     log.debug("- sending 2nd trigger " + i);
-
-
                 } finally {
                     sched();
                     CoopUtil.unlock(lock);
@@ -102,23 +106,30 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
             CoopUtil.barrierAwait(barrier, nThreads);
 
             for (int i = 0; i < numIterations; i++) {
-                while (testMap1.get(1L) == null || testMap1.get(1L) != (long) i) {
-                    log.debug( "- wait for 1st trigger " + i);
-                    sched();
-                }
-                log.debug( "- received 1st trigger " + i);
-                CoopScheduler.appendLog("1st trigger " + i);
-
-                // 1st producer signal through lock
                 try {
-                    CoopUtil.lock(lock);
+                    while (failed.get() == false &&
+                            (testMap1.get(1L) == null || testMap1.get(1L) != (long) i)) {
+                        log.debug("- wait for 1st trigger " + i);
+                        sched();
+                    }
+                    log.debug("- received 1st trigger " + i);
+                    CoopScheduler.appendLog("1st trigger " + i);
 
-                    // 1st producer signal
-                    c1.set(1);
-                    CoopScheduler.appendLog("1st producer");
-                } finally {
-                    sched();
-                    CoopUtil.unlock(lock);
+                    // 1st producer signal through lock
+                    try {
+                        CoopUtil.lock(lock);
+
+                        // 1st producer signal
+                        c1.set(1);
+                        CoopScheduler.appendLog("1st producer");
+                    } finally {
+                        sched();
+                        CoopUtil.unlock(lock);
+                    }
+                } catch (Exception e) {
+                    System.out.printf("Exception: %s\n", e);
+                    failed.set(true);
+                    break;
                 }
             }
         });
@@ -137,7 +148,11 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopUtil.lock(lock);
 
                     // wait for 1st producer signal
-                    CoopUtil.await(lock, c1);
+                    while (! CoopUtil.await(lock, c1, 10)) {
+                        if (failed.get() == true) {
+                            return;
+                        }
+                    }
                     log.debug( "- received 1st condition " + i);
                     CoopScheduler.appendLog("1st condition " + i);
 
@@ -164,28 +179,41 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
             int busyDelay = 1; // millisecs
 
             for (int i = 0; i < numIterations; i++) {
-                while (testMap1.get(2L) == null || testMap1.get(2L) != (long) i) {
-                    sched();
-                }
-                log.debug( "- received 2nd trigger " + i);
-                CoopScheduler.appendLog("2nd trigger " + i);
-
-                // 2nd producer signal through lock
                 try {
-                    CoopUtil.lock(lock);
+                    int c = 0;
+                    while (testMap1.get(2L) == null || testMap1.get(2L) != (long) i) {
+                        sched();
+                        if (failed.get() == true) {
+                            System.err.printf("\n\nBREAK\n");
+                            return;
+                        }
+                    }
+                    log.debug("- received 2nd trigger " + i);
+                    CoopScheduler.appendLog("2nd trigger " + i);
 
-                    // 2nd producer signal
-                    c2.set(1);
-                    log.debug( "- sending 2nd signal " + i);
-                    CoopScheduler.appendLog("2nd signal " + i);
-                } finally {
-                    CoopUtil.unlock(lock);
+                    // 2nd producer signal through lock
+                    try {
+                        CoopUtil.lock(lock);
+
+                        // 2nd producer signal
+                        c2.set(1);
+                        log.debug( "- sending 2nd signal " + i);
+                        CoopScheduler.appendLog("2nd signal " + i);
+                    } finally {
+                        CoopUtil.unlock(lock);
+                    }
+                } catch (Exception e) {
+                    System.err.printf("Exception: %s\n", e);
+                    System.err.printf("Stack: ");
+                    e.printStackTrace();
+                    failed.set(true);
+                    break;
                 }
             }
         });
 
         m.executeScheduled();
-        System.err.printf("After m.executeScheduled()\n");
+        assertThat(failed.get()).isFalse();
     }
 
 }
