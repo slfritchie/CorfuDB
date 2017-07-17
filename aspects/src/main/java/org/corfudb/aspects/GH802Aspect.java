@@ -32,8 +32,8 @@ public class GH802Aspect {
         sched();
     }
 
-    @Before("call(* org.corfudb.runtime.object.VersionLockedObject.hack(..))")
-    public void sched_oC0(JoinPoint tjp) {
+    @After("call(* org.corfudb.runtime.object.VersionLockedObject.hack(..))")
+    public void sched_oC0() {
         // System.err.printf("hV,");
         sched();
     }

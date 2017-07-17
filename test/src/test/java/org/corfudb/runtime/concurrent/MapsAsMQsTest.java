@@ -46,11 +46,11 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         final int numThreads = 4;
         final int onehundred = 100;
         ArrayList<Object[]> logs = new ArrayList<>();
-        final int numTests = 200;
+        final int numTests = 2000;
 
         for (int i = 0; i < numTests; i++) {
             //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
-            System.err.printf(".");
+            System.err.printf("%d,", i);
 
             // @After methods:
             cleanupBuffers();
@@ -72,7 +72,10 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
             if (fixedSchedule) {
                 // TODO investigate starvation pathology? {0,3,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,3,3,2,1,0,1,0,0,3,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
-                schedule = new int[]{T1,T3,T2,T3,T3,T2,T1,T1,T2,T1,T3,T1,T0,T3,T3,T3,T3,T1,T3,T1,T1,T3,T1,T2,T1,T3,T0,T3,T0,T1,T0,T3,T2,T0,T1,T0,T1,T1,T3,T1,T1,T2,T2,T2,T2,T2,T3,T1,T2,T2,T3,T2,T1,T2,T3,T3,T1,T1,T1,T3,T0,T3,T0,T2,T1,T3,T3,T2,T1,T2,T3,T0,T2,T0,T0,T3,T3,T2,T1,T3,T1,T3,T3,T2,T3,T2,T3,T2,T1,T1,T2,T3,T1,T3,T3,T0,T3,T2,T3,T3};            } else {
+                // TODO investigate starvation pathology? {1,3,3,3,0,2,1,3,2,1,2,0,0,2,0,1,1,1,1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+                // TODO investigate starvation pathology? {1,0,1,1,3,2,3,1,3,1,3,1,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3}
+                schedule = new int[]{T1,T3,T2,T3,T3,T2,T1,T1,T2,T1,T3,T1,T0,T3,T3,T3,T3,T1,T3,T1,T1,T3,T1,T2,T1,T3,T0,T3,T0,T1,T0,T3,T2,T0,T1,T0,T1,T1,T3,T1,T1,T2,T2,T2,T2,T2,T3,T1,T2,T2,T3,T2,T1,T2,T3,T3,T1,T1,T1,T3,T0,T3,T0,T2,T1,T3,T3,T2,T1,T2,T3,T0,T2,T0,T0,T3,T3,T2,T1,T3,T1,T3,T3,T2,T3,T2,T3,T2,T1,T1,T2,T3,T1,T3,T3,T0,T3,T2,T3,T3};
+            } else {
                 schedule = CoopScheduler.makeSchedule(numThreads, onehundred);
             }
             scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
