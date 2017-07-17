@@ -77,6 +77,7 @@ public class CoopScheduler {
     static CoopThreadStatus threadStatus[];
     static CoopQuantum schedule[];
     public static int verbose = 1;
+    public static long livelockCount;
 
     static List theLog;
 
@@ -92,6 +93,7 @@ public class CoopScheduler {
         }
         schedule = null;
         theLog = Collections.synchronizedList(new ArrayList<Object>());
+        livelockCount = 1_000_000;
     }
 
     public static int registerThread() {
@@ -289,7 +291,7 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
 
     public static void runScheduler(int numStartingThreads) {
         int t;
-        int given = 0;
+        long given = 0;
         int[] g;
         g = new int[maxThreads];
         for (int i = 0; i < g.length; i++) {
@@ -325,6 +327,12 @@ System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                     threadStatus[t].notify();
                     g[t]++;
                     given++;
+                    if (given > livelockCount) {
+                        int[] s = makeSchedule(maxThreads, maxThreads);
+                        setSchedule(s);
+                        System.err.printf("\nLIVELOCK: given %d > %d, new schedule = %s\n", given, livelockCount, formatSchedule(s));
+                        livelockCount += livelockCount;
+                    }
                 }
 
                 synchronized (threadStatus[t]) {
