@@ -3,8 +3,10 @@
   <aspects>
     <!-- declare existing aspects to the weaver -->
     <!-- learning exercise: <aspect name="org.corfudb.aspects.FirstAspect"/> -->
+    <!--
     <aspect name="org.corfudb.aspects.CkTrimTestAspect"/>
     <aspect name="org.corfudb.aspects.CorfuSmrObjectConcurrencyAspect"/>
+      -->
     <aspect name="org.corfudb.aspects.GH802Aspect"/>
 
     <!-- Of the set of aspects declared to the weaver

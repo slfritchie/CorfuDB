@@ -7,6 +7,7 @@ import org.corfudb.util.CoopScheduler;
 import org.corfudb.util.CoopUtil;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,7 +25,67 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
 
 
     protected int numIterations = PARAMETERS.NUM_ITERATIONS_LOW;
+    final int T0 = 0, T1 = 1, T2 = 2, T3 = 3;
+    private int[] schedule = null;
     private String scheduleString;
+    final private int numAwaitRetries = 10;
+
+    public static void main(String[] argv) {
+        try {
+            MapsAsMQsTest t = new MapsAsMQsTest();
+            t.useMapsAsMQs_lots(argv.length > 0 && argv[0].contentEquals("fixed"));
+            System.exit(0);
+        } catch (Exception e) {
+            System.err.printf("ERROR: Caught exception %s at:\n", e);
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    public void useMapsAsMQs_lots(boolean fixedSchedule) throws Exception {
+        final int numThreads = 4;
+        final int onehundred = 100;
+        ArrayList<Object[]> logs = new ArrayList<>();
+        final int numTests = 200;
+
+        for (int i = 0; i < numTests; i++) {
+            //// System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
+            System.err.printf(".");
+
+            // @After methods:
+            cleanupBuffers();
+            try { cleanupScheduledThreads(); } catch (Exception e) {};
+            shutdownThreadingTest();
+            cleanPerTestTempDir();
+
+            // @Before methods:
+            becomeCorfuApp();
+            resetTests();
+            clearTestStatus();
+            setupScheduledThreads();
+            resetThreadingTest();
+            InitSM();
+
+            // We run into deadlock problems with synchronized blocks inside
+            // of Caffeine if we do not disable runtime's caches.
+            getDefaultRuntime().setCacheDisabled(true);
+
+            if (fixedSchedule) {
+                // TODO investigate starvation pathology? {0,3,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,3,3,2,1,0,1,0,0,3,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+                schedule = new int[]{T1,T3,T2,T3,T3,T2,T1,T1,T2,T1,T3,T1,T0,T3,T3,T3,T3,T1,T3,T1,T1,T3,T1,T2,T1,T3,T0,T3,T0,T1,T0,T3,T2,T0,T1,T0,T1,T1,T3,T1,T1,T2,T2,T2,T2,T2,T3,T1,T2,T2,T3,T2,T1,T2,T3,T3,T1,T1,T1,T3,T0,T3,T0,T2,T1,T3,T3,T2,T1,T2,T3,T0,T2,T0,T0,T3,T3,T2,T1,T3,T1,T3,T3,T2,T3,T2,T3,T2,T1,T1,T2,T3,T1,T3,T3,T0,T3,T2,T3,T3};            } else {
+                schedule = CoopScheduler.makeSchedule(numThreads, onehundred);
+            }
+            scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+            System.err.printf(scheduleString + "\n");
+
+            useMapsAsMQs(i, false);
+            logs.add(CoopScheduler.getLog());
+
+            // printLog(logs.get(i));
+        }
+    }
+
+
 
     /**
      * This test verifies commit atomicity against concurrent -read- activity,
@@ -36,7 +97,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
     public void useMapsAsMQs() throws Exception {
         for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2*2; i++) {
             long start = System.currentTimeMillis();
-            useMapsAsMQs(i);
+            useMapsAsMQs(i, true);
             // System.err.printf("Iter %d -> %d msec\n", i, System.currentTimeMillis() - start);
         }
     }
@@ -45,7 +106,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
      * Typical iteration time = 150 msec on MacBook,
      * occasional outliers at 2.5 - 3.5 seconds.
      */
-    public void useMapsAsMQs(int iter) throws Exception {
+    public void useMapsAsMQs(int iter, boolean makeSchedule) throws Exception {
         String mapName1 = "testMapA" + iter;
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
 
@@ -59,10 +120,12 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         AtomicBoolean failed = new AtomicBoolean(false);
 
         CoopScheduler.reset(nThreads);
-        int[] schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
-        CoopScheduler.setSchedule(schedule);
-        scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+        if (makeSchedule) {
+            schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
+            scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+        }
         System.err.printf("SCHED: %s\n", scheduleString);
+        CoopScheduler.setSchedule(schedule);
 
         // 1st thread: producer of new "trigger" values
         m.scheduleCoopConcurrently((thr, t) -> {
@@ -84,7 +147,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopScheduler.appendLog("put " + i);
 
                     // await for the consumer condition to circulate back
-                    while (! CoopUtil.await(lock, c2, 10)) {
+                    while (! CoopUtil.await(lock, c2, numAwaitRetries)) {
                         if (failed.get() == true) {
                             return;
                         }
@@ -148,7 +211,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
                     CoopUtil.lock(lock);
 
                     // wait for 1st producer signal
-                    while (! CoopUtil.await(lock, c1, 10)) {
+                    while (! CoopUtil.await(lock, c1, numAwaitRetries)) {
                         if (failed.get() == true) {
                             return;
                         }

@@ -176,7 +176,6 @@ public class VersionLockedObject<T> {
         // First, we try to do an optimistic read on the object, in case it
         // meets the conditions for direct access.
         long ts = lock.tryOptimisticRead();
-        ////sched();
         if (ts != 0) {
             if (directAccessCheckFunction.apply(this)) {
                 log.trace("Access [{}] Direct (optimistic-read) access at {}",
@@ -206,11 +205,9 @@ public class VersionLockedObject<T> {
         try {
             // Attempt an upgrade
             ts = lock.tryConvertToWriteLock(ts);
-            ////sched();
             // Upgrade failed, try conversion again
             if (ts == 0) {
                 ts = lock.writeLock();
-                ////sched();
             }
             // Check if direct access is possible (unlikely).
             if (directAccessCheckFunction.apply(this)) {
@@ -241,7 +238,6 @@ public class VersionLockedObject<T> {
         long ts = 0;
         try {
             ts = lock.writeLock();
-            ////sched();
             log.trace("Update[{}] (writelock)", this);
             return updateFunction.apply(this);
         } finally {
@@ -305,7 +301,7 @@ public class VersionLockedObject<T> {
                 // the optimistic stream is no longer
                 // present. Restore it.
                 optimisticStream = currentOptimisticStream;
-                sched();
+                /***sched();***/
             }
             syncStreamUnsafe(optimisticStream, Address.OPTIMISTIC);
         } else {
@@ -314,7 +310,7 @@ public class VersionLockedObject<T> {
             if (this.optimisticStream != null) {
                 optimisticRollbackUnsafe();
                 this.optimisticStream = null;
-                sched(); System.err.printf("V1@%s,", Thread.currentThread().getName());
+                /***sched(); System.err.printf("V1@%s,", Thread.currentThread().getName());***/
             }
             // If we are too far ahead, roll back to the past
             if (getVersionUnsafe() > timestamp) {
@@ -370,7 +366,7 @@ public class VersionLockedObject<T> {
      * to this object permanent.
      */
     public void optimisticCommitUnsafe() {
-        optimisticStream = null; sched(); System.err.printf("V2@%s,", Thread.currentThread().getName());
+        optimisticStream = null; /***sched(); System.err.printf("V2@%s,", Thread.currentThread().getName());***/
     }
 
     /**
@@ -393,7 +389,7 @@ public class VersionLockedObject<T> {
             optimisticRollbackUnsafe();
         }
         this.optimisticStream = optimisticStream;
-        sched();
+        /***sched();***/
     }
 
     /**
@@ -416,14 +412,14 @@ public class VersionLockedObject<T> {
     /**
      * Reset this object to the uninitialized state.
      */
-    boolean hack(int i) { sched(); System.err.printf("%d@-@%s,", i, Thread.currentThread().getName()); return false; }
+    boolean hack(int i) { /***sched(); System.err.printf("%d@-@%s,", i, Thread.currentThread().getName());***/ return false; }
 
     public void resetUnsafe() {
         log.debug("Reset[{}]", this);
         object = newObjectFn.get();
         smrStream.reset();
         optimisticStream = null;
-        sched(); System.err.printf("V3@%s,", Thread.currentThread().getName());
+        /***sched(); System.err.printf("V3@%s,", Thread.currentThread().getName());***/
     }
 
     /**

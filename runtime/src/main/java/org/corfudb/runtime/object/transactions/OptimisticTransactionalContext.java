@@ -80,7 +80,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      *
      * {@inheritDoc}
      */
-    boolean hack(int i) { sched(); System.err.printf("%d@%s,", i, Thread.currentThread().getName()); return false; }
+    boolean hack(int i) { /***sched(); System.err.printf("%d@%s,", i, Thread.currentThread().getName());***/ return false; }
     @Override
     public <R, T> R access(ICorfuSMRProxyInternal<T> proxy,
                            ICorfuSMRAccess<R, T> accessFunction,
