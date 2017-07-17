@@ -17,7 +17,7 @@ public class GH802Aspect {
 
     @After("call(* org.corfudb.runtime.object.VersionLockedObject.aspectFunc(..))")
     public void sched_oC0() {
-        // System.err.printf("v");
+        System.err.printf("v");
         sched();
     }
 
@@ -27,33 +27,55 @@ public class GH802Aspect {
         sched();
     }
 
-    /* Direct assignment/set of 'optimisticStream' */
+    /* EXPERIMENTATION */
 
     /*****
-    @After("set(org.corfudb.runtime.object.transactions.WriteSetSMRStream org.corfudb.runtime.object.VersionLockedObject.optimisticStream)")
-        public void sched_oSA0() {
-        System.err.printf("s");
+    @After("set(* org.corfudb.runtime.object.VersionLockedObject.upcallTargetMap)")
+    public void sched_oSA0() {
+        System.err.printf("s0");
         sched();
     }
-     *****/
 
-    /* Get of 'optimisticStream'.  Note that this applies even to using optimisticStream
-     * as an argument to a method call.
-     */
-    /*****
-    @After("get(org.corfudb.runtime.object.transactions.WriteSetSMRStream org.corfudb.runtime.object.VersionLockedObject.optimisticStream)")
+    @After("get(* org.corfudb.runtime.object.VersionLockedObject.upcallTargetMap)")
     public void sched_oSG0() {
-        System.err.printf("g");
+        System.err.printf("g0");
         sched();
     }
-     *****/
 
-    /*****
-    @After("call(* org.corfudb.runtime.object.VersionLockedObject.getOptimisticStreamUnsafe(..))")
-    public void sched_oC2() {
-        System.err.printf("U");
-        //System.err.printf("%s,", Thread.currentThread().getName());
+    @After("set(* org.corfudb.runtime.object.VersionLockedObject.undoRecordFunctionMap)")
+    public void sched_oSA1() {
+        System.err.printf("s1");
         sched();
     }
-     *****/
+
+    @After("get(* org.corfudb.runtime.object.VersionLockedObject.undoRecordFunctionMap)")
+    public void sched_oSG1() {
+        System.err.printf("g1");
+        sched();
+    }
+
+    @After("set(* org.corfudb.runtime.object.VersionLockedObject.undoFunctionMap)")
+    public void sched_oSA2() {
+        System.err.printf("s2");
+        sched();
+    }
+
+    @After("get(* org.corfudb.runtime.object.VersionLockedObject.undoFunctionMap)")
+    public void sched_oSG2() {
+        System.err.printf("g2");
+        sched();
+    }
+
+    @After("set(* org.corfudb.runtime.object.VersionLockedObject.resetSet)")
+    public void sched_oSA3() {
+        System.err.printf("s3");
+        sched();
+    }
+
+    @After("get(* org.corfudb.runtime.object.VersionLockedObject.resetSet)")
+    public void sched_oSG3() {
+        System.err.printf("g3");
+        sched();
+    }
+    *****/
 }

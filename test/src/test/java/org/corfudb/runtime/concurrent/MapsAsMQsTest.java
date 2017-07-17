@@ -79,10 +79,10 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
             } else {
                 schedule = CoopScheduler.makeSchedule(numThreads, schedLength);
             }
-            scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+            scheduleString = "Schedule = " + CoopScheduler.formatSchedule(schedule);
             System.err.printf(scheduleString + "\n");
 
-            useMapsAsMQs(i, false);
+            useMapsAsMQs(i, false, true);
             logs.add(CoopScheduler.getLog());
 
             // printLog(logs.get(i));
@@ -99,9 +99,9 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
      */
     @Test
     public void useMapsAsMQs() throws Exception {
-        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW*2*2*2; i++) {
+        for (int i = 0; i < PARAMETERS.NUM_ITERATIONS_LOW; i++) {
             long start = System.currentTimeMillis();
-            useMapsAsMQs(i, true);
+            useMapsAsMQs(i, true, false);
             // System.err.printf("Iter %d -> %d msec\n", i, System.currentTimeMillis() - start);
         }
     }
@@ -110,7 +110,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
      * Typical iteration time = 150 msec on MacBook,
      * occasional outliers at 2.5 - 3.5 seconds.
      */
-    public void useMapsAsMQs(int iter, boolean makeSchedule) throws Exception {
+    public void useMapsAsMQs(int iter, boolean makeSchedule, boolean exitOnError) throws Exception {
         String mapName1 = "testMapA" + iter;
         Map<Long, Long> testMap1 = instantiateCorfuObject(SMRMap.class, mapName1);
 
@@ -126,7 +126,7 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         CoopScheduler.reset(nThreads);
         if (makeSchedule) {
             schedule = CoopScheduler.makeSchedule(nThreads, schedLength);
-            scheduleString = "Schedule is: " + CoopScheduler.formatSchedule(schedule);
+            scheduleString = "Schedule = " + CoopScheduler.formatSchedule(schedule);
         }
         System.err.printf("SCHED: %s\n", scheduleString);
         CoopScheduler.setSchedule(schedule);
@@ -280,7 +280,14 @@ public class MapsAsMQsTest extends AbstractTransactionsTest {
         });
 
         m.executeScheduled();
-        assertThat(failed.get()).isFalse();
+        if (exitOnError) {
+            if (failed.get() == true) {
+                System.err.printf("\n\nFAILED with: %s\n", scheduleString);
+                System.exit(1);
+            }
+        } else {
+            assertThat(failed.get()).isFalse();
+        }
     }
 
 }
