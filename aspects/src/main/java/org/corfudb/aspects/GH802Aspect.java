@@ -19,7 +19,7 @@ public class GH802Aspect {
 
     @After("set(org.corfudb.runtime.object.transactions.WriteSetSMRStream org.corfudb.runtime.object.VersionLockedObject.optimisticStream)")
         public void sched_oSA0() {
-        // System.err.printf("s");
+        System.err.printf("s");
         sched();
     }
 
@@ -28,27 +28,26 @@ public class GH802Aspect {
      */
     @After("get(org.corfudb.runtime.object.transactions.WriteSetSMRStream org.corfudb.runtime.object.VersionLockedObject.optimisticStream)")
     public void sched_oSG0() {
-        // System.err.printf("g");
+        System.err.printf("g");
         sched();
     }
 
     @After("call(* org.corfudb.runtime.object.VersionLockedObject.hack(..))")
     public void sched_oC0() {
-        // System.err.printf("hV,");
+        System.err.printf("hV,");
         sched();
     }
 
     @Before("call(* org.corfudb.runtime.object.transactions.OptimisticTransactionalContext.hack(..))")
     public void sched_oC1(JoinPoint tjp) {
-        // System.err.printf("hO,");
+        System.err.printf("hO,");
         sched();
     }
 
-    /*****
     @After("call(* org.corfudb.runtime.object.VersionLockedObject.getOptimisticStreamUnsafe(..))")
-    public void sched_oSG0() {
+    public void sched_oC2() {
+        System.err.printf("U");
         //System.err.printf("%s,", Thread.currentThread().getName());
         sched();
     }
-     *****/
 }
