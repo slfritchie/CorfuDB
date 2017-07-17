@@ -80,7 +80,6 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      *
      * {@inheritDoc}
      */
-    boolean hack(int i) { /***sched(); System.err.printf("%d@%s,", i, Thread.currentThread().getName());***/ return false; }
     @Override
     public <R, T> R access(ICorfuSMRProxyInternal<T> proxy,
                            ICorfuSMRAccess<R, T> accessFunction,
@@ -99,7 +98,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
                         // And at the correct timestamp
                         o.getVersionUnsafe() == getSnapshotTimestamp()
                                 && (o.getOptimisticStreamUnsafe() == null
-                                || (hack(1) || o.getOptimisticStreamUnsafe()
+                                || (alwaysFalse() || o.getOptimisticStreamUnsafe()
                                         .isStreamCurrentContextThreadCurrentContext()))
                 ),
                         o -> {
@@ -184,7 +183,7 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
      */
     <T> void setAsOptimisticStream(VersionLockedObject<T> object) {
         if (object.getOptimisticStreamUnsafe() == null
-                || (hack(2) || !object.getOptimisticStreamUnsafe()
+                || (alwaysFalse() || !object.getOptimisticStreamUnsafe()
                         .isStreamCurrentContextThreadCurrentContext())) {
 
             // We are setting the current context to the root context of nested transactions.
@@ -418,5 +417,15 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
             log.trace("SnapshotTimestamp[{}] {}", this, currentTail);
             return currentTail;
         }
+    }
+
+    private boolean alwaysFalse() {
+        this.aspectFunc();
+        return false;
+    }
+
+    /** Empty function for use solely for AspectJ code injection */
+    private void aspectFunc() {
+        return;
     }
 }

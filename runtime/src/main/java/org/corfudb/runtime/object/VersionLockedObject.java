@@ -301,7 +301,7 @@ public class VersionLockedObject<T> {
                 // the optimistic stream is no longer
                 // present. Restore it.
                 optimisticStream = currentOptimisticStream;
-                /***sched();***/
+                aspectFunc();
             }
             syncStreamUnsafe(optimisticStream, Address.OPTIMISTIC);
         } else {
@@ -310,7 +310,7 @@ public class VersionLockedObject<T> {
             if (this.optimisticStream != null) {
                 optimisticRollbackUnsafe();
                 this.optimisticStream = null;
-                /***sched(); System.err.printf("V1@%s,", Thread.currentThread().getName());***/
+                aspectFunc();
             }
             // If we are too far ahead, roll back to the past
             if (getVersionUnsafe() > timestamp) {
@@ -366,7 +366,8 @@ public class VersionLockedObject<T> {
      * to this object permanent.
      */
     public void optimisticCommitUnsafe() {
-        optimisticStream = null; /***sched(); System.err.printf("V2@%s,", Thread.currentThread().getName());***/
+        optimisticStream = null;
+        aspectFunc();
     }
 
     /**
@@ -375,7 +376,7 @@ public class VersionLockedObject<T> {
      * @return True, if the object was modified by this thread. False otherwise.
      */
     public boolean optimisticallyOwnedByThreadUnsafe() {
-        return optimisticStream == null ? false : optimisticStream.isStreamForThisThread();
+        return (optimisticStream == null && alwaysTrue()) ? false : optimisticStream.isStreamForThisThread();
     }
 
     /**
@@ -389,7 +390,7 @@ public class VersionLockedObject<T> {
             optimisticRollbackUnsafe();
         }
         this.optimisticStream = optimisticStream;
-        /***sched();***/
+        aspectFunc();
     }
 
     /**
@@ -406,20 +407,19 @@ public class VersionLockedObject<T> {
      * Check whether this object is currently under optimistic modifications.
      */
     public boolean isOptimisticallyModifiedUnsafe() {
-        return optimisticStream != null && !hack(-3) && optimisticStream.pos() != Address.NEVER_READ;
+        return optimisticStream != null && alwaysTrue() && optimisticStream.pos() != Address.NEVER_READ;
     }
 
     /**
      * Reset this object to the uninitialized state.
      */
-    boolean hack(int i) { /***sched(); System.err.printf("%d@-@%s,", i, Thread.currentThread().getName());***/ return false; }
 
     public void resetUnsafe() {
         log.debug("Reset[{}]", this);
         object = newObjectFn.get();
         smrStream.reset();
         optimisticStream = null;
-        /***sched(); System.err.printf("V3@%s,", Thread.currentThread().getName());***/
+        aspectFunc();
     }
 
     /**
@@ -626,5 +626,15 @@ public class VersionLockedObject<T> {
             log.debug("OptimisticRollback[{}] failed", this);
             resetUnsafe();
         }
+    }
+
+    private boolean alwaysTrue() {
+        this.aspectFunc();
+        return true;
+    }
+
+    /** Empty function for use solely for AspectJ code injection */
+    private void aspectFunc() {
+        return;
     }
 }
