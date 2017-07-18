@@ -1,45 +1,43 @@
 package org.corfudb.util;
 
-import groovy.transform.ASTTest;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.locks.StampedLock;
 
-import static org.corfudb.util.CoopScheduler.sched;
+import lombok.extern.slf4j.Slf4j;
+
+import org.corfudb.util.CoopScheduler;
 
 /**
  *  Just barely enough of a StampedLock API to try to use with
  *  Corfu's VersionLockedObject.  I've skimmed the StampedLock
  *  API docs a bit, what could possibly go wrong?
+ *
+ *  <p>NOTE: This scheme can create situations were the lock is created in a
+ *  non-CoopScheduler environment but then used under CoopScheduler control.
+ *  As long as the two are environments are not running concurrently, we're OK.
  */
 
 @Slf4j
 public class CoopStampedLock {
     StampedLock stampedLock = new StampedLock();
 
-    public long tstamp = 1;
+    private long tstamp = 1;
     // private long numReaders = 0;
     // private List<Integer> waitingReaders = new LinkedList<>();
-    public long writer = -1;
-    public List<Integer> waitingWriters = new LinkedList<>();
-    public boolean verbose = false;
-
-    /*
-     * NOTE: This scheme can create situations were the lock is created in a
-     * non-CoopScheduler environment but then used under CoopScheduler control.
-     * As long as the two are environments are not running concurrently, we're OK.
-     */
+    private long writer = -1;
+    private List<Integer> waitingWriters = new LinkedList<>();
+    private boolean verbose = false;
 
     public CoopStampedLock() {
     }
 
+    /** StampedLock-compatible tryOptimisticRead. */
     public long tryOptimisticRead() {
-        if (CoopScheduler.threadMap.get() < 0) {
+        if (CoopScheduler.getThreadMap().get() < 0) {
             return stampedLock.tryOptimisticRead();
         } else {
-            if (CoopScheduler.threadMap.get() < 0) {
+            if (CoopScheduler.getThreadMap().get() < 0) {
                 if (verbose) {
                     System.err.printf("ERROR: tryOptimisticRead() by non-coop thread\n");
                 }
@@ -53,8 +51,9 @@ public class CoopStampedLock {
         }
     }
 
+    /** StampedLock-compatible validate. */
     public boolean validate(long tstamp) {
-        if (CoopScheduler.threadMap.get() < 0) {
+        if (CoopScheduler.getThreadMap().get() < 0) {
             return stampedLock.validate(tstamp);
         } else {
             if (tstamp == 0) {
@@ -64,11 +63,13 @@ public class CoopStampedLock {
         }
     }
 
+    /** StampedLock-compatible tryConvertToWriteLock. */
     public long tryConvertToWriteLock(long tstamp) {
-        if (CoopScheduler.threadMap.get() < 0) {
+        int t = CoopScheduler.getThreadMap().get();
+
+        if (t < 0) {
             return stampedLock.tryConvertToWriteLock(tstamp);
         } else {
-            int t = CoopScheduler.threadMap.get();
             if (t < 0) {
                 if (verbose) {
                     System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n");
@@ -82,11 +83,13 @@ public class CoopStampedLock {
         }
     }
 
+    /** StampedLock-compatible writeLock. */
     public long writeLock() {
-        if (CoopScheduler.threadMap.get() < 0) {
+        int t = CoopScheduler.getThreadMap().get();
+
+        if (t < 0) {
             return stampedLock.writeLock();
         } else {
-            int t = CoopScheduler.threadMap.get();
             if (t < 0) {
                 if (verbose) {
                     System.err.printf("ERROR: tryConvertToWriteLock() by non-coop thread\n");
@@ -94,7 +97,7 @@ public class CoopStampedLock {
                 return 0;
             }
             while (writer >= 0) {
-                sched();
+                CoopScheduler.sched();
             }
             tstamp++;
             writer = t;
@@ -102,11 +105,13 @@ public class CoopStampedLock {
         }
     }
 
+    /** StampedLock-compatible unlock. */
     public void unlock(long tstamp) {
-        if (CoopScheduler.threadMap.get() < 0) {
+        int t = CoopScheduler.getThreadMap().get();
+
+        if (t < 0) {
             stampedLock.unlock(tstamp);
         } else {
-            int t = CoopScheduler.threadMap.get();
             if (t < 0) {
                 if (verbose) {
                     System.err.printf("ERROR: unlock() by non-coop thread\n");
@@ -115,14 +120,15 @@ public class CoopStampedLock {
             }
             if (tstamp == 0 || tstamp != this.tstamp) {
                 if (verbose) {
-                    System.err.printf("ERROR: unlock() with bogus tstamp: %d != correct value %d\n", tstamp, this.tstamp);
+                    System.err.printf("ERROR: unlock() with bogus tstamp: %d != correct value %d\n",
+                            tstamp, this.tstamp);
                 }
                 return;
             }
             if (t != writer) {
                 if (verbose) {
-                    System.err.printf("ERROR: unlock() with correct tstamp: %d but caller tid %d != correct tid %d\n",
-                            this.tstamp, t, writer);
+                    System.err.printf("ERROR: unlock() with correct tstamp: %d but "
+                            + "caller tid %d != correct tid %d\n", this.tstamp, t, writer);
                 }
                 return;
             }
