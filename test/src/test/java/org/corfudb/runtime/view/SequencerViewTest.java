@@ -20,31 +20,38 @@ public class SequencerViewTest extends AbstractViewTest {
 
     @Test
     public void canAcquireFirstToken() {
+        System.out.printf("test 1\n");
         CorfuRuntime r = getDefaultRuntime();
         assertThat(r.getSequencerView().nextToken(Collections.emptySet(), 1).getToken())
                 .isEqualTo(new Token(0L, 0L));
+        System.out.printf("test 1 end\n");
     }
 
     @Test
     public void tokensAreIncrementing() {
+        System.out.printf("test 2\n");
         CorfuRuntime r = getDefaultRuntime();
         assertThat(r.getSequencerView().nextToken(Collections.emptySet(), 1).getToken())
                 .isEqualTo(new Token(0L, 0L));
         assertThat(r.getSequencerView().nextToken(Collections.emptySet(), 1).getToken())
                 .isEqualTo(new Token(1L, 0L));
+        System.out.printf("test 2 end\n");
     }
 
     @Test
     public void checkTokenWorks() {
+        System.out.printf("test 3\n");
         CorfuRuntime r = getDefaultRuntime();
         assertThat(r.getSequencerView().nextToken(Collections.emptySet(), 1).getToken())
                 .isEqualTo(new Token(0L, 0L));
         assertThat(r.getSequencerView().nextToken(Collections.emptySet(), 0).getToken())
                 .isEqualTo(new Token(0L, 0L));
+        System.out.printf("test 3 end\n");
     }
 
     @Test
     public void checkStreamTokensWork() {
+        System.out.printf("test 4\n");
         CorfuRuntime r = getDefaultRuntime();
         UUID streamA = UUID.nameUUIDFromBytes("stream A".getBytes());
         UUID streamB = UUID.nameUUIDFromBytes("stream B".getBytes());
@@ -59,10 +66,12 @@ public class SequencerViewTest extends AbstractViewTest {
                 .isEqualTo(new Token(1L, 0L));
         assertThat(r.getSequencerView().nextToken(Collections.singleton(streamA), 0).getToken())
                 .isEqualTo(new Token(0L, 0L));
+        System.out.printf("test 4 end\n");
     }
 
     @Test
     public void checkBackPointersWork() {
+        System.out.printf("test 5\n");
         CorfuRuntime r = getDefaultRuntime();
         UUID streamA = UUID.nameUUIDFromBytes("stream A".getBytes());
         UUID streamB = UUID.nameUUIDFromBytes("stream B".getBytes());
@@ -79,5 +88,6 @@ public class SequencerViewTest extends AbstractViewTest {
                 .containsEntry(streamA, 0L);
         assertThat(r.getSequencerView().nextToken(Collections.singleton(streamB), 1).getBackpointerMap())
                 .containsEntry(streamB, 1L);
+        System.out.printf("test 5 end\n");
     }
 }

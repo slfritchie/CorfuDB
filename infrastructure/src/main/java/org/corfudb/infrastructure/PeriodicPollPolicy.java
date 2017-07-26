@@ -44,7 +44,7 @@ public class PeriodicPollPolicy implements IFailureDetectorPolicy {
     private int historyPollCount = 0;
     private HashMap<String, Boolean> historyStatus = null;
     private CompletableFuture[] pollCompletableFutures = null;
-    private final int pollTaskTimeout = 5000;
+    private final int pollTaskTimeout = 123;
 
     /**
      * Failed Poll Limit.

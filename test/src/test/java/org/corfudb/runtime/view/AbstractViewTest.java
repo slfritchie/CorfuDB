@@ -112,22 +112,29 @@ public abstract class AbstractViewTest extends AbstractCorfuTest {
      */
     @Before
     public void resetTests() {
+        System.err.printf("before a\n");
         testServerMap.clear();
         runtime.parseConfigurationString(getDefaultConfigurationString());
        //         .setCacheDisabled(true); // Disable cache during unit tests to fully stress the system.
         runtime.getAddressSpaceView().resetCaches();
+        System.err.printf("before a end\n");
     }
 
     @After
     public void cleanupBuffers() {
+        System.err.printf("after a\n");
         testServerMap.values().stream().forEach(x -> {
+            System.err.printf("after a 1\n");
             x.getLogUnitServer().shutdown();
+            System.err.printf("after a 2\n");
             x.getManagementServer().shutdown();
+            System.err.printf("after a 3\n");
         });
         // Abort any active transactions...
         while (runtime.getObjectsView().TXActive()) {
             runtime.getObjectsView().TXAbort();
         }
+        System.err.printf("after a end\n");
     }
 
     /** Add a server at a specific port, using the given configuration options.
