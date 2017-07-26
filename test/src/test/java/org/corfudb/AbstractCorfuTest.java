@@ -230,20 +230,17 @@ public class AbstractCorfuTest {
 
     @Before
     public void clearTestStatus() {
-        System.err.printf("before b\n");
         testStatus = "";
     }
 
     @Before
     public void setupScheduledThreads() {
-        System.err.printf("before c\n");
         scheduledThreads = ConcurrentHashMap.newKeySet();
     }
 
 
     @After
     public void cleanupScheduledThreads() {
-        System.err.printf("after b\n");
         try {
             assertThat(scheduledThreads)
                     .as("Test ended but there are still threads scheduled!")
@@ -251,17 +248,14 @@ public class AbstractCorfuTest {
         } finally {
             scheduledThreads.clear();
         }
-        System.err.printf("after b end\n");
     }
 
     /** Clean the per test temporary directory (PARAMETERS.TEST_TEMP_DIR)
      */
     @After
     public void cleanPerTestTempDir() {
-        System.err.printf("after c\n");
         deleteFolder(new File(PARAMETERS.TEST_TEMP_DIR),
                 false);
-        System.err.printf("after c end\n");
     }
 
 
@@ -444,7 +438,6 @@ public class AbstractCorfuTest {
 
     @Before
     public void resetThreadingTest() {
-        System.err.printf("before d\n");
         threadsMap.clear();
         lastException = null;
     }
@@ -453,7 +446,6 @@ public class AbstractCorfuTest {
     public void shutdownThreadingTest()
     throws Exception
     {
-        System.err.printf("after d\n");
         threadsMap.entrySet().forEach(x -> {
             x.getValue().shutdown();
         });
@@ -461,7 +453,6 @@ public class AbstractCorfuTest {
         if (lastException != null) {
             throw new Exception("Uncaught exception at end of test", lastException);
         }
-        System.err.printf("after d end\n");
     }
 
     @SuppressWarnings("unchecked")
@@ -774,7 +765,6 @@ public class AbstractCorfuTest {
      */
     @Before
     public void InitSM() {
-        System.err.printf("before e\n");
         if (testSM != null)
             testSM.clear();
         else
