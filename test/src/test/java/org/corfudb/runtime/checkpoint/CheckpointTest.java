@@ -10,6 +10,7 @@ import org.corfudb.runtime.exceptions.TransactionAbortedException;
 import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.object.AbstractObjectTest;
 import org.corfudb.runtime.object.transactions.TransactionType;
+import org.corfudb.runtime.view.ObjectOpenOptions;
 import org.corfudb.util.serializer.ISerializer;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
@@ -335,13 +336,13 @@ public class CheckpointTest extends AbstractObjectTest {
      * will get a transactionAbortException.
      * <p>
      * For an optimistic transaction -earlier- than the checkpoint,
-     * we will observe the expected map value without any exception.
+     * we will also get a transactionAbortException.
      * <p>
      * It works as follows.
      * We build a map with one hundred entries [0, 1, 2, 3, ...., 99].
      * Then use thread #3 to set up our optimistic transaction.
      * <p>
-     * Then, add 2 more keys then take a checkpoint of the map.
+     * Then, take a checkpoint of the map.
      * <p>
      * Then, we prefix-trim the log up to position 50.
      * <p>
@@ -351,13 +352,31 @@ public class CheckpointTest extends AbstractObjectTest {
      * backpointers lead to the trimmed region.
      * <p>
      * Finally, check thread #3's optimistic transaction.  We should
-     * observe the correct value without exception.
+     * get a transactionAbortException.  If we retry a new transaction,
+     * we'll see the full map.
      */
     @Test
     public void snapshotAbortOptimisticNoAbortTest() throws Exception {
         final int mapSize = PARAMETERS.NUM_ITERATIONS_LOW;
         final int trimPosition = mapSize / 2;
         final int snapshotPosition = trimPosition + 2;
+        final CorfuRuntime t3Runtime = getMyRuntime();
+        final Map<String, Long> t3Map = instantiateMap(streamNameA);
+
+        // Set up optimistic checkpoint at this point in the log, prior to
+        // the checkpoint's starting point.
+        t(3, () -> {
+            t3Map.put("extra value 1", 0L);
+
+            t3Runtime.getObjectsView().TXBuild()
+                    .setType(TransactionType.OPTIMISTIC)
+                    .begin();
+
+            assertThat(t3Map.get("no such key")).isNull();
+        });
+
+        // Use a different runtime for all other threads.
+        setRuntime();
 
         t(1, () -> {
                     // first, populate the map
@@ -366,19 +385,7 @@ public class CheckpointTest extends AbstractObjectTest {
                     }
                 });
 
-        // Set up optimistic checkpoint at this point in the log, prior to
-        // the checkpoint's starting point.
-        t(3, () -> {
-                    getMyRuntime().getObjectsView().TXBuild()
-                            .setType(TransactionType.OPTIMISTIC)
-                            .begin();
-                });
-
         t(1, () -> {
-                    // Put a couple more keys, to add log distance from t3's txn start.
-                    m2A.put("extra 1", 0L);
-                    m2A.put("extra 2", 0L);
-
                     // now, take a checkpoint and perform a prefix-trim
                     MultiCheckpointWriter mcw1 = new MultiCheckpointWriter();
                     mcw1.addMap((SMRMap) m2A);
@@ -392,7 +399,7 @@ public class CheckpointTest extends AbstractObjectTest {
 
                 });
 
-        AtomicBoolean trimExceptionFlag = new AtomicBoolean(false);
+        AtomicBoolean txnAbortFlag = new AtomicBoolean(false);
 
         // start a new runtime
         t(2, () -> {
@@ -411,23 +418,47 @@ public class CheckpointTest extends AbstractObjectTest {
                         localm2A.get(String.valueOf(0));
                     } catch (TransactionAbortedException te) {
                         // this is an expected behavior!
-                        trimExceptionFlag.set(true);
+                        txnAbortFlag.set(true);
                     }
                 });
-        assertThat(trimExceptionFlag.get()).isTrue();
+        assertThat(txnAbortFlag.get()).isTrue();
 
-        // Check t3's optimistic transaction, expect no exception + correct map value
-        trimExceptionFlag.set(false);
+        // Check t3's optimistic transaction, see txn abort.
+        txnAbortFlag.set(false);
         t(3, () -> {
+                    System.err.printf("*****************\n");
+                    t3Runtime.getAddressSpaceView().invalidateServerCaches();
+                    t3Runtime.getAddressSpaceView().invalidateClientCache();
+
                     try {
-                        assertThat(m2A.get(String.valueOf(0))).isEqualTo(0L);
+                        System.err.printf("t3Map = %s\n", t3Map);
+                        t3Map.get(String.valueOf(0));
                     } catch (TransactionAbortedException te) {
-                        trimExceptionFlag.set(true);
+                        txnAbortFlag.set(true);
                     } finally {
-                        getMyRuntime().getObjectsView().TXEnd();
+                        t3Runtime.getObjectsView().TXEnd();
                     }
                 });
-        assertThat(trimExceptionFlag.get()).isFalse();
+        assertThat(txnAbortFlag.get()).isTrue();
+
+        // Try again with an optimistic txn and see the whole map
+        txnAbortFlag.set(false);
+        t(3, () -> {
+            System.err.printf("***** 2 ************\n");
+            t3Runtime.getObjectsView().TXBuild()
+                    .setType(TransactionType.OPTIMISTIC)
+                    .begin();
+
+            try {
+                assertThat(t3Map.get(String.valueOf(0))).isEqualTo(0L);
+                assertThat(t3Map.size()).isEqualTo(mapSize + 1);
+            } catch (TransactionAbortedException te) {
+                txnAbortFlag.set(true);
+            } finally {
+                t3Runtime.getObjectsView().TXEnd();
+            }
+        });
+        assertThat(txnAbortFlag.get()).isFalse();
     }
 
     /**
