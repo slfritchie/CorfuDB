@@ -223,7 +223,9 @@ public class AbstractCorfuTest {
 
     @Before
     public void setAggressiveRuntimeRetryRate() {
-        CorfuRuntime.setDefaultRetryMilliseconds(25);
+        final int time = 25;
+
+        CorfuRuntime.setDefaultRetryMilliseconds(time);
     }
 
     @Before
