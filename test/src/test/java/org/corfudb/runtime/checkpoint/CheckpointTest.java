@@ -19,8 +19,10 @@ import org.junit.Test;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Created by dmalkhi on 5/25/17.
@@ -610,7 +612,7 @@ public class CheckpointTest extends AbstractObjectTest {
     }
 
     @Test
-    public void testSuccessiveCheckpointTrim() throws Exception {
+    public void testSuccessiveCheckpointTrim_ViaSnapshot() throws Exception {
         final int nCheckpoints = 2;
         final long ckpointGap = 5;
 
@@ -655,8 +657,92 @@ public class CheckpointTest extends AbstractObjectTest {
                 .setSnapshot(checkpointAddress-1)
                 .begin();
 
-        // Reading an entry from scratch should be ok
-        assertThat(newTestMap.get("a"))
-                .isEqualTo("a"+(nCheckpoints-1));
+        /*****
+         on 'master' 2017-07-26, this assertion doesn't happen.
+
+         // Reading an entry from scratch should be ok
+         assertThat(newTestMap.get("a"))
+         .isEqualTo("a"+(nCheckpoints-1));
+         ****/
+        assertThatThrownBy(() -> newTestMap.get("a")).isInstanceOf(TransactionAbortedException.class);
+    }
+
+    @Test
+    public void testSuccessiveCheckpointTrim_ViaOptimistic() throws Exception {
+        final int nCheckpoints = 2;
+        final long ckpointGap = 5;
+        AtomicLong checkpointAddress = new AtomicLong(-1L);
+
+        CorfuRuntime t1Runtime = getDefaultRuntime();
+        setRuntime();
+        CorfuRuntime t2Runtime = getDefaultRuntime();
+
+        Map<String, String> testMap1 = t1Runtime.getObjectsView().build()
+                .setTypeToken(new TypeToken<SMRMap<String, String>>() {})
+                .addOption(ObjectOpenOptions.NO_CACHE)
+                .setStreamName("test")
+                .open();
+        Map<String, String> testMap2 = t2Runtime.getObjectsView().build()
+                .setTypeToken(new TypeToken<SMRMap<String, String>>() {})
+                .addOption(ObjectOpenOptions.NO_CACHE)
+                .setStreamName("test")
+                .open();
+
+        t(1, () -> {
+            testMap1.put("a", "a"+0);
+            testMap1.put("b", "b"+0);
+            testMap1.put("c", "c"+1);
+
+            // Insert a checkpoint
+            MultiCheckpointWriter mcw = new MultiCheckpointWriter();
+            mcw.addMap((SMRMap) testMap1);
+            checkpointAddress.set(mcw.appendCheckpoints(getRuntime(), "author"));
+            System.err.printf("checkpointAddress = %d\n", checkpointAddress.get());
+        });
+
+        t(2, () -> {
+            System.err.printf("------------\n");
+            testMap2.put("extra silly key", "hi");
+            System.err.printf("------------\n");
+            // try to get a snapshot inside the gap
+            getRuntime().getObjectsView()
+                    .TXBuild()
+                    .setType(TransactionType.OPTIMISTIC)
+                    .begin();
+            assertThat(testMap2.get("no such key")).isNull();
+        });
+
+        t(1, () -> {
+            testMap1.put("a", "a"+0);
+            testMap1.put("b", "b"+0);
+            testMap1.put("c", "c"+1);
+
+            // Insert a checkpoint
+            MultiCheckpointWriter mcw = new MultiCheckpointWriter();
+            mcw.addMap((SMRMap) testMap1);
+            checkpointAddress.set(mcw.appendCheckpoints(getRuntime(), "author"));
+            System.err.printf("checkpointAddress = %d\n", checkpointAddress.get());
+        });
+
+        t(1, () -> {
+                    // Trim the log in between the checkpoints
+            System.err.printf("prefixTrim at %d\n", checkpointAddress.get() - ckpointGap);
+                    t1Runtime.getAddressSpaceView().prefixTrim(checkpointAddress.get() - ckpointGap);
+                    t1Runtime.getAddressSpaceView().gc();
+                    t1Runtime.getAddressSpaceView().invalidateServerCaches();
+                    t1Runtime.getAddressSpaceView().invalidateClientCache();
+        });
+
+        t(2, () -> {
+            System.err.printf("1 *******************************\n");
+            t2Runtime.getAddressSpaceView().invalidateServerCaches();
+            t2Runtime.getAddressSpaceView().invalidateClientCache();
+
+
+            // Reading an entry from scratch should be ok
+            assertThat(testMap2.get("a"))
+                    .isEqualTo("a"+(0));
+            System.err.printf("2 *******************************\n");
+        });
     }
 }
