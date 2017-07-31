@@ -12,12 +12,14 @@ public class RemoveOperation extends Operation {
     }
 
     @Override
-    public void execute() {
-        String stream = (String) state.getStreams().sample(1).get(0);
-        String key = (String) state.getKeys().sample(1).get(0);
+    public void execute(BaseOperation base) {
+        String stream = (String) base.state.getStreams().sample(1).get(0);
+        String key = (String) base.state.getKeys().sample(1).get(0);
         String fullKey = String.format("%s%s", stream, key);
 
-        appendInvokeDescription(String.format("[:write %s nil]", fullKey));
-        state.getMap(stream).remove(key);
+        base.appendInvokeDescription(String.format("[:write :%s nil]", fullKey));
+        base.state.getMap(stream).remove(key);
+        base.appendResultDescription(String.format("[:write :%s nil]", fullKey));
+
     }
 }

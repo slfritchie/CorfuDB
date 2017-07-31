@@ -9,6 +9,6 @@ import org.corfudb.generator.State;
  * Created by maithem on 7/14/17.
  */
 public abstract class Operation extends BaseOperation {
-    public abstract void execute();
+    public abstract void execute(BaseOperation base);
 
 }

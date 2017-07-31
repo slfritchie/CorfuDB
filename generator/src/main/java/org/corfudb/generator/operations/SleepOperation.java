@@ -16,11 +16,12 @@ public class SleepOperation extends Operation {
     }
 
     @Override
-    public void execute() {
+    public void execute(BaseOperation base) {
         Random rand = new Random();
 
         int  sleepTime = rand.nextInt(50);
         try {
+            base.appendInvokeDescription(String.format("[:write :sleep %d]", sleepTime));
             Thread.sleep(sleepTime);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

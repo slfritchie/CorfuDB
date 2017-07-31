@@ -16,7 +16,7 @@ public class CheckpointOperation extends Operation {
     }
 
     @Override
-    public void execute() {
+    public void execute(BaseOperation base) {
         System.err.printf("\nSLF: commented sleep in CheckpointOperation.execute\n");
         try {
             MultiCheckpointWriter mcw = new MultiCheckpointWriter();

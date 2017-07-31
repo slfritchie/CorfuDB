@@ -17,7 +17,7 @@ public class SnapshotTxOperation extends Operation {
     }
 
     @Override
-    public void execute() {
+    public void execute(BaseOperation base) {
         if (!warned) {
             System.err.printf("Snapshot TXN type is disabled, TODO.\n");
         }

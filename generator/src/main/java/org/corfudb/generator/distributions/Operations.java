@@ -20,6 +20,7 @@ import java.util.List;
  */
 public class Operations implements DataSet {
 
+
     final List<Operation> allOperations;
 
     public Operations(State state) {

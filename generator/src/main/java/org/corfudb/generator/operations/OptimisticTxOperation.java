@@ -10,13 +10,20 @@ import org.corfudb.generator.State;
  */
 @Slf4j
 public class OptimisticTxOperation extends Operation {
+    private boolean warned = false;
 
     public OptimisticTxOperation() {
     }
 
     @Override
-    public void execute() {
-        state.startOptimisticTx();
+    public void execute(BaseOperation base) {
+
+        if (!warned) {
+            System.err.printf("Snapshot TXN type is disabled, TODO.\n");
+        }
+        /*****
+
+         state.startOptimisticTx();
 
         int numOperations = state.getOperationCount().sample(1).get(0);
         List<Operation> operations = state.getOperations().sample(numOperations);
@@ -30,5 +37,6 @@ public class OptimisticTxOperation extends Operation {
         }
 
         state.stopOptimisticTx();
+         *****/
     }
 }

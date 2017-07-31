@@ -48,7 +48,7 @@ public class State {
     @Setter
     volatile long trimMark = -1;
 
-    private AtomicLong systemTime = new AtomicLong(1);
+    private AtomicLong systemTime = new AtomicLong(10);
 
     public State(int numStreams, int numKeys, CorfuRuntime rt) {
         streams = new Streams(numStreams);
@@ -68,14 +68,14 @@ public class State {
     }
 
     private void openObjects() {
-        for (String uuid : streams.getDataSet()) {
+        for (String stream : streams.getDataSet()) {
             SMRMap<String, String> map = runtime.getObjectsView()
                     .build()
                     .setStreamID(UUID.randomUUID())
                     .setTypeToken(new TypeToken<SMRMap<String,String>>() {})
                     .open();
 
-            maps.put(uuid, map);
+            maps.put(stream, map);
         }
     }
 
@@ -112,6 +112,6 @@ public class State {
     }
 
     public long getSystemTime() {
-        return systemTime.getAndIncrement();
+        return systemTime.getAndAdd(10);
     }
 }

@@ -59,8 +59,11 @@ public class Generator {
             }
         };
 
-        Future[] appsFutures = new Future[numThreads];
+        System.out.printf("{:time 1 :type :invoke :f :txn :value [[:write :dummy 0]] :process 1}\n");
+        System.out.printf("{:time 2 :type :ok :f :txn :value [[:write :dummy 0]] :process 1}\n");
 
+
+        Future[] appsFutures = new Future[numThreads];
         for (int x = 0; x < numThreads; x++) {
             final int xx = x;
             appsFutures[x] = appWorkers.submit(() -> {
@@ -73,9 +76,10 @@ public class Generator {
         for (int x = 0; x < numThreads; x++) {
             try {
                 appsFutures[x].get();
-                System.err.printf("; Thread %d finished\n", x);
+                System.out.printf("; Thread %d finished\n", x);
             } catch (Exception e) {
-                System.out.println("App Exception: " + e);
+                System.out.println("; App Exception: " + e);
+                System.err.println("App Exception: " + e);
             }
         }
         System.exit(0);

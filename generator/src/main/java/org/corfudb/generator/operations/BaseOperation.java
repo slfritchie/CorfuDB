@@ -24,10 +24,10 @@ public class BaseOperation {
     public void execute() {
         invokeTime = state.getSystemTime();
         try {
-            op.execute();
+            op.execute(this);
             System.out.printf("{:time %d :type :invoke :f :txn :value [%s] :process %s}\n",
                     invokeTime, invokeDescription, Thread.currentThread().getName());
-            System.out.printf("{:time %d :type :invoke :f :txn :value [%s] :process %s}\n",
+            System.out.printf("{:time %d :type :ok :f :txn :value [%s] :process %s}\n",
                     state.getSystemTime(), resultDescription, Thread.currentThread().getName());
         } catch (Exception e) {
             System.out.printf("Exception type %s:\n", e.getClass());
@@ -48,10 +48,10 @@ public class BaseOperation {
     }
 
     public void appendResultDescription(String s) {
-        if (invokeDescription == null) {
-            invokeDescription = s;
+        if (resultDescription == null) {
+            resultDescription = s;
         } else {
-            invokeDescription = invokeDescription + " " + s;
+            resultDescription = resultDescription + " " + s;
         }
     }
 

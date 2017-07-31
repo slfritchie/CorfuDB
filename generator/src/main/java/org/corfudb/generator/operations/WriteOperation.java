@@ -14,13 +14,14 @@ public class WriteOperation extends Operation {
     }
 
     @Override
-    public void execute() {
-        String stream = (String) state.getStreams().sample(1).get(0);
-        String key = (String) state.getKeys().sample(1).get(0);
+    public void execute(BaseOperation base) {
+        String stream = (String) base.state.getStreams().sample(1).get(0);
+        String key = (String) base.state.getKeys().sample(1).get(0);
         String fullKey = String.format("%s%s", stream, key);
-        String value = String.format("v%d", UUID.randomUUID().getLeastSignificantBits() & 255);
+        String value = String.format("%d", UUID.randomUUID().getLeastSignificantBits() & 255);
 
-        appendInvokeDescription(String.format("[:write %s %s]", fullKey, value));
-        state.getMap(stream).put(key, value);
+        base.appendInvokeDescription(String.format("[:write :%s %s]", fullKey, value));
+        base.state.getMap(stream).put(key, value);
+        base.appendResultDescription(String.format("[:write :%s %s]", fullKey, value));
     }
 }
