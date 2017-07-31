@@ -12,7 +12,7 @@ import org.corfudb.generator.State;
 public class SleepOperation extends Operation {
 
     public SleepOperation(State state) {
-        super(state);
+        // super(state);
     }
 
     @Override

@@ -11,8 +11,7 @@ import org.corfudb.generator.State;
 @Slf4j
 public class OptimisticTxOperation extends Operation {
 
-    public OptimisticTxOperation(State state) {
-        super(state);
+    public OptimisticTxOperation() {
     }
 
     @Override

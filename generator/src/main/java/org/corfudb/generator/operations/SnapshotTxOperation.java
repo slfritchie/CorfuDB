@@ -11,13 +11,17 @@ import java.util.Random;
  */
 @Slf4j
 public class SnapshotTxOperation extends Operation {
+    private boolean warned = false;
 
-    public SnapshotTxOperation(State state) {
-        super(state);
+    public SnapshotTxOperation() {
     }
 
     @Override
     public void execute() {
+        if (!warned) {
+            System.err.printf("Snapshot TXN type is disabled, TODO.\n");
+        }
+        /*****
         long trimMark = state.getTrimMark();
         Random rand = new Random();
         long delta = (long) rand.nextInt(10) + 1;
@@ -38,5 +42,6 @@ public class SnapshotTxOperation extends Operation {
         }
 
         state.stopSnapshotTx();
+         *****/
     }
 }

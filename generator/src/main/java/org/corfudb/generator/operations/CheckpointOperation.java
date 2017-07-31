@@ -12,17 +12,18 @@ import lombok.extern.slf4j.Slf4j;
 public class CheckpointOperation extends Operation {
 
     public CheckpointOperation(State state) {
-        super(state);
+        // super(state);
     }
 
     @Override
     public void execute() {
+        System.err.printf("\nSLF: commented sleep in CheckpointOperation.execute\n");
         try {
             MultiCheckpointWriter mcw = new MultiCheckpointWriter();
             mcw.addAllMaps(state.getMaps());
             long trimAddress = mcw.appendCheckpoints(state.getRuntime(), "Maithem");
             state.setTrimMark(trimAddress);
-            Thread.sleep(1000 * 30 * 1);
+            // Thread.sleep(1000 * 30 * 1);
             state.getRuntime().getAddressSpaceView().prefixTrim(trimAddress - 1);
             state.getRuntime().getAddressSpaceView().gc();
             state.getRuntime().getAddressSpaceView().invalidateClientCache();

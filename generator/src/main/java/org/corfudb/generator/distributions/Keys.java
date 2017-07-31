@@ -24,7 +24,7 @@ public class Keys implements DataSet {
     @Override
     public void populate() {
         for (int x = 0; x < numKeys; x++) {
-            mapkeys.add(UUID.randomUUID().toString());
+            mapkeys.add(String.format("k%d", x));
         }
     }
 

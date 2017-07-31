@@ -24,12 +24,12 @@ public class Operations implements DataSet {
 
     public Operations(State state) {
         allOperations = ImmutableList.of(
-                new WriteOperation(state),
-                new ReadOperation(state),
-                new OptimisticTxOperation(state),
-                new SnapshotTxOperation(state),
-                new SleepOperation(state),
-                new RemoveOperation(state));
+                new WriteOperation(),
+                new ReadOperation(),
+                // new OptimisticTxOperation(),
+                // new SnapshotTxOperation(),
+                // new SleepOperation(state),
+                new RemoveOperation());
     }
 
     public void populate() {

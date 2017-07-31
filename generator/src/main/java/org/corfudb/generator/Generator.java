@@ -7,6 +7,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.corfudb.generator.operations.BaseOperation;
 import org.corfudb.generator.operations.CheckpointOperation;
 import org.corfudb.generator.operations.Operation;
 import org.corfudb.runtime.CorfuRuntime;
@@ -49,9 +50,11 @@ public class Generator {
             List<Operation> operations = state.getOperations().sample(numOperations);
             for (Operation operation : operations) {
                 try {
-                    operation.execute();
+                    BaseOperation base = new BaseOperation(state, operation);
+                    base.execute();
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    System.err.printf(".");
+                    // ex.printStackTrace();
                 }
             }
         };
@@ -59,15 +62,22 @@ public class Generator {
         Future[] appsFutures = new Future[numThreads];
 
         for (int x = 0; x < numThreads; x++) {
-            appsFutures[x] = appWorkers.submit(app);
+            final int xx = x;
+            appsFutures[x] = appWorkers.submit(() -> {
+                // Just a raw integer, in case Knossos doesn't like strings as process IDs
+                Thread.currentThread().setName(String.format("%d", xx));
+                app.run();
+            });
         }
 
         for (int x = 0; x < numThreads; x++) {
             try {
                 appsFutures[x].get();
+                System.err.printf("; Thread %d finished\n", x);
             } catch (Exception e) {
                 System.out.println("App Exception: " + e);
             }
         }
+        System.exit(0);
     }
 }

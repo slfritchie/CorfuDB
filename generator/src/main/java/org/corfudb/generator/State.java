@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.corfudb.generator.distributions.Keys;
 import org.corfudb.generator.distributions.OperationCount;
@@ -41,11 +42,13 @@ public class State {
     final CorfuRuntime runtime;
 
     @Getter
-    final Map<UUID, SMRMap> maps;
+    final Map<String, SMRMap> maps;
 
     @Getter
     @Setter
     volatile long trimMark = -1;
+
+    private AtomicLong systemTime = new AtomicLong(1);
 
     public State(int numStreams, int numKeys, CorfuRuntime rt) {
         streams = new Streams(numStreams);
@@ -65,23 +68,23 @@ public class State {
     }
 
     private void openObjects() {
-        for (UUID uuid : streams.getDataSet()) {
-            SMRMap<UUID, UUID> map = runtime.getObjectsView()
+        for (String uuid : streams.getDataSet()) {
+            SMRMap<String, String> map = runtime.getObjectsView()
                     .build()
-                    .setStreamID(uuid)
-                    .setTypeToken(new TypeToken<SMRMap<UUID,UUID>>() {})
+                    .setStreamID(UUID.randomUUID())
+                    .setTypeToken(new TypeToken<SMRMap<String,String>>() {})
                     .open();
 
             maps.put(uuid, map);
         }
     }
 
-    public Map<String, String> getMap(UUID uuid) {
-        Map map = maps.get(uuid);
+    public Map<String, String> getMap(String streamName) {
+        Map map = maps.get(streamName);
         if (map == null) {
             throw new RuntimeException("Map doesn't exist");
         }
-        return maps.get(uuid);
+        return maps.get(streamName);
     }
 
     public Collection<SMRMap> getMaps() {
@@ -106,5 +109,9 @@ public class State {
 
     public void stopSnapshotTx() {
         runtime.getObjectsView().TXEnd();
+    }
+
+    public long getSystemTime() {
+        return systemTime.getAndIncrement();
     }
 }
