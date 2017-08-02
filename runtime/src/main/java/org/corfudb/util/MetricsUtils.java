@@ -105,7 +105,7 @@ public class MetricsUtils {
                 }
                 return metricsReportingEnabled;
             };
-            CsvReporter reporter1 = CsvReporter.forRegistry(metrics)
+            MetricsAggregatedCsvReporter reporter1 = MetricsAggregatedCsvReporter.forRegistry(metrics)
                     .formatFor(Locale.US)
                     .convertRatesTo(TimeUnit.SECONDS)
                     .convertDurationsTo(TimeUnit.MILLISECONDS)
