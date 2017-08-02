@@ -45,111 +45,7 @@ public class MetricsAggregatedCsvReporter extends ScheduledReporter {
     private final Locale locale;
     private final Clock clock;
 
-    /**
-     * Returns a new {@link MetricsAggregatedCsvReporter.Builder} for {@link MetricsAggregatedCsvReporter}.
-     *
-     * @param registry the registry to report
-     * @return a {@link MetricsAggregatedCsvReporter.Builder} instance for a {@link MetricsAggregatedCsvReporter}
-     */
-    public static MetricsAggregatedCsvReporter.Builder forRegistry(MetricRegistry registry) {
-        return new Builder(registry);
-    }
-
-    /**
-     * A builder for {@link MetricsAggregatedCsvReporter} instances. Defaults to using the default locale, converting
-     * rates to events/second, converting durations to milliseconds, and not filtering metrics.
-     */
-    public static class Builder {
-        private final MetricRegistry registry;
-        private Locale locale;
-        private TimeUnit rateUnit;
-        private TimeUnit durationUnit;
-        private Clock clock;
-        private MetricFilter filter;
-
-        private Builder(MetricRegistry registry) {
-            this.registry = registry;
-            this.locale = Locale.getDefault();
-            this.rateUnit = TimeUnit.SECONDS;
-            this.durationUnit = TimeUnit.MILLISECONDS;
-            this.clock = Clock.defaultClock();
-            this.filter = MetricFilter.ALL;
-        }
-
-        /**
-         * Format numbers for the given {@link Locale}.
-         *
-         * @param locale a {@link Locale}
-         * @return {@code this}
-         */
-        public MetricsAggregatedCsvReporter.Builder formatFor(Locale locale) {
-            this.locale = locale;
-            return this;
-        }
-
-        /**
-         * Convert rates to the given time unit.
-         *
-         * @param rateUnit a unit of time
-         * @return {@code this}
-         */
-        public MetricsAggregatedCsvReporter.Builder convertRatesTo(TimeUnit rateUnit) {
-            this.rateUnit = rateUnit;
-            return this;
-        }
-
-        /**
-         * Convert durations to the given time unit.
-         *
-         * @param durationUnit a unit of time
-         * @return {@code this}
-         */
-        public MetricsAggregatedCsvReporter.Builder convertDurationsTo(TimeUnit durationUnit) {
-            this.durationUnit = durationUnit;
-            return this;
-        }
-
-        /**
-         * Use the given {@link Clock} instance for the time.
-         *
-         * @param clock a {@link Clock} instance
-         * @return {@code this}
-         */
-        public MetricsAggregatedCsvReporter.Builder withClock(Clock clock) {
-            this.clock = clock;
-            return this;
-        }
-
-        /**
-         * Only report metrics which match the given filter.
-         *
-         * @param filter a {@link MetricFilter}
-         * @return {@code this}
-         */
-        public MetricsAggregatedCsvReporter.Builder filter(MetricFilter filter) {
-            this.filter = filter;
-            return this;
-        }
-
-        /**
-         * Builds a {@link MetricsAggregatedCsvReporter} with the given properties, writing {@code .csv} files to the
-         * given directory.
-         *
-         * @param directory the directory in which the {@code .csv} files will be created
-         * @return a {@link MetricsAggregatedCsvReporter}
-         */
-        public MetricsAggregatedCsvReporter build(File directory) {
-            return new MetricsAggregatedCsvReporter(registry,
-                    directory,
-                    locale,
-                    rateUnit,
-                    durationUnit,
-                    clock,
-                    filter);
-        }
-    }
-
-    private MetricsAggregatedCsvReporter(MetricRegistry registry,
+    MetricsAggregatedCsvReporter(MetricRegistry registry,
                         File directory,
                         Locale locale,
                         TimeUnit rateUnit,
@@ -282,7 +178,6 @@ public class MetricsAggregatedCsvReporter extends ScheduledReporter {
     }
 
     protected String sanitize(String name) {
-        System.err.printf("sanitize '%s'\n", name);
         return name;
     }
 

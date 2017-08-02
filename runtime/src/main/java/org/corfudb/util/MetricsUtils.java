@@ -1,5 +1,6 @@
 package org.corfudb.util;
 
+import com.codahale.metrics.Clock;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.CsvReporter;
 import com.codahale.metrics.Gauge;
@@ -105,12 +106,10 @@ public class MetricsUtils {
                 }
                 return metricsReportingEnabled;
             };
-            MetricsAggregatedCsvReporter reporter1 = MetricsAggregatedCsvReporter.forRegistry(metrics)
-                    .formatFor(Locale.US)
-                    .convertRatesTo(TimeUnit.SECONDS)
-                    .convertDurationsTo(TimeUnit.MILLISECONDS)
-                    .filter(f)
-                    .build(statDir);
+            MetricsAggregatedCsvReporter reporter1 = new MetricsAggregatedCsvReporter(
+                    metrics, statDir, Locale.US,
+                    TimeUnit.SECONDS, TimeUnit.MILLISECONDS, Clock.defaultClock(),
+                    f);
             reporter1.start(interval, TimeUnit.SECONDS);
         }
     }
