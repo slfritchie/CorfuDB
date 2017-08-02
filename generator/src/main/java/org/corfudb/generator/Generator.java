@@ -62,7 +62,6 @@ public class Generator {
         System.out.printf("{:time 1 :type :invoke :f :txn :value [[:write :dummy 0]] :process 1}\n");
         System.out.printf("{:time 2 :type :ok :f :txn :value [[:write :dummy 0]] :process 1}\n");
 
-
         Future[] appsFutures = new Future[numThreads];
         for (int x = 0; x < numThreads; x++) {
             final int xx = x;
