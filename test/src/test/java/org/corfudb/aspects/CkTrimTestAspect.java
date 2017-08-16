@@ -236,15 +236,18 @@ public class CkTrimTestAspect {
 
     @Around("call(* java.lang.Thread.sleep(..))")
     public void substituteSleep(ProceedingJoinPoint pjp) {
+        final int HUNDRED = 100;
+        final int THOUSAND = 1000;
+        final long SEVERAL = 3L;
         Long arg = (Long) pjp.getArgs()[0];
         Long iters;
 
-        if (arg < 100) {
+        if (arg < HUNDRED) {
             iters = 1L;
-        } else if (arg < 1000) {
+        } else if (arg < THOUSAND) {
             iters = 2L;
         } else {
-            iters = 3L;
+            iters = SEVERAL;
         }
         ////System.err.printf("sleepIters(%d),", iters);
         for (int i = 0; i < iters; i++) {

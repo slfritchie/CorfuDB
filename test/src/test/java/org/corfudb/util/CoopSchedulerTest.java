@@ -13,8 +13,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.corfudb.AbstractCorfuTest.PARAMETERS;
 import static org.corfudb.util.CoopScheduler.sched;
 
+/**
+ *  Basic tests for the CoopScheduler.
+ */
 @Slf4j
 public class CoopSchedulerTest  {
+    private final int TEST_ITERS = 16;
 
     /**
      * Test the CoopScheduler under conditions where each scheduled thread
@@ -241,7 +245,7 @@ public class CoopSchedulerTest  {
         for (int i = 0; i < ts.length; i++) { ts[i].join(); }
 
         Object[] log = CoopScheduler.getLog();
-        printLog(log);
+        // printLog(log);
         return log;
     }
 
@@ -256,7 +260,7 @@ public class CoopSchedulerTest  {
                 .describedAs(failureDescription)
                 .isEqualTo(tnum);
 
-        for (int i = 0; i < 2*2*2*2; i++) {
+        for (int i = 0; i < TEST_ITERS; i++) {
             sched();
             long ts = lock.writeLock();
             CoopScheduler.appendLog(t + "->" + ts);
@@ -280,7 +284,7 @@ public class CoopSchedulerTest  {
                 .describedAs(failureDescription)
                 .isEqualTo(tnum);
 
-        for (int i = 0; i < 2*2*2*2; i++) {
+        for (int i = 0; i < TEST_ITERS; i++) {
             sched();
             long ts = lock.tryOptimisticRead();
             if (ts > 0) {

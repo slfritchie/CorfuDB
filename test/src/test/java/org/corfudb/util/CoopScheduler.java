@@ -128,12 +128,17 @@ public class CoopScheduler {
     /** Ordered list of events recorded by appendLog(). */
     private static List theLog;
 
+    private static final int RETRIES = 3;
+    private static final int ERRORS  = 5;
+
     /**
      * Reset the state of the scheduler.
      *
      * @param maxT Maximum number of schedulable threads.
      */
     public static void reset(int maxT) {
+        final int livelockCountDefault = 1_000_000;
+
         maxThreads = maxT;
         numThreads = 0;
         threadMap = ThreadLocal.withInitial(() -> -1);
@@ -145,7 +150,7 @@ public class CoopScheduler {
         }
         schedule = null;
         theLog = Collections.synchronizedList(new ArrayList<Object>());
-        livelockCount = 1_000_000;
+        livelockCount = livelockCountDefault;
     }
 
     /** Register a thread without preference for Coop thread number. */
@@ -163,11 +168,11 @@ public class CoopScheduler {
     public static int registerThread(int t) {
         synchronized (centralReady) {
             if (centralStopped == true) {
-                System.err.printf("Central scheduler has stopped scheduling, TODO\n");
+                System.err.printf("Central scheduler has stopped scheduling\n");
                 return -1;
             }
             if (threadMap.get() >= 0) {
-                System.err.printf("Thread already registered, TODO\n");
+                System.err.printf("Thread already registered\n");
                 return -1;
             }
             if (t < 0) {
@@ -175,7 +180,7 @@ public class CoopScheduler {
             } else {
                 // Caller asked for a specific number.  Let's avoid duplicates.
                 if (threadSet.contains(t)) {
-                    System.err.printf("Thread id %d already in use, TODO\n", t);
+                    System.err.printf("Thread id %d already in use\n", t);
                     return -1;
                 }
                 if (t >= numThreads) {
@@ -183,7 +188,7 @@ public class CoopScheduler {
                 }
             }
             if (t >= maxThreads) {
-                System.err.printf("Too many threads, %d >= %d, TODO\n", t, maxThreads);
+                System.err.printf("Too many threads, %d >= %d\n", t, maxThreads);
                 return -1;
             }
             threadMap.set(t);
@@ -282,9 +287,9 @@ public class CoopScheduler {
         try {
             sched(threadMap.get());
         } catch (Exception e) {
-            if (schedErrors++ < 3 && verbose > 0) {
+            if (schedErrors++ < RETRIES && verbose > 0) {
                 System.err.printf("ERROR: sched() exception %s\n", e.toString());
-            } else if (schedErrors < 5 && verbose > 0) {
+            } else if (schedErrors < ERRORS && verbose > 0) {
                 System.err.printf("sched() exception warnings suppressed\n");
             }
             return;
@@ -314,7 +319,6 @@ public class CoopScheduler {
                     threadStatus[t].ticks--;
                     if (threadStatus[t].ticks > 0) {
                         // We still have a tick remaining, don't pester scheduler yet.
-                        System.err.printf("SHOULD NOT HAPPEN TO t=%d\n", t);
                         return;
                     }
                 }
@@ -331,7 +335,7 @@ public class CoopScheduler {
                 }
             }
         } catch (InterruptedException e) {
-            System.err.printf("sched interrupted, TODO?\n");
+            System.err.printf("sched interrupted?\n");
             sched(t);
         }
     }
@@ -363,9 +367,9 @@ public class CoopScheduler {
         try {
             withdraw(threadMap.get());
         } catch (Exception e) {
-            if (schedErrors++ < 3 && verbose > 0) {
+            if (schedErrors++ < RETRIES && verbose > 0) {
                 System.err.printf("ERROR: withdraw() exception %s\n", e.toString());
-            } else if (schedErrors < 5 && verbose > 0) {
+            } else if (schedErrors < ERRORS && verbose > 0) {
                 System.err.printf("withdraw() exception warnings suppressed\n");
             }
             return;
@@ -404,9 +408,9 @@ public class CoopScheduler {
         try {
             rejoin(threadMap.get());
         } catch (Exception e) {
-            if (schedErrors++ < 3) {
+            if (schedErrors++ < RETRIES) {
                 System.err.printf("ERROR: rejoin() exception %s\n", e.toString());
-            } else if (schedErrors < 5 && verbose > 0) {
+            } else if (schedErrors < ERRORS && verbose > 0) {
                 System.err.printf("rejoin() exception warnings suppressed\n");
             }
             return;
@@ -464,7 +468,7 @@ public class CoopScheduler {
                     continue;
                 }
                 if (schedule[i].ticks < 1) {
-                    System.err.printf("TODO FIX ME Bad ticks value in schedule item %d: %d ticks\n",
+                    System.err.printf("ERROR: Bad ticks value in schedule item %d: %d ticks\n",
                             i, schedule[i].ticks);
                     return;
                 }
@@ -483,7 +487,7 @@ public class CoopScheduler {
                                 log.info("SCHED-WAIT1 {}", t);
                             }
                         } catch (InterruptedException e) {
-                            System.err.printf("TODO BUMMER FIX ME\n");
+                            System.err.printf("Unexpected InterruptedException\n");
                             return;
                         }
                     }
@@ -513,7 +517,7 @@ public class CoopScheduler {
                                 log.info("SCHED-WAIT2 {}", t);
                             }
                         } catch (InterruptedException e) {
-                            System.err.printf("TODO BUMMER FIX ME\n");
+                            System.err.printf("Unexpected InterruptedException %s\n", e);
                             return;
                         }
                     }
@@ -582,7 +586,8 @@ public class CoopScheduler {
     public static int[] makeSchedule(int maxThreads, int length) {
         int[] schedule = new int[length];
         final int winnerThisTime = 10;
-        boolean winnerPossible = RandomUtils.nextInt(100) < winnerThisTime;
+        final int HUNDRED = 100;
+        boolean winnerPossible = RandomUtils.nextInt(HUNDRED) < winnerThisTime;
         final int winnerProb = 10;
         final int winnerMaxLen = 200;
 

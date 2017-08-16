@@ -10,8 +10,21 @@ import org.corfudb.util.CoopScheduler;
 
 /**
  *  Just barely enough of a StampedLock API to try to use with
- *  Corfu's VersionLockedObject.  I've skimmed the StampedLock
- *  API docs a bit, what could possibly go wrong?
+ *  Corfu's VersionLockedObject.
+ *
+ *  Originally intended to be an almost-drop-in-replacement for
+ *  StampedObject for use by VersionLockedObject.java.  In that
+ *  use case, this version to allow deadlock-free use of the
+ *  Coop scheduler by lambdas and other code that were locked
+ *  and executed by VersionLockedObject::access.  In cases where
+ *  the Coop scheduler is not configured, the regular StampedLock
+ *  methods are used transparently (see NOTE below).
+ *  Also, in that use case, this class, CoopScheduler, and CoopUtils
+ *  were in the 'runtime' package instead of 'test'.
+ *
+ *  <p>This lock implementation is *not fair*.  It's worth noting
+ *  that the default Java default implementation of locks and
+ *  even synchronized are not fair, either.
  *
  *  <p>NOTE: This scheme can create situations were the lock is created in a
  *  non-CoopScheduler environment but then used under CoopScheduler control.

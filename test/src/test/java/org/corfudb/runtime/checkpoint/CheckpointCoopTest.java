@@ -11,13 +11,10 @@ import org.corfudb.runtime.exceptions.TrimmedException;
 import org.corfudb.runtime.exceptions.TrimmedUpcallException;
 import org.corfudb.runtime.object.AbstractObjectTest;
 import org.corfudb.util.CoopScheduler;
-// import org.jboss.byteman.contrib.bmunit.BMScript;
-// import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
 import org.corfudb.util.serializer.ISerializer;
 import org.corfudb.util.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -26,12 +23,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.corfudb.util.CoopScheduler.sched;
 
-// @RunWith(org.jboss.byteman.contrib.bmunit.BMUnitRunner.class)
+/**
+ * Version of CheckpointTest with main() function for testing
+ * via AspectJ and the CoopScheduler.
+ */
 @Slf4j
 public class CheckpointCoopTest extends AbstractObjectTest {
 
     @Getter
     CorfuRuntime myRuntime = null;
+
+    public static void main(String[] argv) {
+        try {
+            CheckpointCoopTest t = new CheckpointCoopTest();
+            t.periodicCkpointTrimTest_lots(argv.length > 0 && argv[0].contentEquals("fixed"));
+            System.exit(0);
+        } catch (Exception e) {
+            System.err.printf("ERROR: Caught exception %s at:\n", e);
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
 
     void setRuntime() {
         myRuntime = new CorfuRuntime(getDefaultConfigurationString()).connect();
@@ -39,7 +51,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         // address space cache's ConcurrentHashMap.  From inside a 'synchronized' block,
         // computeIfAbsent can trigger a Corfu read which can be CoopSched + yield'ed,
         // causing deadlock.  Our workaround is to disable that cache.
-        // TODO Figure out testing priority of runtime behavior + CoopSched with cache enabled.
         getMyRuntime().setCacheDisabled(true);
     }
 
@@ -205,18 +216,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
         }
     }
 
-    public static void main(String[] argv) {
-        try {
-            CheckpointCoopTest t = new CheckpointCoopTest();
-            t.periodicCkpointTrimTest_lots(argv.length > 0 && argv[0].contentEquals("fixed"));
-            System.exit(0);
-        } catch (Exception e) {
-            System.err.printf("ERROR: Caught exception %s at:\n", e);
-            e.printStackTrace();
-            System.exit(1);
-        }
-    }
-
     /**
      * this test is similar to periodicCkpointTest(), but adds simultaneous log prefix-trimming.
      * <p>
@@ -235,9 +234,6 @@ public class CheckpointCoopTest extends AbstractObjectTest {
      * @throws Exception
      */
 
-    // SLF: Oh, this one isn't necessary, neat. @BMUnitConfig(loadDirectory="target/test-classes")
-    // @BMScript(value="../foo.btm")
-    @SuppressWarnings("checkstyle:magicnumber")
     public void periodicCkpointTrimTest_lots(boolean fixedSchedule) throws Exception {
         final int T0 = 0, T1 = 1, T2 = 2, T3 = 3, T4 = 4, T5 = 5, T6 = 6;
         int numThreads = T6+1;

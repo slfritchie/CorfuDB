@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -18,9 +19,7 @@ import org.corfudb.protocols.logprotocol.SMREntry;
 import org.corfudb.runtime.exceptions.NoRollbackException;
 import org.corfudb.runtime.object.transactions.WriteSetSMRStream;
 import org.corfudb.runtime.view.Address;
-import org.corfudb.util.CoopStampedLock;
 import org.corfudb.util.Utils;
-import static org.corfudb.util.CoopScheduler.sched;
 
 //TODO Discard TransactionStream for building maps but not for constructing tails
 
@@ -75,7 +74,7 @@ public class VersionLockedObject<T> {
      * the object. Any access to unsafe methods should
      * obtain the lock.
      */
-    private final CoopStampedLock lock;
+    private final StampedLock lock;
 
     /**
      * The stream view this object is backed by.
@@ -142,7 +141,7 @@ public class VersionLockedObject<T> {
         this.pendingUpcalls = new ConcurrentSet<>();
         this.upcallResults = new ConcurrentHashMap<>();
 
-        lock = new CoopStampedLock();
+        lock = new StampedLock();
     }
 
     /**
@@ -415,7 +414,6 @@ public class VersionLockedObject<T> {
     /**
      * Reset this object to the uninitialized state.
      */
-
     public void resetUnsafe() {
         log.debug("Reset[{}]", this);
         object = newObjectFn.get();
@@ -641,4 +639,5 @@ public class VersionLockedObject<T> {
         applyUpdateUnsafe(entry);
         seek(globalAddress + 1);
     }
+
 }

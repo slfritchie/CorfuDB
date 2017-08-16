@@ -25,7 +25,6 @@ import org.corfudb.runtime.object.ICorfuSMRProxyInternal;
 import org.corfudb.runtime.object.VersionLockedObject;
 
 import static org.corfudb.runtime.view.ObjectsView.TRANSACTION_STREAM_ID;
-import static org.corfudb.util.CoopScheduler.sched;
 
 /** A Corfu optimistic transaction context.
  *
@@ -396,15 +395,5 @@ public class OptimisticTransactionalContext extends AbstractTransactionalContext
             log.trace("SnapshotTimestamp[{}] {}", this, currentTail);
             return currentTail;
         }
-    }
-
-    private boolean alwaysFalse() {
-        this.aspectFunc();
-        return false;
-    }
-
-    /** Empty function for use solely for AspectJ code injection */
-    private void aspectFunc() {
-        return;
     }
 }

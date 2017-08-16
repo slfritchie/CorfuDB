@@ -103,7 +103,7 @@ public class CoopUtil {
         lock.set(1);
     }
 
-    private static void unlock(AtomicInteger lock) {
+    public static void unlock(AtomicInteger lock) {
         lock.set(0);
     }
 
@@ -112,7 +112,7 @@ public class CoopUtil {
     }
 
     /** Simulate CountDownLatch::await. */
-    private static boolean await(AtomicInteger lock, AtomicInteger cond, long tries) {
+    public static boolean await(AtomicInteger lock, AtomicInteger cond, long tries) {
         while (tries-- > 0 && cond.get() == 0) {
             unlock(lock);
             sched();

@@ -33,9 +33,6 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
 
     public static void main(String[] argv) {
         try {
-            String y = System.getProperty("java.class.path");
-            System.err.printf("java.class.path y = %s\n", y);
-
             StreamSeekAtomicityTest t = new StreamSeekAtomicityTest();
             // @Before items
             t.clearTestStatus();
@@ -94,7 +91,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
                 // wait for it to be undon
                 TXEnd();
             }
-            System.err.printf("0 finished,");
+            // System.err.printf("0 finished,");
             // signal done
             commitDone.set(true);
 
@@ -124,7 +121,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
                 //System.err.printf("1");
                 testMap1.get(1L);
             }
-            System.err.printf("1 finished,");
+            // System.err.printf("1 finished,");
         });
 
         // thread that keeps syncing with the tail of log
@@ -142,7 +139,7 @@ public class StreamSeekAtomicityTest extends AbstractTransactionsTest {
                 //System.err.printf("2");
                 testMap1.get(1L);
             }
-            System.err.printf("2 finished,");
+            // System.err.printf("2 finished,");
         });
 
         BiConsumer whenFails = (exception, failedSignal) -> {

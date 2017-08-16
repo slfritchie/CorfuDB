@@ -7,9 +7,12 @@ import org.corfudb.util.CoopScheduler;
 import org.corfudb.util.CoopUtil;
 import org.junit.Test;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.corfudb.AbstractCorfuTest.SERVERS;
 import static org.corfudb.util.CoopScheduler.sched;
 
+/**
+ * Version of CorfuSMRObjectConcurrencyTest with main() function for testing
+ * via AspectJ and the CoopScheduler.
+ */
 public class CorfuSmrObjectConcurrencyCoopTest extends AbstractObjectTest {
     int concurrency = PARAMETERS.CONCURRENCY_SOME * 2;
     int writeconcurrency = PARAMETERS.CONCURRENCY_SOME;
@@ -29,12 +32,11 @@ public class CorfuSmrObjectConcurrencyCoopTest extends AbstractObjectTest {
         }
     }
 
-    @SuppressWarnings("checkstyle:magicnumber")
     public void testCorfuSharedCounterConcurrentReads_lots() throws Exception {
         ArrayList<Object[]> logs = new ArrayList<>();
-        final int numTests = 20;
+        final int NUM_TESTS = 20;
 
-        for (int i = 0; i < numTests; i++) {
+        for (int i = 0; i < NUM_TESTS; i++) {
             // System.err.printf("Iter %d, thread count = %d\n", i, Thread.getAllStackTraces().size());
             System.err.printf(".");
 
