@@ -6,7 +6,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.corfudb.util.CoopScheduler.sched;
 
@@ -52,8 +51,11 @@ public class CoopUtil {
         return executeScheduled(null);
     }
 
+    /**
+     * Execute any threads which were scheduled to run.
+     */
     public boolean executeScheduled(BiConsumer exceptionLambda) throws Exception {
-        Thread ts[] = new Thread[scheduledThreads.size()];
+        Thread[] ts = new Thread[scheduledThreads.size()];
         AtomicBoolean failed = new AtomicBoolean(false);
 
         for (int i = 0; i < scheduledThreads.size(); i++) {
@@ -81,16 +83,19 @@ public class CoopUtil {
         return failed.get();
     }
 
+    /** Simulate CountDownLatch::countDown(). */
     public static void barrierCountdown(AtomicInteger barrier) {
         barrier.getAndIncrement();
     }
 
+    /** Simulate CountDownLatch::await(). */
     public static void barrierAwait(AtomicInteger barrier, int max) {
         while (barrier.get() < max) {
             sched();
         }
     }
 
+    /** Simulate Java lock. */
     public static void lock(AtomicInteger lock) {
         while (lock.get() != 0) {
             sched();
@@ -98,7 +103,7 @@ public class CoopUtil {
         lock.set(1);
     }
 
-    public static void unlock(AtomicInteger lock) {
+    private static void unlock(AtomicInteger lock) {
         lock.set(0);
     }
 
@@ -106,7 +111,8 @@ public class CoopUtil {
         await(lock, cond, Long.MAX_VALUE);
     }
 
-    public static boolean await(AtomicInteger lock, AtomicInteger cond, long tries) {
+    /** Simulate CountDownLatch::await. */
+    private static boolean await(AtomicInteger lock, AtomicInteger cond, long tries) {
         while (tries-- > 0 && cond.get() == 0) {
             unlock(lock);
             sched();
