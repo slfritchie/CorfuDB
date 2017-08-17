@@ -1,10 +1,12 @@
 package org.corfudb.util;
 
 import com.brein.time.timeintervals.intervals.IInterval;
+
+import java.util.Set;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.Set;
 
 /**
  * Store sets of log intervals that are stored by a replica set.

@@ -5,20 +5,26 @@ import com.brein.time.timeintervals.indexes.IntervalTree;
 import com.brein.time.timeintervals.indexes.IntervalTreeBuilder;
 import com.brein.time.timeintervals.intervals.IInterval;
 import com.brein.time.timeintervals.intervals.LongInterval;
-import lombok.Getter;
-import lombok.Setter;
-import org.corfudb.runtime.CorfuRuntime;
-import org.corfudb.runtime.collections.SMRMap;
-import org.corfudb.runtime.view.Layout;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.corfudb.runtime.CorfuRuntime;
+import org.corfudb.runtime.collections.SMRMap;
+import org.corfudb.runtime.view.Layout;
+
 
 /**
  * Corfu global log scanner & replica repair.
@@ -33,10 +39,10 @@ public class RepairScanner {
     private Random random = new Random();
     @Getter
     @Setter
-    private long workerTimeoutSeconds = 1; // TODO: put me back: (5*60);
+    private long workerTimeoutSeconds = 5 * 60;
     @Getter
     @Setter
-    private long batchSize = 2; // TODO: put me back: 5000
+    private long batchSize = 5000;
 
     // Map<IInterval<Long>, Set<String>>
     private final String keyHealthyMap = "Healthy map";
@@ -47,6 +53,10 @@ public class RepairScanner {
     // Map<Long, CorfuLayout>
     private final String keyLayoutMap = "Layout archive map";
 
+    /** New RepairScanner.
+     *
+     * @param rt CorfuRuntime
+     */
     public RepairScanner(CorfuRuntime rt) {
         this.rt = rt;
         globalState = rt.getObjectsView().build()
