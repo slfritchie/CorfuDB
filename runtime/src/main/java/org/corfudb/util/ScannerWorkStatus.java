@@ -1,11 +1,12 @@
 package org.corfudb.util;
 
 import com.brein.time.timeintervals.intervals.IInterval;
+
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 /**
  * Store state for individual worker threads as they scan

@@ -18,9 +18,8 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- *
+ *  Basic test suite for RepairScanner.
  */
-
 public class RepairScannerTest extends AbstractTransactionsTest {
 
     @Override
@@ -177,7 +176,8 @@ public class RepairScannerTest extends AbstractTransactionsTest {
         // global working list must be the equivalent to the
         // otherActiveWorkers set.
         assertThat(rs.getWorkingMap().values().stream()
-        .map(x -> x.getInterval()).collect(Collectors.toSet())).isEqualTo(otherActiveWorkers);
+                        .map(x -> x.getInterval()).collect(Collectors.toSet()))
+                .isEqualTo(otherActiveWorkers);
         // System.err.printf("FINAL unknown map keys: %s\n", rs.getUnknownMap().keySet());
     }
 
